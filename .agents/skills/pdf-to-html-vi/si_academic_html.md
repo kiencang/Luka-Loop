@@ -98,11 +98,12 @@ Trước khi dịch, phải phân tích toàn diện cấu trúc logic, nội du
   - **CẢNH BÁO KỸ THUẬT (NGHIÊM NGẶT):** Trong **LaTeX** (`\(...\)`, `\[...\]`) và trong **Code HTML/CSS/SVG/JS** (`margin: 1.5rem`, `viewBox="0 0 10.5 20"`, `stroke-width="1.2"`), **TUYỆT ĐỐI giữ nguyên dấu chấm (`.`)** cho số thập phân.
 - **Ngày tháng:** `DD/MM/YYYY` hoặc `ngày DD tháng MM năm YYYY` (`October 26, 2023` $\rightarrow$ `26/10/2023` hoặc `ngày 26 tháng 10 năm 2023`).
 - **Thuật ngữ chuyên ngành (Ưu tiên #1A — Chính xác & Chuẩn hóa Học thuật):**
-  - Luôn dùng thuật ngữ tiếng Việt đã chuẩn hóa và được cộng đồng học thuật Việt Nam công nhận rộng rãi (tham khảo từ điển chuyên ngành, ấn phẩm uy tín); chọn phương án phù hợp nhất với ngữ cảnh chuyên sâu.
+  - Luôn dùng thuật ngữ tiếng Việt đã chuẩn hóa và được cộng đồng học thuật Việt Nam công nhận rộng rãi (tham khảo từ điển chuyên ngành, ấn phẩm uy tín); chọn phương án phù hợp nhất với ngữ cảnh chuyên sâu. Với thuật ngữ chuyên môn sâu dễ gây nhầm lẫn (Y sinh, Cơ khí, Luật, Tài chính...), có thể mở ngoặc kèm tên tiếng Anh gốc ở lần xuất hiện đầu tiên để hỗ trợ đối chiếu (vd: *tư thế ghế bãi biển (beach chair position)*).
   - **Khi không có thuật ngữ Việt tương đương rõ ràng hoặc gây tranh cãi:** Giữ nguyên thuật ngữ tiếng Anh gốc (tránh tuyệt đối dịch *word-for-word*) và cân nhắc giải thích ngắn gọn bằng tiếng Việt ngay sau **lần xuất hiện đầu tiên** (vd: `...sử dụng phương pháp *gradient descent* (kỹ thuật tối ưu dựa trên đạo hàm)...`).
   - **Viết tắt (*Acronyms/Abbreviations*):** Lần đầu ghi đầy đủ + viết tắt (`Mạng Nơ-ron Sâu (DNN)`), các lần sau dùng `DNN`. Nếu chỉ có dạng viết tắt không định nghĩa trong bài, giữ nguyên và giải thích ngắn lần đầu nếu cần. Các từ viết tắt quốc tế phổ thông (`UNESCO`, `ASEAN`, `WHO`, `UNICEF`, `NATO`, `FBI`, `AI`, `CEO`...) giữ nguyên trực tiếp không cần dịch tên đầy đủ.
   - **Trích dẫn & Tiêu đề khoa học:** Bảo toàn nguyên vẹn trích dẫn trong câu (`[1, 3-5]`, `(Smith et al., 2021)` $\rightarrow$ `(Smith và cộng sự, 2021)`). Chuẩn hóa tiền tố: `Figure/Fig.` $\rightarrow$ `Hình`; `Table` $\rightarrow$ `Bảng`; `Equation/Eq.` $\rightarrow$ `Phương trình`.
   - **Nhất quán tuyệt đối & Danh pháp khoa học:** Một phương án thuật ngữ đã chọn phải dùng đồng bộ từ đầu đến cuối tài liệu; danh pháp khoa học Latin (loài, hợp chất...) giữ nguyên chuẩn quốc tế trừ khi có tên Việt hóa chuẩn hóa rộng rãi.
+  - **Khử gạch nối ngắt dòng & Ký hiệu PDF:** Khi nối câu từ PDF, ghép liền các từ bị ngắt dòng bằng dấu gạch nối (vd: `arthro-` + `scopic` $\rightarrow$ `arthroscopic`), giữ nguyên từ ghép thực thụ; đồng thời đối chiếu kỹ ảnh trang gốc để không làm rơi/sai chữ Hy Lạp (`α`, `β`, `μ`, `Δ`), ký hiệu toán học (`±`, `≤`, `≥`) hay chỉ số hóa học (`CO₂`, `H₂O`, `Fe³⁺`).
 
 ---
 
@@ -110,19 +111,19 @@ Trước khi dịch, phải phân tích toàn diện cấu trúc logic, nội du
 
 ### 4.1 Khung CSS Nội dung & Bảo vệ Layout Học thuật (Bắt buộc)
 - **Màn hình lớn & Font chữ:** Tập trung tối ưu cao nhất cho màn hình desktop/laptop; đặt kích thước font nội dung chính dễ đọc (`18px`, tối thiểu `14px`), ưu tiên font web hiển thị tiếng Việt sắc nét (**Sans-serif:** `Noto Sans`, `Roboto`, `Open Sans`, `Lato`, `Arial`, `Verdana`; **Serif cho tiêu đề trang trọng nếu cần:** `Noto Serif`, `Lora`). Hạn chế `font-size` inline cho từng thẻ `<p>`, chỉ dùng CSS tập trung trong `<style>`.
-- **Chèn đầy đủ bộ CSS nội dung dưới đây vào `<head>`** (có thể bổ sung class phụ cho banner, thẻ ghi chú... nhưng **KHÔNG** dùng inline CSS ghi đè làm mất `max-width: 100%`, `overflow-x: auto`, `overflow-wrap: break-word`; lưu ý giữ nguyên hệ biến màu `--bg`, `--surface`, `--text`, `--muted`, `--accent`, `--border` và `body[data-theme="sepia|dark"]`):
+- **Chèn đầy đủ bộ CSS nội dung dưới đây vào `<head>`:** Giữ nguyên các thuộc tính nền tảng của `body` (`max-width: 740px`, `font-size`, `line-height`), hệ biến màu (`--bg`, `--surface`, `--text`, `--muted`, `--accent`, `--border`, `--code-bg`) và `body[data-theme="sepia|dark"]`. Có thể bổ sung class phụ nếu cần, nhưng **BẮT BUỘC dùng hệ biến màu trên** thay cho màu cứng (`#000`, `#fff`...) để tương thích cả 3 giao diện Sáng / Dịu mắt / Tối, và **KHÔNG** dùng inline CSS ghi đè làm mất `max-width: 100%`, `overflow-x: auto`, `overflow-wrap: break-word`:
 
 ```css
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
 
 :root {
-    --bg: #ffffff;
-    --surface: #f8f9fa;
+    --bg: #fafaf9;
+    --surface: #f3f2ee;
     --text: #222222;
     --muted: #555555;
     --accent: #0369a1;
-    --border: #dddddd;
-    --code-bg: #f4f5f7;
+    --border: #dcdad3;
+    --code-bg: #efeeea;
 }
 body[data-theme="sepia"] {
     --bg: #f6f1e3;
@@ -134,13 +135,13 @@ body[data-theme="sepia"] {
     --code-bg: #ebe2cb;
 }
 body[data-theme="dark"] {
-    --bg: #12161c;
-    --surface: #1b222c;
-    --text: #e6edf3;
-    --muted: #9aa6b2;
-    --accent: #58a6ff;
-    --border: #30363d;
-    --code-bg: #1e2631;
+    --bg: #181c22;
+    --surface: #21262e;
+    --text: #cdd5df;
+    --muted: #98a4b3;
+    --accent: #68b0ff;
+    --border: #343b46;
+    --code-bg: #242a33;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -150,7 +151,7 @@ body {
     line-height: 1.6;
     color: var(--text);
     background-color: var(--bg);
-    max-width: 900px;
+    max-width: 740px;
     margin: 0 auto;
     padding: 20px;
     overflow-wrap: break-word;
@@ -162,6 +163,7 @@ img, svg, video { max-width: 100%; height: auto; object-fit: contain; display: b
 /* Hình ảnh & chú thích */
 figure { margin: 1.8rem 0; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 figure img { margin: 0.4rem auto 0.9rem; border-radius: 4px; }
+body[data-theme="dark"] figure img { filter: brightness(0.9) contrast(1.04); }
 figcaption { font-size: 0.93rem; color: var(--muted); line-height: 1.5; }
 
 /* Bảo vệ Bảng */
@@ -175,8 +177,17 @@ th { background-color: var(--surface); font-weight: bold; }
 .grid-2col { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; align-items: start; }
 .grid-3col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; align-items: start; }
 .grid-4col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; align-items: start; }
+.grid-2col > *, .grid-3col > *, .grid-4col > * { min-width: 0; }
 .flex-columns { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1.5rem; }
 .flex-column-item { flex: 1; min-width: 300px; }
+
+/* Khối trích dẫn, ghi chú & tài liệu tham khảo */
+blockquote, .callout-box { margin: 1.5rem 0; padding: 0.9rem 1.2rem; background: var(--surface); border-left: 4px solid var(--accent); border-radius: 0 6px 6px 0; }
+.callout-box.is-warning { border-left-color: #d97706; }
+.table-note { font-size: 0.9rem; color: var(--muted); margin: -1rem 0 1.5rem; }
+ul.ref-list { list-style: none; padding-left: 0; }
+ul.ref-list li { padding-left: 2em; text-indent: -2em; margin-bottom: 0.6em; }
+.ref-list li, .footnotes li { overflow-wrap: anywhere; }
 
 /* Bảo vệ Code Blocks & Text nguyên bản */
 pre { background-color: var(--code-bg); padding: 15px; overflow-x: auto; border-radius: 4px; border: 1px solid var(--border); }
@@ -191,8 +202,9 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; line-heigh
     :root, body[data-theme="dark"], body[data-theme="sepia"] {
         --bg: #ffffff; --surface: #f8f9fa; --text: #000000; --muted: #444444; --border: #cccccc; --code-bg: #f4f5f7;
     }
-    body { background: #ffffff !important; color: #000000 !important; max-width: 100%; padding: 0; }
-    figure, tr, .caveat-box, pre { break-inside: avoid; page-break-inside: avoid; }
+    body { background: #ffffff !important; color: #000000 !important; max-width: 100% !important; padding: 0; }
+    body[data-theme="dark"] figure img { filter: none !important; }
+    figure, tr, .caveat-box, .callout-box, blockquote, pre { break-inside: avoid; page-break-inside: avoid; }
 }
 ```
 
@@ -202,14 +214,14 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; line-heigh
 - **Mã sạch, hợp chuẩn W3C & Ngữ nghĩa:** Viết mã tinh gọn, loại bỏ thẻ/CSS lặp thừa; đủ thẻ đóng/mở và lồng thẻ đúng chuẩn; dùng `<article>`, `<section>`, `<header>`, `<footer>`, `<aside>`, `<figure>`, `<figcaption>`, `<h1>`–`<h6>`.
 - **Luồng 1 cột duy nhất:** Mọi bài báo/luận văn/tài liệu dài chia 2–3 cột trên PDF **BẮT BUỘC gộp thành 1 cột**.
 - **Ngoại lệ nội dung phụ/bổ trợ:** Nếu tài liệu gốc đã là 1 cột và chỉ có một phần nội dung phụ chia 2–3 cột, giữ nguyên số cột cho riêng phần đó bằng `.grid-2col`, `.grid-3col`, `.flex-columns` (không tự ý đổi số cột làm nát không gian); nếu có nguy cơ chữ lấn đè nhau thì bắt buộc gộp về 1 cột.
-- **Header/Footer lặp:** Nhận diện và loại bỏ/gom nhóm hợp lý các header/footer chèn ngang làm đứt gãy đoạn văn gốc để đảm bảo tính liên tục; chỉ giữ header/footer mang nội dung thực.
-- **Bảng biểu (`<table>`):** Mọi `<table>` **BẮT BUỘC** bọc trong `<div class="table-wrapper">`, dùng đầy đủ `<thead>`, `<tbody>`, `<tr>`, `<th scope="col|row">`, `<td>`, áp dụng `class="ws-nowrap"` cho các ô chứa số liệu, mã số, ngày tháng ngắn để ép thanh cuộn ngang thay vì bóp rớt dòng. Có thể đơn giản hóa bảng quá rối, hoặc chuyển sang danh sách (`<ul>`, `<ol>`) / thẻ `<p>` có cấu trúc nếu bảng gộp ô chồng chéo gây nguy cơ vỡ HTML, miễn bảo toàn mối liên hệ logic dữ liệu.
+- **Header/Footer lặp & Chú thích cuối trang (`Footnotes`):** Nhận diện và loại bỏ/gom nhóm hợp lý các header/footer chèn ngang làm đứt gãy đoạn văn gốc; tách chú thích cuối trang ra khỏi giữa đoạn văn đang dở để gom về cuối `<section>` hoặc cuối bài (`<aside class="footnotes">` / `<ol>`) nhằm bảo toàn tính liên tục, chỉ giữ header/footer mang nội dung thực.
+- **Bảng biểu (`<table>`):** Mọi `<table>` **BẮT BUỘC** bọc trong `<div class="table-wrapper">`, dùng đầy đủ `<thead>`, `<tbody>`, `<tr>`, `<th scope="col|row">`, `<td>`, áp dụng `class="ws-nowrap"` cho các ô chứa số liệu, mã số, ngày tháng ngắn để ép thanh cuộn ngang thay vì bóp rớt dòng. Nếu bảng có ghi chú ký hiệu (`*`, `†`, `a, b`), đặt gọn trong `<tfoot>` hoặc `<p class="table-note">` ngay bên dưới `.table-wrapper`. Có thể đơn giản hóa bảng quá rối, hoặc chuyển sang danh sách (`<ul>`, `<ol>`) / thẻ `<p>` có cấu trúc nếu bảng gộp ô chồng chéo gây nguy cơ vỡ HTML, miễn bảo toàn mối liên hệ logic dữ liệu.
 
 ### 4.3 Hình ảnh & Sơ đồ
 - **Tuyệt đối không bỏ sót ảnh nào** từ `work/assets/manifest.json` (`assets/fig_pX_Y.png`), đặt đúng vị trí ngữ cảnh trong `<figure>` kèm `alt` tiếng Việt mô tả rõ nội dung/mục đích (ảnh trang trí thuần túy dùng `alt=""`).
 - **Tiêu chí đánh giá độc lập từng sơ đồ/biểu đồ chứa text:**
   - Việc quyết định sơ đồ A tái tạo bằng HTML/CSS còn sơ đồ B giữ nguyên ảnh gốc là hoàn toàn hợp lệ — đánh giá độc lập theo từng ảnh cụ thể.
-  - Nếu tái tạo bằng HTML/CSS mà không vỡ bố cục và bảo toàn thông tin cốt lõi tương đương ảnh gốc $\rightarrow$ **nỗ lực tối đa để tái tạo**, dịch text trong hình và dùng CSS định vị khéo léo, linh hoạt (chỉnh `font-size` nếu cần) sao cho không tràn hay che khuất thông tin quan trọng.
+  - Nếu tái tạo bằng HTML/CSS mà không vỡ bố cục và bảo toàn thông tin cốt lõi tương đương ảnh gốc $\rightarrow$ **nỗ lực tối đa để tái tạo**, dịch text trong hình và dùng CSS định vị khéo léo, linh hoạt (chỉnh `font-size` nếu cần, dùng biến CSS theo theme) sao cho không tràn hay che khuất thông tin quan trọng. Tuyệt đối không tự bịa số liệu hay lược bớt nhãn chữ khi tái tạo.
   - Ngược lại, nếu việc tái tạo dễ vỡ bố cục hoặc không thể truyền tải tương đương $\rightarrow$ **giữ nguyên ảnh gốc** (`<img src="assets/fig_pX_Y.png" alt="...">`) và dịch đầy đủ nhãn chú thích trong `<figcaption>`.
 
 ### 4.4 Công thức Toán học (MathJax + LaTeX)
@@ -224,11 +236,12 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; line-heigh
 ### 4.5 Tài liệu Tham khảo (`References` / `Bibliography`)
 - Bảo toàn tuyệt đối tính nguyên vẹn và khả năng truy xuất: **KHÔNG DỊCH** tên tác giả, năm xuất bản, tiêu đề bài báo/sách/luận văn/báo cáo, tên tạp chí/hội nghị/NXB, tập/số/trang, DOI/ISBN/ISSN/PMID, URLs.
 - Chỉ dịch phần **ghi chú/mô tả bình luận thêm** do *chính tác giả tài liệu gốc* viết (nếu có).
-- Giữ nguyên danh sách (`<ul>`/`<ol>` + `<li>`), tái tạo chính xác định dạng `<strong>`/`<em>` như gốc, chuyển mọi **URL / DOI** thành liên kết `<a href="..." target="_blank" rel="noopener">` nhấp được, và cố gắng giữ trình bày trực quan (như thụt lề dòng thứ hai bằng CSS) nếu không ảnh hưởng khả năng đọc.
+- Giữ nguyên danh sách (`<ul>`/`<ol>` + `<li>`), tái tạo chính xác định dạng `<strong>`/`<em>` như gốc, chuyển mọi **URL / DOI** thành liên kết `<a href="..." target="_blank" rel="noopener">` nhấp được, và cố gắng giữ trình bày trực quan (dùng `ul.ref-list` nếu cần thụt lề dòng thứ hai kiểu *hanging indent*) nếu không ảnh hưởng khả năng đọc.
 
 ---
 
 ## 5. Tự Kiểm định Nội bộ (Internal QA) trước khi Đóng gói
 Trước khi chạy `EmbedImages ... -AlsoPdf`, rà lại `work\draft.html`:
-1. Văn phong tiếng Việt có trôi chảy, thoát ly trật tự từ tiếng Anh nhưng bảo toàn nguyên vẹn khẳng định/nhân quả/hedging/ngôi xưng/thuật ngữ nhất quán không?
-2. Mã HTML sạch, hợp chuẩn W3C (`<!DOCTYPE html>` ... `</html>`), có đủ `<head>...</head>` và `<body>...</body>` kèm thẻ ngữ nghĩa chuẩn (`<header>`, `<h1>`–`<h3>`, `<figure><img><figcaption>`) để lớp vỏ tương tác ở Bước 4 gắn đúng vị trí, mọi `<table>` nằm trong `<div class="table-wrapper">` kèm `scope`, không thiếu `alt` cho `<img>`, có MathJax `<script>` nếu bài dùng LaTeX, và không bị tràn ngang?
+1. Văn phong tiếng Việt có trôi chảy, thoát ly trật tự từ tiếng Anh nhưng bảo toàn nguyên vẹn khẳng định/nhân quả/hedging/ngôi xưng/thuật ngữ nhất quán, đã khử gạch nối ngắt dòng PDF (`esti- mation`) và giữ đúng chữ Hy Lạp/chỉ số khoa học chưa?
+2. Đã gom đúng vị trí cho chú thích cuối trang (`Footnotes`) và ghi chú bảng (`Table Notes`), không làm đứt đoạn văn và không bỏ sót ảnh nào từ `manifest.json`?
+3. Mã HTML sạch, hợp chuẩn W3C (`<!DOCTYPE html>` ... `</html>`), giữ nguyên thuộc tính nền tảng của `body` và hệ biến màu tương thích cả 3 giao diện (`light`/`sepia`/`dark` — không gán màu cứng làm hỏng chế độ Tối), có đủ `<head>...</head>` và `<body>...</body>` kèm thẻ ngữ nghĩa chuẩn (`<header>`, `<h1>`–`<h3>`, `<figure><img><figcaption>`), mọi `<table>` nằm trong `<div class="table-wrapper">` kèm `scope`, không thiếu `alt` cho `<img>`, có MathJax `<script>` nếu bài dùng LaTeX, và không bị tràn ngang?

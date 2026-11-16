@@ -11,7 +11,7 @@ Quy trình 4 bước tự động hoàn toàn (người dùng **không cần gõ
 > **QUY TẮC CỨNG (KHÔNG DÙNG PYTHON HỆ THỐNG):** **Tuyệt đối KHÔNG gọi `python`, `python3`, `py`, `pip`** hoặc chạy tệp nguồn tham khảo `tools\src\extract_assets.py`. Mọi thao tác tách ảnh, fallback scan và đóng gói đều chạy bằng công cụ portable (`tools\extract_pdf_assets.ps1` gọi `extract_assets.exe`, `tools\pdf_fallback_tools.ps1` và `tools\html_packager.ps1`).
 
 ## Bước 1: Tự động tách ảnh & tạo bản đồ `manifest.json`
-> **Tối ưu song song:** Ngay trong lượt thực thi Bước 1, gọi **đồng thời** lệnh tách ảnh dưới đây và `read_file` đọc **trọn 1 lần** [si_academic_html.md](./si_academic_html.md) (**không** truyền `StartLine`/`EndLine` vì tệp chỉ ~234 dòng / ~26 KB, nằm gọn trong giới hạn 800 dòng / 46 KB của `read_file`).
+> **Tối ưu song song:** Ngay trong lượt thực thi Bước 1, gọi **đồng thời** lệnh tách ảnh dưới đây và `read_file` đọc **trọn 1 lần** [si_academic_html.md](./si_academic_html.md) (**không** truyền `StartLine`/`EndLine` vì tệp chỉ ~245 dòng / ~28 KB, nằm gọn trong giới hạn 800 dòng / 46 KB của `read_file`).
 
 Chọn 1 trong 2 lệnh sau tùy cách người dùng cung cấp tệp PDF:
 
