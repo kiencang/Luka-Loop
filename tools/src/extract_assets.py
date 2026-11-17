@@ -26,20 +26,34 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 import pymupdf
 
 
 _LEAD_TRIM_RE = re.compile(r"^[\s•·▪▫▶►▸●○■□.\-–—*:]+")
+_OPT_SUPP_PREFIX = r"(?:(?i:supplementary|extended\s+data|appendix)\s+)?"
+_CAPTION_ID_BODY = (
+    r"(?:(?:\s+|(?<=\.)\s*)(?:\d+(?:[.\-]\d+)*(?:[a-zA-Z])?|[IVXLCDM]+|[SA-Z]\.?\d+(?:[.\-]\d+)*(?:[a-zA-Z])?)"
+    r"|\d+(?:[.\-]\d+)*(?:[a-zA-Z])?)"
+)
+_CAPTION_BOUNDARY = r"(?=$|[\s.:;\-–—|)\],])"
 _FIG_CAPTION_RE = re.compile(
-    r"^(figures?|figs?\.?|hình|sơđồ|biểudồ|scheme|chart|plate|diagram)\s*[\dIVX]+",
-    re.IGNORECASE,
+    rf"^{_OPT_SUPP_PREFIX}"
+    r"(?i:figures?|figs?\.?|hình(?:\s+(?:ảnh|minh\s+họa))?|sơ\s*đồ|biểu\s*đồ|scheme|chart|plate|diagram)"
+    rf"{_CAPTION_ID_BODY}{_CAPTION_BOUNDARY}"
 )
 _TAB_CAPTION_RE = re.compile(
-    r"^(tables?|tabs?\.?|bảng)\s*[\dIVX]+",
+    rf"^{_OPT_SUPP_PREFIX}"
+    r"(?i:tables?|tabs?\.?|bảng)"
+    rf"{_CAPTION_ID_BODY}{_CAPTION_BOUNDARY}"
+)
+_PROSE_AFTER_NUM_RE = re.compile(
+    r"^\s+(?:shows?|illustrates?|presents?|depicts?|demonstrates?|summarizes?|compares?|displays?|indicates?|lists?|provides?|gives?|reports?|reveals?|confirms?|suggests?|highlights?|is|was|are|were|has|have|can|may|will|cho\s+thấy|minh\s+họa|mô\s+tả|trình\s+bày|tóm\s+tắt|so\s+sánh|chỉ\s+ra|thể\s+hiện)\b",
     re.IGNORECASE,
 )
+_SUBPANEL_LABEL_RE = re.compile(r"^(?:\([a-zA-Z0-9]{1,2}\)|[a-zA-Z]\)\s)")
 
 
 @dataclass
@@ -57,7 +71,14 @@ class CandidateBox:
 
 def _clean_text(text: str) -> str:
     """Collapse internal newlines/whitespace and normalize common PDF ligatures."""
-    return " ".join(text.strip().split()).replace("ﬁ", "fi").replace("ﬂ", "fl")
+    return (
+        " ".join(text.strip().split())
+        .replace("ﬁ", "fi")
+        .replace("ﬂ", "fl")
+        .replace("ﬀ", "ff")
+        .replace("ﬃ", "ffi")
+        .replace("ﬄ", "ffl")
+    )
 
 
 def _classify_text_block(text: str) -> str:
@@ -66,10 +87,11 @@ def _classify_text_block(text: str) -> str:
     if not collapsed:
         return "text"
     cleaned = _LEAD_TRIM_RE.sub("", collapsed)
-    compact = re.sub(r"\s+", "", cleaned[:36])
-    if _FIG_CAPTION_RE.match(compact):
+    fig_m = _FIG_CAPTION_RE.match(cleaned)
+    if fig_m and not _PROSE_AFTER_NUM_RE.match(cleaned[fig_m.end():]):
         return "fig_caption"
-    if _TAB_CAPTION_RE.match(compact):
+    tab_m = _TAB_CAPTION_RE.match(cleaned)
+    if tab_m and not _PROSE_AFTER_NUM_RE.match(cleaned[tab_m.end():]):
         return "tab_caption"
     return "text"
 
@@ -109,12 +131,17 @@ def _rect_gap(a: pymupdf.Rect, b: pymupdf.Rect) -> float:
 
 
 def _is_edge_ornament(
-    r: pymupdf.Rect, pw: float, ph: float, fig_captions: list[TextBlock]
+    r: pymupdf.Rect, page_rect: pymupdf.Rect, fig_captions: list[TextBlock]
 ) -> bool:
     """Filter out small running header/footer logos, page badges, and margin bars."""
     if r.height >= 62.0:
         return False
-    in_margin = r.y1 < 54.0 or r.y0 > ph - 45.0 or (r.y0 < 42.0 and r.height < 50.0)
+    top_y, bot_y = page_rect.y0, page_rect.y1
+    in_margin = (
+        r.y1 < (top_y + 54.0)
+        or r.y0 > (bot_y - 45.0)
+        or (r.y0 < (top_y + 42.0) and r.height < 50.0)
+    )
     if not in_margin:
         return False
     for cap in fig_captions:
@@ -166,7 +193,7 @@ def _collect_raster_boxes(
     for r in merged:
         if r.width < 36.0 or r.height < 36.0 or (r.width * r.height) < 1600.0:
             continue
-        if _is_edge_ornament(r, pw, ph, fig_captions):
+        if _is_edge_ornament(r, page.rect, fig_captions):
             continue
         kept.append(r)
     return kept, has_full_page_img
@@ -187,23 +214,27 @@ def _collect_separator_rules(
 
 
 def _filter_drawings_for_clustering(
-    drawings: list[dict], pw: float, ph: float, words: list[tuple]
+    drawings: list[dict], page_rect: pymupdf.Rect, words: list[tuple]
 ) -> list[dict]:
     """Remove page frames, divider rules, text highlights, and shaded table row fills."""
+    pw, ph = page_rect.width, page_rect.height
+    top_y, bot_y = page_rect.y0, page_rect.y1
     word_rects = [pymupdf.Rect(w[:4]) for w in words]
     filtered: list[dict] = []
 
     for dr in drawings:
         r = dr["rect"]
-        if r.is_empty:
+        # PyMuPDF marks axis-aligned straight lines (width == 0 or height == 0) as is_empty;
+        # keep them so flowchart connectors and plot axes survive clustering.
+        if r.is_infinite or r.x1 < r.x0 or r.y1 < r.y0 or (r.width <= 0.0 and r.height <= 0.0):
             continue
         if _is_page_background(r, pw, ph):
             continue
-        if r.height <= 4.0 and r.width >= 0.30 * pw:
+        if r.height <= 4.0 and r.width >= 0.62 * pw:
             continue
-        if r.width <= 4.0 and r.height >= 0.30 * ph:
+        if r.width <= 4.0 and r.height >= 0.45 * ph:
             continue
-        if (r.y1 < 48.0 or r.y0 > ph - 40.0) and r.height < 28.0:
+        if (r.y1 < (top_y + 48.0) or r.y0 > (bot_y - 40.0)) and r.height < 28.0:
             continue
 
         if dr.get("color") is None and dr.get("fill") is not None:
@@ -231,35 +262,44 @@ def _is_valid_vector_cluster(
     pw, ph = page.rect.width, page.rect.height
     if rect.width < 42.0 or rect.height < 42.0 or _is_page_background(rect, pw, ph):
         return False
-    if _is_edge_ornament(rect, pw, ph, fig_captions):
+    if _is_edge_ornament(rect, page.rect, fig_captions):
         return False
 
     txt = page.get_text("text", clip=rect).strip()
     word_count = len(txt.split())
-    if word_count > 80:
+    if word_count > 200:
+        return False
+
+    has_fig_cap = _match_caption(rect, fig_captions, text_blocks) is not None
+    if word_count > 80 and not has_fig_cap:
         return False
 
     if word_count >= 20:
-        tabs = page.find_tables(clip=rect)
-        if any(
-            pymupdf.Rect(t.bbox).get_area() > 0.45 * rect.get_area()
-            and t.row_count >= 2
-            and t.col_count >= 2
-            for t in tabs.tables
-        ):
-            return False
+        tab_captions = [tb for tb in text_blocks if tb.kind == "tab_caption"]
+        has_tab_cap = _match_caption(rect, tab_captions, text_blocks) is not None
+        if not (has_fig_cap and not has_tab_cap):
+            tabs = page.find_tables(clip=rect)
+            if any(
+                pymupdf.Rect(t.bbox).get_area() > 0.45 * rect.get_area()
+                and t.row_count >= 2
+                and t.col_count >= 2
+                for t in tabs.tables
+            ):
+                return False
         prose_inside = [
             tb for tb in text_blocks
             if tb.kind == "text"
-            and len(tb.text.split()) >= 12
             and (tb.rect & rect).get_area() > 0.5 * tb.rect.get_area()
         ]
-        if len(prose_inside) >= 2:
+        long_blocks = [tb for tb in prose_inside if len(tb.text.split()) >= 12]
+        if len(long_blocks) >= 2 or any(len(tb.text.split()) >= 40 for tb in long_blocks):
             return False
 
     has_raster = any(rect.intersects(rr) for rr in raster_rects)
     if not has_raster:
         inside = [r for r in filtered_rects if rect.contains(r)]
+        if not has_fig_cap and word_count >= 5 and len(inside) <= 2:
+            return False
         if len(inside) >= 200:
             tiny_glyphs = sum(
                 1 for x in inside if 1.0 <= x.width <= 12.0 and 1.0 <= x.height <= 12.0
@@ -283,10 +323,10 @@ def _match_caption(
         min_ov = min(28.0, 0.30 * min(rect.width, cr.width))
 
         if h_ov >= min_ov:
-            if -14.0 <= cr.y0 - rect.y1 <= 50.0:
+            if -14.0 <= cr.y0 - rect.y1 <= 64.0:
                 dist = abs(cr.y0 - rect.y1)
             elif -14.0 <= rect.y0 - cr.y1 <= 42.0:
-                dist = abs(rect.y0 - cr.y1) + 5.0
+                dist = abs(rect.y0 - cr.y1) + 18.0
             else:
                 dist = float("inf")
         elif _vert_overlap(rect, cr) >= 10.0 and abs(cr.y0 - rect.y0) <= 35.0:
@@ -301,7 +341,10 @@ def _match_caption(
             for tb in text_blocks:
                 if tb.rect == cr or tb.kind == "fig_caption":
                     continue
-                if len(tb.text.split()) < 4:
+                tb_words = tb.text.split()
+                if len(tb_words) < 4:
+                    continue
+                if len(tb_words) <= 16 and _SUBPANEL_LABEL_RE.match(_clean_text(tb.text)):
                     continue
                 if (
                     _horiz_overlap(tb.rect, span) >= 20.0
@@ -529,7 +572,7 @@ def _collect_page_candidates(
     if drawings:
         rules = _collect_separator_rules(drawings, pw, ph)
         words = page.get_text("words")
-        filtered = _filter_drawings_for_clustering(drawings, pw, ph, words)
+        filtered = _filter_drawings_for_clustering(drawings, page.rect, words)
         if filtered:
             filtered_rects = [dr["rect"] for dr in filtered]
             for c in page.cluster_drawings(drawings=filtered, x_tolerance=5, y_tolerance=5):
@@ -549,62 +592,82 @@ def collect_page_figures(page: pymupdf.Page) -> tuple[list[pymupdf.Rect], bool]:
     return [c.rect for c in candidates], is_scanned
 
 
+def _configure_utf8_stdio() -> None:
+    """Ensure stdout/stderr emit UTF-8 on Windows even when piped under cp1252."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
+def _validate_dpi(value: str) -> int:
+    dpi = int(value)
+    if dpi < 36 or dpi > 1200:
+        raise argparse.ArgumentTypeError(f"--dpi must be between 36 and 1200 (got {dpi})")
+    return dpi
+
+
 def extract_images(
     pdf_path: Path, out_dir: Path, dpi: int = 180, write_meta: bool = False
 ) -> list[Path]:
     """Render every detected bitmap or vector figure region in `pdf_path` to PNG."""
-    doc = pymupdf.open(pdf_path)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if not pdf_path.is_file():
+        raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+    if dpi < 36 or dpi > 1200:
+        raise ValueError(f"dpi must be between 36 and 1200 (got {dpi})")
+
     saved: list[Path] = []
     scanned_pages: list[int] = []
     manifest_items: list[dict] = []
 
-    for pno, page in enumerate(doc, 1):
-        ph, pw = page.rect.height, page.rect.width
-        candidates, text_blocks, fig_captions, is_scanned = _collect_page_candidates(page)
-        if is_scanned:
-            scanned_pages.append(pno)
-        for idx, cand in enumerate(candidates, 1):
-            bb = cand.rect
-            clip = pymupdf.Rect(
-                max(0.0, bb.x0 - 4.0),
-                max(0.0, bb.y0 - 4.0),
-                min(pw, bb.x1 + 4.0),
-                min(ph, bb.y1 + 4.0),
-            )
-            out_name = f"fig_p{pno}_{idx}.png"
-            out_path = out_dir / out_name
-            pix = page.get_pixmap(clip=clip, dpi=dpi)
-            pix.save(out_path)
-            saved.append(out_path)
+    with pymupdf.open(pdf_path) as doc:
+        if doc.needs_pass:
+            raise RuntimeError(f"PDF is password-protected/encrypted and cannot be extracted: {pdf_path}")
 
-            if write_meta:
-                cap_text = (
-                    _clean_text(fig_captions[cand.caption_idx].text)
-                    if cand.caption_idx is not None
-                    else None
-                )
-                ctx_text = (
-                    None
-                    if cap_text is not None
-                    else _extract_context_snippet(bb, text_blocks)
-                )
-                manifest_items.append(
-                    {
-                        "file": out_name,
-                        "page": pno,
-                        "bbox": [
-                            round(bb.x0, 1),
-                            round(bb.y0, 1),
-                            round(bb.x1, 1),
-                            round(bb.y1, 1),
-                        ],
-                        "width_px": pix.width,
-                        "height_px": pix.height,
-                        "caption": cap_text,
-                        "context": ctx_text,
-                    }
-                )
+        out_dir.mkdir(parents=True, exist_ok=True)
+        total_pages = len(doc)
+
+        for pno, page in enumerate(doc, 1):
+            candidates, text_blocks, fig_captions, is_scanned = _collect_page_candidates(page)
+            if is_scanned:
+                scanned_pages.append(pno)
+            for idx, cand in enumerate(candidates, 1):
+                bb = cand.rect
+                clip = pymupdf.Rect(bb.x0 - 4.0, bb.y0 - 4.0, bb.x1 + 4.0, bb.y1 + 4.0) & page.rect
+                if clip.is_empty:
+                    continue
+                out_name = f"fig_p{pno}_{idx}.png"
+                out_path = out_dir / out_name
+                pix = page.get_pixmap(clip=clip, dpi=dpi)
+                pix.save(out_path)
+                saved.append(out_path)
+
+                if write_meta:
+                    cap_text = (
+                        _clean_text(fig_captions[cand.caption_idx].text)
+                        if cand.caption_idx is not None
+                        else None
+                    )
+                    ctx_text = (
+                        None
+                        if cap_text is not None
+                        else _extract_context_snippet(bb, text_blocks)
+                    )
+                    manifest_items.append(
+                        {
+                            "file": out_name,
+                            "page": pno,
+                            "bbox": [
+                                round(bb.x0, 1),
+                                round(bb.y0, 1),
+                                round(bb.x1, 1),
+                                round(bb.y1, 1),
+                            ],
+                            "width_px": pix.width,
+                            "height_px": pix.height,
+                            "caption": cap_text,
+                            "context": ctx_text,
+                        }
+                    )
 
     print(f"Extracted {len(saved)} figures -> {out_dir}")
     if scanned_pages:
@@ -615,7 +678,7 @@ def extract_images(
         meta_path = out_dir / "manifest.json"
         meta = {
             "pdf": pdf_path.name,
-            "total_pages": len(doc),
+            "total_pages": total_pages,
             "scanned_pages": scanned_pages,
             "figures": manifest_items,
         }
@@ -625,10 +688,11 @@ def extract_images(
 
 
 def main() -> None:
+    _configure_utf8_stdio()
     ap = argparse.ArgumentParser(description="Layout-aware figure image extractor from PDF")
     ap.add_argument("pdf", type=Path)
     ap.add_argument("--out-dir", type=Path, required=True)
-    ap.add_argument("--dpi", type=int, default=180)
+    ap.add_argument("--dpi", type=_validate_dpi, default=180)
     ap.add_argument(
         "--meta",
         action="store_true",

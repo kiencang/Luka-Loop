@@ -93,10 +93,10 @@ Chỉ sử dụng khi Bước 1 phát hiện trang scan (`scanned_pages` khác r
 
 1. **Render từng trang ra PNG (`RenderPages`):**
    ```powershell
-   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\pdf_fallback_tools.ps1" -Action RenderPages -PdfPath "<input.pdf>" -OutDir "work\pages"
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\pdf_fallback_tools.ps1" -Action RenderPages -PdfPath "<input.pdf>" -OutDir "work\pages" -Pages "<trang_can_render>"
    ```
-   - Tham số tùy chọn: `-Scale` (mặc định `2.5`; bề rộng ảnh tối thiểu `800` px). Với file kéo-thả, lấy `<input.pdf>` trực tiếp từ dòng `Resolved PDF -> ...` ở Bước 1.
-   - Đầu ra: `work\pages\page_1.png`, `page_2.png`, ...
+   - Tham số tùy chọn: `-Pages` (vd `"2"`, `"2,5"` hoặc `"2-4"` — truyền đúng danh sách `scanned_pages` ở Bước 1 hoặc số trang có sơ đồ bị sót để chỉ render đúng các trang cần thiết; bỏ trống nếu muốn render toàn bộ trang), `-Scale` (mặc định `2.5`; bề rộng ảnh tối thiểu `800` px). Với file kéo-thả, lấy `<input.pdf>` trực tiếp từ dòng `Resolved PDF -> ...` ở Bước 1.
+   - Đầu ra: `work\pages\page_<p>.png` (vd `page_2.png`, `page_5.png`, ...).
 2. **Cắt ảnh theo tọa độ JSON (`CropFromJson`):**
    ```powershell
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\pdf_fallback_tools.ps1" -Action CropFromJson -SpecJson "work\crop_spec.json" -OutDir "work\assets"

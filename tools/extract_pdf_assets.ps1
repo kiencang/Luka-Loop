@@ -20,112 +20,19 @@ param(
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-function Test-IsReparsePoint {
-    param([System.IO.FileSystemInfo]$Item)
-    return ($null -ne $Item) -and (($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)
+$pathGuardsScript = Join-Path $PSScriptRoot '_path_guards.ps1'
+$pathGuardsItem = Get-Item -LiteralPath $pathGuardsScript -Force -ErrorAction SilentlyContinue
+if (-not $pathGuardsItem -or $pathGuardsItem.PSIsContainer) {
+    throw "Required helper script not found: $pathGuardsScript"
 }
-
-function Assert-SafeOutputPath {
-    <# Blocks symlinks/junctions (ReparsePoint) on output directory/file and workspace/temp ancestors. #>
-    param(
-        [string]$TargetPath,
-        [string]$Label = 'OutputPath',
-        [switch]$IsDirectory
-    )
-    if (-not $TargetPath -or -not $TargetPath.Trim()) { return }
-
-    [System.Management.Automation.ProviderInfo]$provider = $null
-    [System.Management.Automation.PSDriveInfo]$drive = $null
-    $resolved = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($TargetPath, [ref]$provider, [ref]$drive)
-    if ($null -eq $provider -or $provider.Name -ne 'FileSystem') {
-        throw "Refusing non-filesystem path for ${Label}: $TargetPath"
-    }
-    $normTarget = [System.IO.Path]::GetFullPath($resolved).TrimEnd('\', '/')
-
-    $anchors = New-Object 'System.Collections.Generic.List[string]'
-    $anchorCandidates = @((Split-Path $PSScriptRoot -Parent))
-    $loc = Get-Location
-    if ($loc.Provider.Name -eq 'FileSystem') { $anchorCandidates += $loc.ProviderPath }
-    if ($env:TEMP -and $env:TEMP.Trim()) { $anchorCandidates += $env:TEMP }
-    foreach ($ac in $anchorCandidates) {
-        if (-not $ac) { continue }
-        $na = [System.IO.Path]::GetFullPath($ac).TrimEnd('\', '/')
-        if ($na -and ($anchors -notcontains $na)) { [void]$anchors.Add($na) }
-    }
-
-    $matchedAnchor = $null
-    foreach ($a in $anchors) {
-        if ($normTarget.StartsWith($a + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
-            if (-not $matchedAnchor -or $a.Length -gt $matchedAnchor.Length) {
-                $matchedAnchor = $a
-            }
-        }
-    }
-
-    if ($matchedAnchor) {
-        $rel = $normTarget.Substring($matchedAnchor.Length).TrimStart('\', '/')
-        $probe = $matchedAnchor
-        foreach ($seg in ($rel -split '[\\/]+')) {
-            if (-not $seg) { continue }
-            $probe = Join-Path $probe $seg
-            $item = Get-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
-            if ($item -and (Test-IsReparsePoint -Item $item)) {
-                throw "Refusing to write through symlink/junction (ReparsePoint) for ${Label}: $probe"
-            }
-        }
-    } else {
-        $cursor = $normTarget
-        $driveRoot = [System.IO.Path]::GetPathRoot($normTarget).TrimEnd('\', '/')
-        while ($cursor -and -not $cursor.Equals($driveRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            $item = Get-Item -LiteralPath $cursor -Force -ErrorAction SilentlyContinue
-            if ($item) {
-                if (Test-IsReparsePoint -Item $item) {
-                    throw "Refusing to write through symlink/junction (ReparsePoint) for ${Label}: $cursor"
-                }
-                break
-            }
-            $parent = Split-Path $cursor -Parent
-            if (-not $parent -or $parent -eq $cursor) { break }
-            $cursor = $parent.TrimEnd('\', '/')
-        }
-    }
-
-    $leaf = Get-Item -LiteralPath $normTarget -Force -ErrorAction SilentlyContinue
-    if ($leaf) {
-        if (Test-IsReparsePoint -Item $leaf) {
-            throw "Refusing to overwrite symlink/junction (ReparsePoint) for ${Label}: $normTarget"
-        }
-        if ($IsDirectory -and -not $leaf.PSIsContainer) {
-            throw "Expected directory path for ${Label}, found file: $normTarget"
-        }
-        if (-not $IsDirectory -and $leaf.PSIsContainer) {
-            throw "Expected file path for ${Label}, found directory: $normTarget"
-        }
-    }
+if ((($pathGuardsItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) -and ($pathGuardsItem.LinkType -in @('SymbolicLink', 'Junction'))) {
+    throw "Refusing to dot-source symlink/junction: $pathGuardsScript"
 }
-
-function Assert-LocalNoUncPath {
-    param([string]$PathValue, [string]$ParamName = 'Path')
-    if (-not $PathValue) { return }
-    $t = $PathValue.Trim()
-    if ($t -match '^(?i)file://[^/]' -or
-        $t -match '^(?i)(?:Microsoft\.PowerShell\.Core\\)?FileSystem::(?:\\\\|//)' -or
-        $t -match '^(?:\\\\|//)') {
-        throw "Refusing UNC/network path for ${ParamName}: $PathValue"
-    }
-    if ([System.IO.Path]::IsPathRooted($t)) {
-        try {
-            $u = [System.Uri]$t
-            if ($u.IsUnc) {
-                throw "Refusing UNC/network path for ${ParamName}: $PathValue"
-            }
-        } catch [System.UriFormatException] {}
-    }
-}
+. $pathGuardsScript
 
 function Resolve-PdfFromLine {
     param([string]$Line)
-    if ($Line -notmatch '"type"\s*:\s*"USER_INPUT"' -or $Line -notmatch '\.pdf') {
+    if ($Line -notmatch '"type"\s*:\s*"USER_INPUT"' -or $Line -notmatch 'application\\?/pdf|\.pdf') {
         return $null
     }
     try {
@@ -213,6 +120,10 @@ $exePath = Join-Path $PSScriptRoot 'extract_assets\extract_assets.exe'
 if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
     throw "Extractor executable not found: $exePath"
 }
+$hasCloudPlaceholders = Test-HasCloudPlaceholderFiles -DirectoryPath (Split-Path $exePath -Parent)
+if ($hasCloudPlaceholders) {
+    Write-Warning "One or more files in tools\extract_assets\ are cloud placeholders (not yet downloaded offline). If extraction fails, enable 'Always keep on this device' / 'Available offline' for this folder."
+}
 
 # Avoid Python argparse misinterpreting an OutDir starting with '-' as an option flag
 $cliOutDir = if ($OutDir.TrimStart().StartsWith('-')) { $outDirFull } else { $OutDir }
@@ -221,9 +132,21 @@ if ($Meta) {
     $exeArgs += '--meta'
 }
 
-& $exePath @exeArgs
-if ($LASTEXITCODE -ne 0) {
-    throw "extract_assets.exe failed with exit code $LASTEXITCODE"
+$prevPythonUtf8 = $env:PYTHONUTF8
+$prevPythonIoEnc = $env:PYTHONIOENCODING
+$exeExit = 0
+try {
+    $env:PYTHONUTF8 = '1'
+    $env:PYTHONIOENCODING = 'utf-8'
+    & $exePath @exeArgs
+    $exeExit = $LASTEXITCODE
+} finally {
+    if ($null -eq $prevPythonUtf8) { Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue } else { $env:PYTHONUTF8 = $prevPythonUtf8 }
+    if ($null -eq $prevPythonIoEnc) { Remove-Item Env:PYTHONIOENCODING -ErrorAction SilentlyContinue } else { $env:PYTHONIOENCODING = $prevPythonIoEnc }
+}
+if ($exeExit -ne 0) {
+    $hint = if ($hasCloudPlaceholders) { " (Cloud placeholder files detected in tools\extract_assets\; enable 'Always keep on this device' / 'Available offline'.)" } else { "" }
+    throw "extract_assets.exe failed with exit code $exeExit$hint"
 }
 
 function Limit-ManifestWords {
@@ -266,7 +189,7 @@ function Get-CompactedManifestText {
 }
 
 if ($Meta) {
-    $manifestPath = Join-Path $OutDir 'manifest.json'
+    $manifestPath = Join-Path $outDirFull 'manifest.json'
     if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
         $absManifest = (Resolve-Path -LiteralPath $manifestPath).Path
         $stdoutJson = Get-CompactedManifestText -ManifestPath $absManifest -MaxWords $MaxMetaWords

@@ -22,12 +22,15 @@ Phần khó nhất đã xong! Giờ để dùng công cụ dịch, bạn chỉ v
 
 Giờ thì bạn chỉ việc tải file PDF rồi gõ câu lệnh kiểu như `Dịch tài liệu sang tiếng Việt.` là agent Gemini sẽ tiến hành dịch, và gửi kết quả về cả ở 2 định dạng HTML và PDF. 
 
-**Lưu ý**: Khi làm việc với Antigravity nên chọn chế độ **Turbo** (thay vì mặc định Request Review) để không phải liên tục nhận được các câu hỏi xác nhận quyền thực thi.
+**Lưu ý**:
+- Khi làm việc với Antigravity nên chọn chế độ **Turbo** (thay vì mặc định Request Review) để không phải liên tục nhận được các câu hỏi xác nhận quyền thực thi.
+- Nếu đặt thư mục `luka-loop` bên trong vùng đồng bộ đám mây (OneDrive, Google Drive, Dropbox...), hãy bật tùy chọn giữ tệp ngoại tuyến trên máy (*Always keep on this device* / *Mirror files* / *Available offline*) để `extract_assets.exe` nạp đủ các thư viện đi kèm và tránh lồng đường dẫn quá sâu vượt giới hạn ký tự trên Windows.
 
 ## Cấu trúc dự án
 - [`AGENTS.md`](./AGENTS.md) — Quy tắc điều phối dành cho AI Agent trong workspace.
 - [`.agents/skills/pdf-to-html-vi/`](./.agents/skills/pdf-to-html-vi/) — Skill `pdf-to-html-vi` gồm quy trình 4 bước ([`SKILL.md`](./.agents/skills/pdf-to-html-vi/SKILL.md)) và bộ chuẩn dịch thuật học thuật / CSS ([`si_academic_html.md`](./.agents/skills/pdf-to-html-vi/si_academic_html.md)).
 - [`tools/`](./tools/) — Bộ công cụ PowerShell & portable:
+  - [`_path_guards.ps1`](./tools/_path_guards.ps1) — Tiện ích dùng chung kiểm tra và bảo vệ đường dẫn cục bộ (`Test-IsReparsePoint`, `Assert-SafeOutputPath`, `Assert-LocalNoUncPath`).
   - [`extract_pdf_assets.ps1`](./tools/extract_pdf_assets.ps1) gọi [`extract_assets/extract_assets.exe`](./tools/extract_assets/extract_assets.exe) để tự động tách ảnh/sơ đồ và xuất `manifest.json`.
   - [`pdf_fallback_tools.ps1`](./tools/pdf_fallback_tools.ps1) render trang PDF scan qua WinRT `Windows.Data.Pdf` và cắt khung ảnh theo JSON.
   - [`html_packager.ps1`](./tools/html_packager.ps1) nhúng ảnh Base64 tối ưu, bơm lớp vỏ đọc [`reader_shell.html`](./tools/reader_shell.html) (gồm nút chỉnh độ rộng `740px` bước `10px`, chuyển 3 chế độ màu Sáng / Dịu mắt / Tối, mục lục tự động, phóng to ảnh), kiểm định Auto-QA và xuất PDF.

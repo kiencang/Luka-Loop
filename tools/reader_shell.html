@@ -124,6 +124,10 @@ body[data-theme="dark"] figure img { filter: brightness(0.9) contrast(1.04); }
     }
 
     var lb = document.getElementById('rsfv-img-lightbox'), lbImg = lb.querySelector('img'), lbCap = lb.querySelector('.rsfv-lightbox-cap');
+    function closeLightbox() {
+        lb.classList.remove('open');
+        lb.setAttribute('aria-hidden', 'true');
+    }
     document.querySelectorAll('figure img').forEach(function (img) {
         img.title = 'Nhấp để phóng to';
         img.addEventListener('click', function () {
@@ -131,10 +135,11 @@ body[data-theme="dark"] figure img { filter: brightness(0.9) contrast(1.04); }
             var fc = img.closest('figure') && img.closest('figure').querySelector('figcaption');
             lbCap.textContent = fc ? fc.textContent.trim() : (img.alt || '');
             lb.classList.add('open');
+            lb.setAttribute('aria-hidden', 'false');
         });
     });
-    lb.addEventListener('click', function () { lb.classList.remove('open'); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') lb.classList.remove('open'); });
+    lb.addEventListener('click', closeLightbox);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeLightbox(); });
 })();
 </script>
 <!-- SHELL_SCRIPT_END -->

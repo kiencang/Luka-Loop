@@ -204,7 +204,7 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; line-heigh
     }
     body { background: #ffffff !important; color: #000000 !important; max-width: 100% !important; padding: 0; }
     body[data-theme="dark"] figure img { filter: none !important; }
-    figure, tr, .caveat-box, .callout-box, blockquote, pre { break-inside: avoid; page-break-inside: avoid; }
+    figure, tr, .callout-box, blockquote, pre { break-inside: avoid; page-break-inside: avoid; }
 }
 ```
 

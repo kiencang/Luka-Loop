@@ -15,113 +15,21 @@ param(
     [string]$OutDir = '.',
     [ValidateRange(0.5, 10.0)]
     [double]$Scale = 2.5,
+    [string]$Pages = '',
     [string]$SpecJson = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
-function Test-IsReparsePoint {
-    param([System.IO.FileSystemInfo]$Item)
-    return ($null -ne $Item) -and (($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)
+$pathGuardsScript = Join-Path $PSScriptRoot '_path_guards.ps1'
+$pathGuardsItem = Get-Item -LiteralPath $pathGuardsScript -Force -ErrorAction SilentlyContinue
+if (-not $pathGuardsItem -or $pathGuardsItem.PSIsContainer) {
+    throw "Required helper script not found: $pathGuardsScript"
 }
-
-function Assert-SafeOutputPath {
-    <# Blocks symlinks/junctions (ReparsePoint) on output directory/file and workspace/temp ancestors. #>
-    param(
-        [string]$TargetPath,
-        [string]$Label = 'OutputPath',
-        [switch]$IsDirectory
-    )
-    if (-not $TargetPath -or -not $TargetPath.Trim()) { return }
-
-    [System.Management.Automation.ProviderInfo]$provider = $null
-    [System.Management.Automation.PSDriveInfo]$drive = $null
-    $resolved = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($TargetPath, [ref]$provider, [ref]$drive)
-    if ($null -eq $provider -or $provider.Name -ne 'FileSystem') {
-        throw "Refusing non-filesystem path for ${Label}: $TargetPath"
-    }
-    $normTarget = [System.IO.Path]::GetFullPath($resolved).TrimEnd('\', '/')
-
-    $anchors = New-Object 'System.Collections.Generic.List[string]'
-    $anchorCandidates = @((Split-Path $PSScriptRoot -Parent))
-    $loc = Get-Location
-    if ($loc.Provider.Name -eq 'FileSystem') { $anchorCandidates += $loc.ProviderPath }
-    if ($env:TEMP -and $env:TEMP.Trim()) { $anchorCandidates += $env:TEMP }
-    foreach ($ac in $anchorCandidates) {
-        if (-not $ac) { continue }
-        $na = [System.IO.Path]::GetFullPath($ac).TrimEnd('\', '/')
-        if ($na -and ($anchors -notcontains $na)) { [void]$anchors.Add($na) }
-    }
-
-    $matchedAnchor = $null
-    foreach ($a in $anchors) {
-        if ($normTarget.StartsWith($a + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
-            if (-not $matchedAnchor -or $a.Length -gt $matchedAnchor.Length) {
-                $matchedAnchor = $a
-            }
-        }
-    }
-
-    if ($matchedAnchor) {
-        $rel = $normTarget.Substring($matchedAnchor.Length).TrimStart('\', '/')
-        $probe = $matchedAnchor
-        foreach ($seg in ($rel -split '[\\/]+')) {
-            if (-not $seg) { continue }
-            $probe = Join-Path $probe $seg
-            $item = Get-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
-            if ($item -and (Test-IsReparsePoint -Item $item)) {
-                throw "Refusing to write through symlink/junction (ReparsePoint) for ${Label}: $probe"
-            }
-        }
-    } else {
-        $cursor = $normTarget
-        $driveRoot = [System.IO.Path]::GetPathRoot($normTarget).TrimEnd('\', '/')
-        while ($cursor -and -not $cursor.Equals($driveRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            $item = Get-Item -LiteralPath $cursor -Force -ErrorAction SilentlyContinue
-            if ($item) {
-                if (Test-IsReparsePoint -Item $item) {
-                    throw "Refusing to write through symlink/junction (ReparsePoint) for ${Label}: $cursor"
-                }
-                break
-            }
-            $parent = Split-Path $cursor -Parent
-            if (-not $parent -or $parent -eq $cursor) { break }
-            $cursor = $parent.TrimEnd('\', '/')
-        }
-    }
-
-    $leaf = Get-Item -LiteralPath $normTarget -Force -ErrorAction SilentlyContinue
-    if ($leaf) {
-        if (Test-IsReparsePoint -Item $leaf) {
-            throw "Refusing to overwrite symlink/junction (ReparsePoint) for ${Label}: $normTarget"
-        }
-        if ($IsDirectory -and -not $leaf.PSIsContainer) {
-            throw "Expected directory path for ${Label}, found file: $normTarget"
-        }
-        if (-not $IsDirectory -and $leaf.PSIsContainer) {
-            throw "Expected file path for ${Label}, found directory: $normTarget"
-        }
-    }
+if ((($pathGuardsItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) -and ($pathGuardsItem.LinkType -in @('SymbolicLink', 'Junction'))) {
+    throw "Refusing to dot-source symlink/junction: $pathGuardsScript"
 }
-
-function Assert-LocalNoUncPath {
-    param([string]$PathValue, [string]$ParamName = 'Path')
-    if (-not $PathValue) { return }
-    $t = $PathValue.Trim()
-    if ($t -match '^(?i)file://[^/]' -or
-        $t -match '^(?i)(?:Microsoft\.PowerShell\.Core\\)?FileSystem::(?:\\\\|//)' -or
-        $t -match '^(?:\\\\|//)') {
-        throw "Refusing UNC/network path for ${ParamName}: $PathValue"
-    }
-    if ([System.IO.Path]::IsPathRooted($t)) {
-        try {
-            $u = [System.Uri]$t
-            if ($u.IsUnc) {
-                throw "Refusing UNC/network path for ${ParamName}: $PathValue"
-            }
-        } catch [System.UriFormatException] {}
-    }
-}
+. $pathGuardsScript
 
 $script:WinRtLoaded = $false
 $script:AsTaskOpMethod = $null
@@ -158,8 +66,56 @@ function Await-WinRtAction {
     $netTask.Wait() | Out-Null
 }
 
+function Resolve-RenderPageList {
+    <# Parses optional -Pages spec (e.g. "2", "2,5", "[2, 5]", "2-4") into sorted unique 1-based page numbers. #>
+    param(
+        [string]$RawPages,
+        [int]$TotalPages
+    )
+    if ($TotalPages -lt 1) { return @() }
+    if (-not $RawPages -or -not $RawPages.Trim()) {
+        return @(1..$TotalPages)
+    }
+
+    $cleaned = $RawPages.Trim().Trim('[', ']').Trim()
+    if (-not $cleaned) {
+        return @(1..$TotalPages)
+    }
+
+    $seen = New-Object 'System.Collections.Generic.HashSet[int]'
+    $tokens = @($cleaned -split '[,\s;]+' | Where-Object { $_ -ne '' })
+    if ($tokens.Count -eq 0) {
+        return @(1..$TotalPages)
+    }
+
+    foreach ($tok in $tokens) {
+        if ($tok -match '^(\d+)-(\d+)$') {
+            $startP = [int]$Matches[1]
+            $endP = [int]$Matches[2]
+            if ($startP -lt 1 -or $endP -lt $startP -or $endP -gt $TotalPages) {
+                throw "Page range '$tok' out of valid range (1..$TotalPages)."
+            }
+            for ($p = $startP; $p -le $endP; $p++) {
+                [void]$seen.Add($p)
+            }
+        } elseif ($tok -match '^\d+$') {
+            $p = [int]$tok
+            if ($p -lt 1 -or $p -gt $TotalPages) {
+                throw "Page number $p out of valid range (1..$TotalPages)."
+            }
+            [void]$seen.Add($p)
+        } else {
+            throw "Invalid -Pages token '$tok'. Expected positive integers or ranges like '2,5' or '2-4'."
+        }
+    }
+
+    $sorted = New-Object 'System.Collections.Generic.List[int]' ($seen)
+    $sorted.Sort()
+    return @($sorted)
+}
+
 function Invoke-RenderPages {
-    param([string]$Pdf, [string]$DestDir, [double]$RenderScale)
+    param([string]$Pdf, [string]$DestDir, [double]$RenderScale, [string]$PageFilter = '')
     if ($RenderScale -lt 0.5 -or $RenderScale -gt 10.0) {
         throw "RenderScale out of safe range (0.5..10.0): $RenderScale"
     }
@@ -183,8 +139,9 @@ function Invoke-RenderPages {
         $ras = [System.IO.WindowsRuntimeStreamExtensions]::AsRandomAccessStream($pdfFs)
         $pdfDoc = Await-WinRtOp ([Windows.Data.Pdf.PdfDocument]::LoadFromStreamAsync($ras)) ([Windows.Data.Pdf.PdfDocument])
         $count = [int]$pdfDoc.PageCount
+        $targetPages = Resolve-RenderPageList -RawPages $PageFilter -TotalPages $count
 
-        for ($p = 1; $p -le $count; $p++) {
+        foreach ($p in $targetPages) {
             $page = $pdfDoc.GetPage([uint32]($p - 1))
             $mem = New-Object Windows.Storage.Streams.InMemoryRandomAccessStream
             $inStream = $null
@@ -482,7 +439,9 @@ function Invoke-CropFromJson {
         $srcPng = Resolve-SafeCropInputFile -RawPagePath ([string]$item.page_png) -AllowedRoots $allowedInputRoots
         $outFile = Resolve-SafeCropOutFile -DestDir $absDest -OutName ([string]$item.out_name)
         $box = Resolve-CropBoxCoords -Box $item.box -OutName ([string]$item.out_name)
-        $bmp = [System.Drawing.Bitmap]::FromFile($srcPng)
+        $srcBytes = [System.IO.File]::ReadAllBytes($srcPng)
+        $srcMs = New-Object System.IO.MemoryStream(, $srcBytes)
+        $bmp = [System.Drawing.Bitmap]::FromStream($srcMs)
         $cropped = $null
         try {
             $bw = $bmp.Width
@@ -504,11 +463,12 @@ function Invoke-CropFromJson {
         } finally {
             if ($cropped) { $cropped.Dispose() }
             $bmp.Dispose()
+            $srcMs.Dispose()
         }
     }
 }
 
 switch ($Action) {
-    'RenderPages'  { Invoke-RenderPages -Pdf $PdfPath -DestDir $OutDir -RenderScale $Scale }
+    'RenderPages'  { Invoke-RenderPages -Pdf $PdfPath -DestDir $OutDir -RenderScale $Scale -PageFilter $Pages }
     'CropFromJson' { Invoke-CropFromJson -JsonFile $SpecJson -DestDir $OutDir }
 }

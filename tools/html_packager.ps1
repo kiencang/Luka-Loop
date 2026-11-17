@@ -26,107 +26,69 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-function Test-IsReparsePoint {
-    param([System.IO.FileSystemInfo]$Item)
-    return ($null -ne $Item) -and (($Item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)
+$pathGuardsScript = Join-Path $PSScriptRoot '_path_guards.ps1'
+$pathGuardsItem = Get-Item -LiteralPath $pathGuardsScript -Force -ErrorAction SilentlyContinue
+if (-not $pathGuardsItem -or $pathGuardsItem.PSIsContainer) {
+    throw "Required helper script not found: $pathGuardsScript"
 }
-
-function Assert-SafeOutputPath {
-    <# Blocks symlinks/junctions (ReparsePoint) on output directory/file and workspace/temp ancestors. #>
-    param(
-        [string]$TargetPath,
-        [string]$Label = 'OutputPath',
-        [switch]$IsDirectory
-    )
-    if (-not $TargetPath -or -not $TargetPath.Trim()) { return }
-
-    [System.Management.Automation.ProviderInfo]$provider = $null
-    [System.Management.Automation.PSDriveInfo]$drive = $null
-    $resolved = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($TargetPath, [ref]$provider, [ref]$drive)
-    if ($null -eq $provider -or $provider.Name -ne 'FileSystem') {
-        throw "Refusing non-filesystem path for ${Label}: $TargetPath"
-    }
-    $normTarget = [System.IO.Path]::GetFullPath($resolved).TrimEnd('\', '/')
-
-    $anchors = New-Object 'System.Collections.Generic.List[string]'
-    $anchorCandidates = @((Split-Path $PSScriptRoot -Parent))
-    $loc = Get-Location
-    if ($loc.Provider.Name -eq 'FileSystem') { $anchorCandidates += $loc.ProviderPath }
-    if ($env:TEMP -and $env:TEMP.Trim()) { $anchorCandidates += $env:TEMP }
-    foreach ($ac in $anchorCandidates) {
-        if (-not $ac) { continue }
-        $na = [System.IO.Path]::GetFullPath($ac).TrimEnd('\', '/')
-        if ($na -and ($anchors -notcontains $na)) { [void]$anchors.Add($na) }
-    }
-
-    $matchedAnchor = $null
-    foreach ($a in $anchors) {
-        if ($normTarget.StartsWith($a + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
-            if (-not $matchedAnchor -or $a.Length -gt $matchedAnchor.Length) {
-                $matchedAnchor = $a
-            }
-        }
-    }
-
-    if ($matchedAnchor) {
-        $rel = $normTarget.Substring($matchedAnchor.Length).TrimStart('\', '/')
-        $probe = $matchedAnchor
-        foreach ($seg in ($rel -split '[\\/]+')) {
-            if (-not $seg) { continue }
-            $probe = Join-Path $probe $seg
-            $item = Get-Item -LiteralPath $probe -Force -ErrorAction SilentlyContinue
-            if ($item -and (Test-IsReparsePoint -Item $item)) {
-                throw "Refusing to write through symlink/junction (ReparsePoint) for ${Label}: $probe"
-            }
-        }
-    } else {
-        $cursor = $normTarget
-        $driveRoot = [System.IO.Path]::GetPathRoot($normTarget).TrimEnd('\', '/')
-        while ($cursor -and -not $cursor.Equals($driveRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            $item = Get-Item -LiteralPath $cursor -Force -ErrorAction SilentlyContinue
-            if ($item) {
-                if (Test-IsReparsePoint -Item $item) {
-                    throw "Refusing to write through symlink/junction (ReparsePoint) for ${Label}: $cursor"
-                }
-                break
-            }
-            $parent = Split-Path $cursor -Parent
-            if (-not $parent -or $parent -eq $cursor) { break }
-            $cursor = $parent.TrimEnd('\', '/')
-        }
-    }
-
-    $leaf = Get-Item -LiteralPath $normTarget -Force -ErrorAction SilentlyContinue
-    if ($leaf) {
-        if (Test-IsReparsePoint -Item $leaf) {
-            throw "Refusing to overwrite symlink/junction (ReparsePoint) for ${Label}: $normTarget"
-        }
-        if ($IsDirectory -and -not $leaf.PSIsContainer) {
-            throw "Expected directory path for ${Label}, found file: $normTarget"
-        }
-        if (-not $IsDirectory -and $leaf.PSIsContainer) {
-            throw "Expected file path for ${Label}, found directory: $normTarget"
-        }
-    }
+if ((($pathGuardsItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) -and ($pathGuardsItem.LinkType -in @('SymbolicLink', 'Junction'))) {
+    throw "Refusing to dot-source symlink/junction: $pathGuardsScript"
 }
+. $pathGuardsScript
 
-function Assert-LocalNoUncPath {
-    param([string]$PathValue, [string]$ParamName = 'Path')
-    if (-not $PathValue) { return }
-    $t = $PathValue.Trim()
-    if ($t -match '^(?i)file://[^/]' -or
-        $t -match '^(?i)(?:Microsoft\.PowerShell\.Core\\)?FileSystem::(?:\\\\|//)' -or
-        $t -match '^(?:\\\\|//)') {
-        throw "Refusing UNC/network path for ${ParamName}: $PathValue"
-    }
-    if ([System.IO.Path]::IsPathRooted($t)) {
+function Ensure-ImageAnalysisHelper {
+    if ('HtmlPackagerImageHelper' -as [type]) { return }
+    Add-Type -AssemblyName System.Drawing
+    Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+
+public static class HtmlPackagerImageHelper {
+    public static int[] AnalyzeSampleGrid(Bitmap bmp) {
+        int w = bmp.Width;
+        int h = bmp.Height;
+        int stepX = Math.Max(1, (int)Math.Round(w / 60.0));
+        int stepY = Math.Max(1, (int)Math.Round(h / 60.0));
+        Rectangle rect = new Rectangle(0, 0, w, h);
+        BitmapData data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
         try {
-            $u = [System.Uri]$t
-            if ($u.IsUnc) {
-                throw "Refusing UNC/network path for ${ParamName}: $PathValue"
+            int stride = data.Stride;
+            int absStride = Math.Abs(stride);
+            byte[] buf = new byte[absStride * h];
+            if (stride > 0) {
+                Marshal.Copy(data.Scan0, buf, 0, buf.Length);
+            } else {
+                for (int y = 0; y < h; y++) {
+                    IntPtr rowPtr = IntPtr.Add(data.Scan0, y * stride);
+                    Marshal.Copy(rowPtr, buf, y * absStride, w * 4);
+                }
             }
-        } catch [System.UriFormatException] {}
+
+            var colors = new HashSet<int>();
+            bool hasAlpha = false;
+            for (int y = 0; y < h; y += stepY) {
+                int rowOff = y * absStride;
+                for (int x = 0; x < w; x += stepX) {
+                    int idx = rowOff + (x * 4);
+                    byte b = buf[idx];
+                    byte g = buf[idx + 1];
+                    byte r = buf[idx + 2];
+                    byte a = buf[idx + 3];
+                    if (a < 250) hasAlpha = true;
+                    int q = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+                    colors.Add(q);
+                }
+            }
+            return new int[] { colors.Count, hasAlpha ? 1 : 0 };
+        } finally {
+            bmp.UnlockBits(data);
+        }
     }
+}
+'@
 }
 
 function Get-OptimizedImagePayload {
@@ -137,7 +99,7 @@ function Get-OptimizedImagePayload {
     )
     if ($Quality -lt 1 -or $Quality -gt 100) { throw "JpegQuality out of valid range (1..100): $Quality" }
     if ($MaxWidth -lt 0 -or $MaxWidth -gt 10000) { throw "MaxImageWidth out of valid range (0..10000): $MaxWidth" }
-    Add-Type -AssemblyName System.Drawing
+    Ensure-ImageAnalysisHelper
     $origBytes = [System.IO.File]::ReadAllBytes($ImgPath)
     $origLen = $origBytes.Length
     $ext = [System.IO.Path]::GetExtension($ImgPath).ToLowerInvariant()
@@ -147,20 +109,10 @@ function Get-OptimizedImagePayload {
     $bmp = [System.Drawing.Bitmap]::FromStream($inMs)
     $workBmp = $bmp
     try {
-        # Sample ~60x60 grid to detect transparency and color richness
-        $colors = New-Object 'System.Collections.Generic.HashSet[int]'
-        $hasAlpha = $false
-        $stepX = [Math]::Max(1, [int]($bmp.Width / 60))
-        $stepY = [Math]::Max(1, [int]($bmp.Height / 60))
-        for ($y = 0; $y -lt $bmp.Height; $y += $stepY) {
-            for ($x = 0; $x -lt $bmp.Width; $x += $stepX) {
-                $c = $bmp.GetPixel($x, $y)
-                if ($c.A -lt 250) { $hasAlpha = $true }
-                $q = (([int]($c.R -shr 3)) -shl 10) -bor (([int]($c.G -shr 3)) -shl 5) -bor ([int]($c.B -shr 3))
-                [void]$colors.Add($q)
-            }
-        }
-        $isRichPhoto = ($colors.Count -ge 200)
+        # Sample ~60x60 grid via LockBits to detect transparency and color richness
+        $statsGrid = [HtmlPackagerImageHelper]::AnalyzeSampleGrid($bmp)
+        $isRichPhoto = ($statsGrid[0] -ge 200)
+        $hasAlpha = ($statsGrid[1] -ne 0)
 
         $wasResized = $false
         if ($MaxWidth -gt 0 -and $bmp.Width -gt $MaxWidth) {
@@ -265,21 +217,25 @@ function Invoke-HtmlQaCheck {
     }
 
     $tableCount = ([regex]::Matches($domOnly, '(?i)<table\b')).Count
-    $wrapperCount = ([regex]::Matches($domOnly, '(?i)class\s*=\s*"[^"]*\btable-wrapper\b[^"]*"')).Count
+    $wrapperCount = ([regex]::Matches($domOnly, '(?i)\bclass\s*=\s*(?:"[^"]*\btable-wrapper\b[^"]*"|''[^'']*\btable-wrapper\b[^'']*'')')).Count
     if ($tableCount -gt $wrapperCount) {
         $issues.Add("Found $tableCount <table> element(s) but only $wrapperCount .table-wrapper container(s).")
     }
 
-    $hasLatex = ($domOnly -match '\\\(') -or ($domOnly -match '\\\[')
+    $proseForLatex = [regex]::Replace($domOnly, '(?is)<pre\b[^>]*>.*?</pre>', '')
+    $proseForLatex = [regex]::Replace($proseForLatex, '(?is)<code\b[^>]*>.*?</code>', '')
+    $proseForLatex = [regex]::Replace($proseForLatex, '(?is)<textarea\b[^>]*>.*?</textarea>', '')
+    $hasLatex = ($proseForLatex -match '\\\(') -or ($proseForLatex -match '\\\[')
     $hasMathJax = $HtmlText -match '(?i)<script\b[^>]*MathJax'
     if ($hasLatex -and -not $hasMathJax) {
         $issues.Add("Detected LaTeX math delimiters without MathJax <script> in <head>.")
     }
 
     $brokenAnchors = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($m in [regex]::Matches($domOnly, '(?i)\bhref\s*=\s*"#([^"]+)"')) {
-        $anchor = $m.Groups[1].Value
-        if (-not [regex]::IsMatch($domOnly, ('(?i)\bid\s*=\s*"{0}"' -f [regex]::Escape($anchor)))) {
+    foreach ($m in [regex]::Matches($domOnly, '(?i)\bhref\s*=\s*(?:"#([^"]+)"|''#([^'']+)'')')) {
+        $anchor = if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value }
+        $esc = [regex]::Escape($anchor)
+        if (-not [regex]::IsMatch($domOnly, ('(?i)\bid\s*=\s*(?:"{0}"|''{0}'')' -f $esc))) {
             $brokenAnchors.Add("#$anchor")
         }
     }
@@ -517,8 +473,22 @@ function Invoke-SafeCleanDir {
     }
 
     Assert-NoReparsePointsInTree -RootWorkDir $matchedWorkRoot -TargetDir $absTarget
-    Remove-Item -LiteralPath $absTarget -Recurse -Force
-    Write-Output ("Cleaned temp directory -> {0}" -f $absTarget)
+    $cleanErr = $null
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            Remove-Item -LiteralPath $absTarget -Recurse -Force -ErrorAction Stop
+            $cleanErr = $null
+            break
+        } catch {
+            $cleanErr = $_
+            if ($attempt -lt 3) { Start-Sleep -Milliseconds 400 }
+        }
+    }
+    if (-not (Test-Path -LiteralPath $absTarget)) {
+        Write-Output ("Cleaned temp directory -> {0}" -f $absTarget)
+    } elseif ($cleanErr) {
+        Write-Warning ("Could not fully clean temp directory (locked by sync/antivirus?): {0} ({1})" -f $absTarget, $cleanErr.Exception.Message)
+    }
 }
 
 function Get-ShellSection {
