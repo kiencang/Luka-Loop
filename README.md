@@ -1,6 +1,7 @@
 # luka-loop
+Quy trình AI Agent tự động dịch tài liệu PDF tiếng Anh sang tiếng Việt. Không yêu cầu cài thêm bất cứ phần mềm hỗ trợ nào. Chỉ cần mở thư mục trên [Antigravity](https://antigravity.google/) là bắt đầu dùng được ngay.
 
-Quy trình AI Agent tự động dịch tài liệu PDF sang bản **HTML tiếng Việt** và **PDF** song song trên Windows, không yêu cầu cài đặt Python hệ thống.
+Định dạng đầu ra mặc định: Bản dịch tiếng Việt trả về ở cả 2 định dạng đồng thời là HTML và PDF.
 
 ## Yêu cầu hệ thống
 - **Hệ điều hành:** Windows 10 hoặc Windows 11 **64-bit (x64)** *(bộ công cụ `extract_assets.exe` hiện biên dịch ở kiến trúc x64, chưa hỗ trợ Windows 32-bit), hầu hết các máy tính hiện nay trên thị trường đều là bản 64-bit*.
