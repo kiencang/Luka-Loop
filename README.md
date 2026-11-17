@@ -3,8 +3,8 @@
 Quy trình AI Agent tự động dịch tài liệu PDF sang bản **HTML tiếng Việt** và **PDF** song song trên Windows, không yêu cầu cài đặt Python hệ thống.
 
 ## Yêu cầu hệ thống
-- **Hệ điều hành:** Windows 10 hoặc Windows 11 **64-bit (x64)** *(bộ công cụ `extract_assets.exe` hiện biên dịch ở kiến trúc x64, chưa hỗ trợ Windows 32-bit)*.
-- **PowerShell:** Windows PowerShell 5.1 (có sẵn mặc định trên Windows 10/11).
+- **Hệ điều hành:** Windows 10 hoặc Windows 11 **64-bit (x64)** *(bộ công cụ `extract_assets.exe` hiện biên dịch ở kiến trúc x64, chưa hỗ trợ Windows 32-bit), hầu hết các máy tính hiện nay trên thị trường đều là bản 64-bit*.
+- **PowerShell:** Windows PowerShell 5.1 (có sẵn mặc định trên Windows 10/11, bạn không cần phải điều chỉnh, cài cắm gì thêm).
 - **Trình duyệt (tùy chọn để tự động xuất PDF):** Công cụ dùng Microsoft Edge (ưu tiên) hoặc Google Chrome để xuất tệp PDF. Nếu không có, quy trình vẫn xuất hoàn chỉnh tệp `*_vi.html`.
 
 ## Lý do tồn tại
