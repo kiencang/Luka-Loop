@@ -5,7 +5,21 @@ Quy trình AI Agent tự động dịch tài liệu PDF (bao gồm cả PDF scan
 ## Yêu cầu hệ thống
 - **Hệ điều hành:** Windows 10 hoặc Windows 11 **64-bit (x64)** *(bộ công cụ `extract_assets.exe` hiện biên dịch ở kiến trúc x64, chưa hỗ trợ Windows 32-bit)*.
 - **PowerShell:** Windows PowerShell 5.1 (có sẵn mặc định trên Windows 10/11).
-- **Trình duyệt (tùy chọn để tự động xuất PDF):** Microsoft Edge (ưu tiên) hoặc Google Chrome. Nếu không có, quy trình vẫn xuất hoàn chỉnh tệp `*_vi.html`.
+- **Trình duyệt (tùy chọn để tự động xuất PDF):** Công cụ dùng Microsoft Edge (ưu tiên) hoặc Google Chrome để xuất tệp PDF. Nếu không có, quy trình vẫn xuất hoàn chỉnh tệp `*_vi.html`.
+
+## Lý do tồn tại
+Tôi đã có sản phẩm https://github.com/kiencang/PDF-silaTranslator có chức năng tương đương, nhưng hiện tại chỉ API Key trả phí mới sử dụng được. 
+
+luka-loop sử dụng agent Gemini thông qua Antigravity, và hoàn toàn dùng được với tài khoản miễn phí. Ngoài ra, việc sử dụng các thư viện python chất lượng cao như PyMuPDF giúp công cụ có sự cải tiến tốt hơn trong khả năng tách ảnh.
+
+## Cách dùng
+Rất đơn giản, bạn vào https://github.com/kiencang/luka-loop/releases tải source code .zip của phiên bản mới nhất.
+
+Sao đó giải nén file zip đó ở bất kỳ thư mục làm việc nào mà bạn muốn. Khi giải nén, nhớ chọn tùy chọn `Extract Here`, thư mục được giải nén, bạn click vào thấy ngay file có tên `AGENTS.md` nghĩa là bạn đã giải nén thành công.
+
+Phần khó nhất đã xong! Giờ để dùng công cụ dịch, bạn chỉ việc vào Antigravity, chọn Workspace > Create Project > Add Folder, rồi bạn thêm thư mục vừa giải nén xong là OK.
+
+Giờ thì bạn chỉ việc tải file PDF rồi gõ câu lệnh kiểu như `Dịch tài liệu sang tiếng Việt.` là agent Gemini sẽ tiến hành dịch, và gửi kết quả về cả ở 2 định dạng HTML và PDF.
 
 ## Cấu trúc dự án
 - [`AGENTS.md`](./AGENTS.md) — Quy tắc điều phối dành cho AI Agent trong workspace.
