@@ -1,6 +1,6 @@
 # luka-loop
 
-Quy trình AI Agent tự động dịch tài liệu PDF (bao gồm cả PDF scan và PDF học thuật nhiều hình minh họa, bảng biểu, công thức) sang bản **HTML tiếng Việt** (*self-contained* về hình ảnh và giao diện đọc) và **PDF** song song trên Windows, không yêu cầu cài đặt Python hệ thống.
+Quy trình AI Agent tự động dịch tài liệu PDF (bao gồm cả PDF scan và PDF học thuật nhiều hình minh họa, bảng biểu, công thức) sang bản **HTML tiếng Việt** và **PDF** song song trên Windows, không yêu cầu cài đặt Python hệ thống.
 
 ## Yêu cầu hệ thống
 - **Hệ điều hành:** Windows 10 hoặc Windows 11 **64-bit (x64)** *(bộ công cụ `extract_assets.exe` hiện biên dịch ở kiến trúc x64, chưa hỗ trợ Windows 32-bit)*.
