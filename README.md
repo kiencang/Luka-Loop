@@ -37,6 +37,54 @@ Giờ thì bạn chỉ việc tải file PDF rồi gõ câu lệnh kiểu như `
   - [`src/extract_assets.py`](./tools/src/extract_assets.py) — Mã nguồn Python gốc dùng để biên dịch ra `extract_assets.exe` *(chỉ dùng tham khảo/build lại; khi chạy dịch thuật tuyệt đối không gọi Python hệ thống)*.
 - `output/` — Thư mục chứa tệp đầu ra (`*_vi.html`, `*_vi.pdf`), tự động được tạo khi đóng gói và được bỏ qua bởi [`.gitignore`](./.gitignore).
 
+## Cách công cụ xử lý ảnh
+
+Công cụ kết hợp tách ảnh tự động bằng PyMuPDF ([`extract_assets.exe`](./tools/extract_assets/extract_assets.exe)) ở Bước 1 cho cả **ảnh bitmap** lẫn **sơ đồ/biểu đồ vector**, kèm cơ chế **Sàng lọc trước khi Cắt (`Triage before Crop`)** để không lãng phí công đoạn cắt thủ công cho các sơ đồ đơn giản dựng lại được bằng HTML/CSS, đồng thời bắt buộc đối chiếu trực quan song song các tệp PNG đã tách trước khi đóng gói:
+
+```mermaid
+flowchart TD
+    IN["PDF đầu vào (Workspace -PdfPath hoặc kéo-thả -TranscriptPath)"] --> S1
+
+    subgraph B1["Bước 1: Tách tự động (extract_pdf_assets.ps1 -> extract_assets.exe)"]
+        S1["Quét bitmap get_image_info() + vector get_drawings() & cluster_drawings()"]
+        S1 --> S1O["Xuất work/assets/fig_pX_Y.png (180 DPI) + manifest.json + scanned_pages"]
+    end
+
+    S1O --> CHK{"Phân loại kết quả Bước 1"}
+
+    CHK -->|"0 hình và scanned_pages rỗng"| TXT["PDF thuần chữ: Bỏ qua bước đọc ảnh & fallback"]
+
+    CHK -->|"Có figures[] trên trang chuẩn"| B2A["Bước 2a: Bắt buộc read_file song song tất cả PNG tách + đọc manifest.json"]
+    B2A -->|"Đối chiếu 1-1 với PDF gốc"| STD{"Phân loại từng hình"}
+    STD -->|"Ảnh nằm trong ô bảng"| TBL["Nhúng ảnh vào đúng ô bảng tương ứng"]
+    STD -->|"Nhóm A: Sơ đồ đơn giản"| GA["Dựng thẳng bằng HTML/CSS (bỏ PNG gốc để tránh trùng)"]
+    STD -->|"Nhóm B: Ảnh chụp, biểu đồ dày"| GB["Giữ PNG gốc (tăng -Dpi 250/300 nếu chữ nhỏ mờ)"]
+    B2A -.->|"Phát hiện trang chuẩn có hình bị tách sót"| TRI
+
+    CHK -->|"scanned_pages khác rỗng"| TRI{"Bước 2b: Sàng lọc trước khi Cắt (Triage before Crop)"}
+    TRI -->|"Nhóm A: Sơ đồ đơn giản (Cấm CropFromJson)"| SCANA{"Ảnh trang gốc đã rõ chữ?"}
+    SCANA -->|"Đã rõ"| SKIPR["Bỏ qua cả RenderPages & CropFromJson"]
+    SKIPR --> GA
+    SCANA -->|"Bị mờ"| RENDONLY["Chỉ chạy RenderPages trang đó để đọc chữ rõ hơn"]
+    RENDONLY --> GA
+
+    TRI -->|"Nhóm B: Ảnh chụp, tế bào, biểu đồ phức tạp"| SCANB["1. RenderPages -Pages (tạo page_p.png)"]
+    SCANB --> SPEC["2. read_file trang -> ghi work/crop_spec.json -> CropFromJson"]
+    SPEC --> VER["3. Bắt buộc read_file kiểm tra PNG cắt (tự nhớ out_name vì không ghi vào manifest.json)"]
+    VER --> GB
+
+    TXT --> S3
+    TBL --> S3
+    GA --> S3
+    GB --> S3
+
+    subgraph B34["Bước 3 & 4: Lắp ghép HTML & Đóng gói (html_packager.ps1)"]
+        S3["Bước 3: Viết work/draft.html (đủ minh họa Nhóm B PNG + Nhóm A HTML/CSS + full chú thích)"]
+        S3 --> S4["Bước 4: Nén tối ưu ảnh -> nhúng Base64 -> bơm reader_shell.html -> Auto-QA"]
+        S4 --> OUT["Xuất song song output/*_vi.html & output/*_vi.pdf -> tự dọn sạch work/"]
+    end
+```
+
 ## Giấy phép & Thành phần Bên thứ ba (License & Third-Party Notices)
 
 - **Mã nguồn gốc của `luka-loop`:** Phần kịch bản điều phối Agent, Skill, script PowerShell, lớp vỏ [`tools/reader_shell.html`](./tools/reader_shell.html) và mã nguồn tự viết [`tools/src/extract_assets.py`](./tools/src/extract_assets.py) được cấp phép theo **MIT License** — xem chi tiết tại [`LICENSE`](./LICENSE).

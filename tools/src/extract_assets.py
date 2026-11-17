@@ -67,6 +67,8 @@ class TextBlock:
 class CandidateBox:
     rect: pymupdf.Rect
     caption_idx: int | None = None
+    source: str = "vector"
+    drawings: int = 0
 
 
 def _clean_text(text: str) -> str:
@@ -426,20 +428,40 @@ def _has_obstacle_between(
     return False
 
 
-def _aligned_row_text_id(r: pymupdf.Rect, text_blocks: list[TextBlock]) -> int | None:
-    """Return index of a distinct text block horizontally aligned beside `r` in the same row."""
+def _row_aligned_text_indices(
+    rect: pymupdf.Rect, text_blocks: list[TextBlock], max_gap_x: float = 80.0
+) -> list[int]:
+    """Return sorted indices of regular text blocks sharing the horizontal table row with `rect`."""
+    indices: list[int] = []
     for idx, tb in enumerate(text_blocks):
         if tb.kind != "text":
             continue
         tr = tb.rect
-        if _horiz_overlap(r, tr) > 5.0:
+        if _horiz_overlap(rect, tr) > 5.0:
             continue
-        gap_x = max(0.0, max(r.x0, tr.x0) - min(r.x1, tr.x1))
-        if gap_x > 80.0:
+        gap_x = max(0.0, max(rect.x0, tr.x0) - min(rect.x1, tr.x1))
+        if gap_x > max_gap_x:
             continue
-        if abs(tr.y0 - r.y0) <= 10.0 and _vert_overlap(r, tr) >= 8.0 and tr.height <= r.height + 25.0:
-            return idx
-    return None
+        vert_nested = (
+            tr.y0 >= rect.y0 - 8.0
+            and tr.y1 <= rect.y1 + 12.0
+            and _vert_overlap(rect, tr) >= min(6.0, tr.height * 0.6)
+        )
+        top_aligned = (
+            abs(tr.y0 - rect.y0) <= 12.0
+            and _vert_overlap(rect, tr) >= 8.0
+            and tr.height <= rect.height + 28.0
+        )
+        if vert_nested or top_aligned:
+            indices.append(idx)
+    indices.sort(key=lambda i: text_blocks[i].rect.x0)
+    return indices
+
+
+def _aligned_row_text_id(r: pymupdf.Rect, text_blocks: list[TextBlock]) -> int | None:
+    """Return index of the first distinct text block horizontally aligned beside `r` in the same row."""
+    matches = _row_aligned_text_indices(r, text_blocks, max_gap_x=80.0)
+    return matches[0] if matches else None
 
 
 def _is_table_row_pair(
@@ -532,16 +554,9 @@ def _extract_context_snippet(
     rect: pymupdf.Rect, text_blocks: list[TextBlock]
 ) -> str | None:
     """Find concise nearby row or paragraph text when a figure has no explicit caption."""
-    row_texts = [
-        tb for tb in text_blocks
-        if tb.kind == "text"
-        and abs(tb.rect.y0 - rect.y0) <= 12.0
-        and _vert_overlap(rect, tb.rect) >= 8.0
-        and _horiz_overlap(rect, tb.rect) <= 5.0
-    ]
-    if row_texts:
-        row_texts.sort(key=lambda tb: tb.rect.x0)
-        joined = " | ".join(_clean_text(tb.text) for tb in row_texts)
+    row_indices = _row_aligned_text_indices(rect, text_blocks, max_gap_x=120.0)
+    if row_indices:
+        joined = " | ".join(_clean_text(text_blocks[i].text) for i in row_indices)
         return joined[:220]
 
     best_tb: TextBlock | None = None
@@ -556,6 +571,97 @@ def _extract_context_snippet(
     return None
 
 
+def _is_frame_for(inner: pymupdf.Rect, outer: pymupdf.Rect) -> bool:
+    """Return True if `inner` is just an enclosing border/cell box around `outer`."""
+    outer_area = max(1.0, outer.get_area())
+    return (
+        (inner & outer).get_area() >= 0.85 * outer_area
+        and inner.get_area() >= 0.85 * outer_area
+    )
+
+
+def _rect_center_inside(inner: pymupdf.Rect, outer: pymupdf.Rect) -> bool:
+    """Return True if `inner`'s midpoint lies inside `outer` (or overlaps substantially)."""
+    cx = 0.5 * (inner.x0 + inner.x1)
+    cy = 0.5 * (inner.y0 + inner.y1)
+    if outer.x0 <= cx <= outer.x1 and outer.y0 <= cy <= outer.y1:
+        return True
+    return (inner & outer).get_area() >= 0.5 * max(1.0, inner.get_area())
+
+
+def _annotate_candidate_origins(
+    candidates: list[CandidateBox],
+    raster_rects: list[pymupdf.Rect],
+    vector_rects: list[pymupdf.Rect],
+    filtered_rects: list[pymupdf.Rect],
+) -> None:
+    """Populate `source` ('raster'|'vector'|'hybrid') and `drawings` count on each candidate."""
+    for cand in candidates:
+        bb = cand.rect
+        overlapping_rasters = [rr for rr in raster_rects if bb.intersects(rr)]
+        intersecting_vecs = [
+            r for r in filtered_rects if bb.intersects(r) and _rect_center_inside(r, bb)
+        ]
+        if not overlapping_rasters:
+            cand.source = "vector"
+            cand.drawings = len(intersecting_vecs)
+            continue
+
+        non_frame_vecs = [r for r in intersecting_vecs if not _is_frame_for(r, bb)]
+        if len(non_frame_vecs) >= 2 or (len(overlapping_rasters) >= 2 and len(non_frame_vecs) >= 1):
+            cand.source = "hybrid"
+            cand.drawings = len(intersecting_vecs)
+        else:
+            cand.source = "raster"
+            cand.drawings = 0
+
+
+def _detect_table_placement(
+    candidates: list[CandidateBox],
+    idx: int,
+    text_blocks: list[TextBlock],
+    table_bboxes: list[pymupdf.Rect],
+) -> str:
+    """Classify uncaptioned candidate as 'table_cell' or standalone 'figure'."""
+    cand = candidates[idx]
+    if cand.caption_idx is not None:
+        return "figure"
+
+    bb = cand.rect
+    bb_area = max(1.0, bb.get_area())
+    if any((bb & tb_rect).get_area() >= 0.65 * bb_area for tb_rect in table_bboxes):
+        return "table_cell"
+
+    row_indices = _row_aligned_text_indices(bb, text_blocks, max_gap_x=120.0)
+    if len(row_indices) >= 2:
+        return "table_cell"
+    if len(row_indices) == 1 and len(text_blocks[row_indices[0]].text.split()) <= 25:
+        if any(i != idx and _is_table_row_pair(bb, other.rect, text_blocks) for i, other in enumerate(candidates)):
+            return "table_cell"
+        row_span = bb | text_blocks[row_indices[0]].rect
+        for tb in text_blocks:
+            if tb.kind == "tab_caption" and 0.0 <= bb.y0 - tb.rect.y1 <= 55.0 and _horiz_overlap(tb.rect, row_span) >= 40.0:
+                return "table_cell"
+
+    return "figure"
+
+
+def _normalize_box(bb: pymupdf.Rect, page_rect: pymupdf.Rect) -> list[float]:
+    """Normalize `bb` onto [0.0, 1.0] relative to `page_rect` (handles CropBox offsets)."""
+    pw = max(1.0, float(page_rect.width))
+    ph = max(1.0, float(page_rect.height))
+
+    def _norm(val: float, origin: float, span: float) -> float:
+        return round(max(0.0, min(1.0, (val - origin) / span)), 3)
+
+    return [
+        _norm(bb.x0, page_rect.x0, pw),
+        _norm(bb.y0, page_rect.y0, ph),
+        _norm(bb.x1, page_rect.x0, pw),
+        _norm(bb.y1, page_rect.y0, ph),
+    ]
+
+
 def _collect_page_candidates(
     page: pymupdf.Page,
 ) -> tuple[list[CandidateBox], list[TextBlock], list[TextBlock], bool]:
@@ -568,6 +674,7 @@ def _collect_page_candidates(
 
     drawings = page.get_drawings()
     vector_rects: list[pymupdf.Rect] = []
+    filtered_rects: list[pymupdf.Rect] = []
     rules: list[pymupdf.Rect] = []
     if drawings:
         rules = _collect_separator_rules(drawings, pw, ph)
@@ -582,6 +689,7 @@ def _collect_page_candidates(
                     vector_rects.append(c)
 
     candidates = _group_figures(raster_rects, vector_rects, text_blocks, rules)
+    _annotate_candidate_origins(candidates, raster_rects, vector_rects, filtered_rects)
     is_scanned = has_full_page_img and not candidates
     return candidates, text_blocks, fig_captions, is_scanned
 
@@ -630,7 +738,12 @@ def extract_images(
             candidates, text_blocks, fig_captions, is_scanned = _collect_page_candidates(page)
             if is_scanned:
                 scanned_pages.append(pno)
-            for idx, cand in enumerate(candidates, 1):
+            table_bboxes: list[pymupdf.Rect] = []
+            if write_meta and any(c.caption_idx is None for c in candidates):
+                table_bboxes = [pymupdf.Rect(t.bbox) for t in page.find_tables().tables]
+
+            for idx0, cand in enumerate(candidates):
+                idx = idx0 + 1
                 bb = cand.rect
                 clip = pymupdf.Rect(bb.x0 - 4.0, bb.y0 - 4.0, bb.x1 + 4.0, bb.y1 + 4.0) & page.rect
                 if clip.is_empty:
@@ -652,16 +765,15 @@ def extract_images(
                         if cap_text is not None
                         else _extract_context_snippet(bb, text_blocks)
                     )
+                    placement = _detect_table_placement(candidates, idx0, text_blocks, table_bboxes)
                     manifest_items.append(
                         {
                             "file": out_name,
                             "page": pno,
-                            "bbox": [
-                                round(bb.x0, 1),
-                                round(bb.y0, 1),
-                                round(bb.x1, 1),
-                                round(bb.y1, 1),
-                            ],
+                            "source": cand.source,
+                            "drawings": cand.drawings,
+                            "placement": placement,
+                            "box": _normalize_box(bb, page.rect),
                             "width_px": pix.width,
                             "height_px": pix.height,
                             "caption": cap_text,
@@ -678,6 +790,7 @@ def extract_images(
         meta_path = out_dir / "manifest.json"
         meta = {
             "pdf": pdf_path.name,
+            "dpi": dpi,
             "total_pages": total_pages,
             "scanned_pages": scanned_pages,
             "figures": manifest_items,

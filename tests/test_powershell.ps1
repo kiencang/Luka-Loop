@@ -397,17 +397,32 @@ try {
         $rStd = Invoke-CliPs1 $extractPs1 @('-PdfPath', $stdPdf, '-OutDir', $stdAssets, '-Meta')
         Assert-Equal 0 $rStd.ExitCode "Standard fixture failed: $($rStd.Output)"
         $mStd = Get-Content (Join-Path $stdAssets 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        Assert-Equal 180 $mStd.dpi 'Standard fixture manifest dpi'
         Assert-Equal 6 $mStd.total_pages 'Standard fixture page count'
         Assert-Equal 0 $mStd.scanned_pages.Count 'Standard fixture should have 0 scanned pages'
         Assert-Equal 8 $mStd.figures.Count 'Standard fixture should extract 8 figures (rejecting code box and Table 1)'
         Assert-True ($mStd.figures[0].caption -match '^Figure 1:') 'Fig 1 flowchart caption'
+        Assert-Equal 'vector' $mStd.figures[0].source 'Fig 1 should be classified as vector'
+        Assert-True ($mStd.figures[0].drawings -ge 10) 'Fig 1 should report vector drawings count'
+        Assert-Equal 'figure' $mStd.figures[0].placement 'Fig 1 placement'
         Assert-True ($mStd.figures[1].caption -match '^Figure 2:') 'Fig 2 multipanel caption'
+        Assert-Equal 'raster' $mStd.figures[1].source 'Fig 2 should be classified as raster'
         Assert-True ($mStd.figures[2].caption -match '^Figure 3:') 'Fig 3 chalkboard caption'
         Assert-Equal $null $mStd.figures[3].caption 'Table 2 row 1 thumbnail should have null caption'
+        Assert-Equal 'table_cell' $mStd.figures[3].placement 'Table 2 row 1 thumbnail should report table_cell placement'
+        Assert-True ($mStd.figures[3].context -match 'Botanical Foreground') 'Table 2 row 1 thumbnail should capture adjacent row text'
         Assert-Equal $null $mStd.figures[4].caption 'Table 2 row 2 thumbnail should have null caption'
+        Assert-Equal 'table_cell' $mStd.figures[4].placement 'Table 2 row 2 thumbnail should report table_cell placement'
+        Assert-True ($mStd.figures[4].context -match 'Facade Geometry') 'Table 2 row 2 thumbnail should capture adjacent row text'
         Assert-True ($mStd.figures[5].caption -match '^Figure 4:') 'Fig 4 vector chart caption'
+        Assert-Equal 'vector' $mStd.figures[5].source 'Fig 4 should be classified as vector'
         Assert-True ($mStd.figures[6].caption -match '^Fig\. S1:') 'Fig S1 supplementary caption'
         Assert-True ($mStd.figures[7].caption -match '^Fig\. S2:') 'Fig S2 rectification vector caption'
+        foreach ($fig in $mStd.figures) {
+            Assert-Equal 4 @($fig.box).Count "Normalized box array length for $($fig.file)"
+            Assert-True ($fig.box[0] -ge 0.0 -and $fig.box[2] -le 1.0 -and $fig.box[0] -lt $fig.box[2]) "Normalized box X bounds for $($fig.file)"
+            Assert-True ($fig.box[1] -ge 0.0 -and $fig.box[3] -le 1.0 -and $fig.box[1] -lt $fig.box[3]) "Normalized box Y bounds for $($fig.file)"
+        }
 
         # 2. Pure 2-page scanned PDF + RenderPages + CropFromJson auto_trim
         $scanPdf = Join-Path $fixDir 'synthetic_scanned_memo.pdf'
@@ -443,7 +458,9 @@ try {
         Assert-Equal 2 $mMix.scanned_pages[0] 'Mixed fixture scanned page should be page 2'
         Assert-Equal 2 $mMix.figures.Count 'Mixed fixture should extract 2 digital figures (p1 & p3)'
         Assert-True ($mMix.figures[0].caption -match '^Figure 1:') 'Mixed p1 caption'
+        Assert-Equal 'raster' $mMix.figures[0].source 'Mixed p1 should be raster'
         Assert-True ($mMix.figures[1].caption -match '^Figure 3:') 'Mixed p3 caption'
+        Assert-Equal 'vector' $mMix.figures[1].source 'Mixed p3 should be vector'
 
         # Selective -Pages rendering on mixed PDF (render only scanned page 2, and bracketed [1, 3])
         $mixPagesScanOnly = Join-Path $fixOut 'mix_scan_only'

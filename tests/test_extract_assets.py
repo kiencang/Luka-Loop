@@ -129,10 +129,18 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
         out_dir = self.tmp_dir / "out"
         ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(meta["dpi"], 150)
         self.assertEqual(len(meta["figures"]), 2)
         self.assertTrue(meta["figures"][0]["caption"].startswith("Figure 1:"))
         self.assertTrue(meta["figures"][1]["caption"].startswith("Figure 2:"))
         for fig in meta["figures"]:
+            self.assertEqual(fig["source"], "vector")
+            self.assertGreater(fig["drawings"], 0)
+            self.assertEqual(fig["placement"], "figure")
+            self.assertEqual(len(fig["box"]), 4)
+            self.assertTrue(all(0.0 <= v <= 1.0 for v in fig["box"]))
+            self.assertLess(fig["box"][0], fig["box"][2])
+            self.assertLess(fig["box"][1], fig["box"][3])
             self.assertTrue((out_dir / fig["file"]).is_file())
 
     def test_cropbox_offset_and_64pt_caption_gap(self) -> None:
@@ -149,7 +157,52 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
         ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(len(meta["figures"]), 1)
-        self.assertTrue(meta["figures"][0]["caption"].startswith("Fig. S1:"))
+        fig = meta["figures"][0]
+        self.assertTrue(fig["caption"].startswith("Fig. S1:"))
+        self.assertEqual(fig["box"], [0.2, 0.143, 0.6, 0.314])
+        self.assertEqual(fig["source"], "vector")
+        self.assertEqual(fig["placement"], "figure")
+
+    def test_raster_hybrid_and_table_cell_manifest_classification(self) -> None:
+        pdf_path = self.tmp_dir / "sources_and_table.pdf"
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 80, 60), False)
+        pix.clear_with(180)
+        with pymupdf.open() as doc:
+            p = doc.new_page(width=600, height=800)
+            # 1. Framed raster image -> must still be "raster" (drawings=0)
+            r1 = pymupdf.Rect(50, 50, 170, 130)
+            p.insert_image(r1, pixmap=pix)
+            p.draw_rect(r1, color=(0, 0, 0), width=1.0)
+            p.insert_text((50, 146), "Figure 1: Framed plain bitmap photo", fontsize=10)
+
+            # 2. Bitmap overlaid with multiple vector arrows/boxes -> "hybrid"
+            r2 = pymupdf.Rect(50, 180, 230, 280)
+            p.insert_image(r2, pixmap=pix)
+            p.draw_rect(pymupdf.Rect(70, 200, 110, 230), color=(1, 0, 0), width=1.2)
+            p.draw_line((110, 215), (170, 240), color=(1, 0, 0), width=1.2)
+            p.insert_text((50, 296), "Figure 2: Bitmap with vector overlays", fontsize=10)
+
+            # 3. Table with middle-aligned text beside two small row images
+            p.insert_text((50, 360), "Table 1: Visual rows", fontsize=10)
+            p.insert_image(pymupdf.Rect(50, 380, 110, 440), pixmap=pix)
+            p.insert_text((140, 412), "Row alpha sample metric 0.91", fontsize=9)
+            p.insert_image(pymupdf.Rect(50, 455, 110, 515), pixmap=pix)
+            p.insert_text((140, 487), "Row beta sample metric 0.87", fontsize=9)
+            doc.save(pdf_path)
+
+        out_dir = self.tmp_dir / "out_cls"
+        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(meta["figures"]), 4)
+        self.assertEqual(meta["figures"][0]["source"], "raster")
+        self.assertEqual(meta["figures"][0]["drawings"], 0)
+        self.assertEqual(meta["figures"][0]["placement"], "figure")
+        self.assertEqual(meta["figures"][1]["source"], "hybrid")
+        self.assertGreaterEqual(meta["figures"][1]["drawings"], 2)
+        self.assertEqual(meta["figures"][2]["placement"], "table_cell")
+        self.assertIn("Row alpha", meta["figures"][2]["context"])
+        self.assertEqual(meta["figures"][3]["placement"], "table_cell")
+        self.assertIn("Row beta", meta["figures"][3]["context"])
 
     def test_scanned_page_flag(self) -> None:
         pdf_path = self.tmp_dir / "scanned.pdf"
