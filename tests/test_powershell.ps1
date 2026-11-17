@@ -338,6 +338,127 @@ try {
         }
     }
 
+    Invoke-TestCase 'html_packager.ps1 -PreserveLayout skips reader shell, relaxes table-wrapper, and cleans work' {
+        $packPs1 = Join-Path $toolsDir 'html_packager.ps1'
+        $extractPs1 = Join-Path $toolsDir 'extract_pdf_assets.ps1'
+        $plRoot = Join-Path $tmpRoot 'preserve_ws'
+        $plWork = Join-Path $plRoot 'work'
+        $plOut = Join-Path $plRoot 'output'
+        [void][System.IO.Directory]::CreateDirectory($plWork)
+        [void][System.IO.Directory]::CreateDirectory($plOut)
+
+        Push-Location $plRoot
+        try {
+            $rExt = Invoke-CliPs1 $extractPs1 @('-PdfPath', $samplePdf, '-OutDir', 'work\assets', '-Meta')
+            Assert-Equal 0 $rExt.ExitCode "PreserveLayout extract failed: $($rExt.Output)"
+
+            # Write intermediate translated.md to verify -CleanDir cleans the full work folder
+            [System.IO.File]::WriteAllText((Join-Path $plWork 'translated.md'), "<!-- p:1 -->`nNoi dung dich`n<!-- /p:1 -->", (New-Object System.Text.UTF8Encoding($false)))
+
+            # Draft with unwrapped table, inline styles, section page, and no reader shell
+            $plDraft = Join-Path $plWork 'draft.html'
+            $plHtml = @'
+<!DOCTYPE html><html><head><title>Layout Preserved</title><style>.pdf-page{max-width:960px;}</style></head>
+<body><section id="pdf-page-1" class="pdf-page"><p><a href="#pdf-page-1">Trang 1</a></p><table><tr><td>Bang khong can table-wrapper</td></tr></table><figure><img src="assets/fig_p1_1.png" alt="So do 1"><figcaption>Hinh 1</figcaption></figure></section></body></html>
+'@
+            [System.IO.File]::WriteAllText($plDraft, $plHtml, (New-Object System.Text.UTF8Encoding($false)))
+
+            $rPl = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', 'work\draft.html', '-OutHtmlPath', 'output\pl_vi.html', '-PreserveLayout', '-AlsoPdf', '-CleanDir', 'work')
+            Assert-Equal 0 $rPl.ExitCode "PreserveLayout pack failed: $($rPl.Output)"
+            Assert-True ($rPl.Output -match '\[QA PASS\] Base64 images: 1 \| Tables: 1 \(wrapper optional\)') "Unexpected PreserveLayout QA output: $($rPl.Output)"
+            Assert-True ($rPl.Output -match 'PreserveLayout mode: skipped reader shell injection') "Expected skipped shell log: $($rPl.Output)"
+            Assert-True (-not (Test-Path -LiteralPath $plWork)) 'work\ (including translated.md) should be cleaned'
+
+            $plOutHtml = Join-Path $plOut 'pl_vi.html'
+            Assert-True (Test-Path -LiteralPath $plOutHtml -PathType Leaf) 'pl_vi.html missing'
+            $plText = [System.IO.File]::ReadAllText($plOutHtml, [System.Text.Encoding]::UTF8)
+            Assert-True ($plText -match 'data:image/png;base64,') 'PreserveLayout should still embed Base64 image'
+            Assert-True ($plText -notmatch 'rsfv-toolbar|data-reader-shell|<script') 'PreserveLayout must inject zero reader shell CSS/JS'
+            if (Find-LocalBrowser) {
+                Assert-True (Test-Path -LiteralPath (Join-Path $plOut 'pl_vi.pdf') -PathType Leaf) 'pl_vi.pdf missing despite browser installed'
+            }
+
+            # Negative checks still enforced under -PreserveLayout
+            $plBad = Join-Path $plRoot 'bad_pl.html'
+            foreach ($neg in @(
+                @{ name = 'missing body'; html = '<!DOCTYPE html><html><head></head><p>No body</p></html>'; pat = 'complete <head>' },
+                @{ name = 'missing alt'; html = '<!DOCTYPE html><html><head></head><body><img src="x.png"></body></html>'; pat = 'missing alt attribute' },
+                @{ name = 'unembedded img'; html = '<!DOCTYPE html><html><head></head><body><img src="missing.png" alt="x"></body></html>'; pat = 'un-embedded local' },
+                @{ name = 'broken anchor'; html = '<!DOCTYPE html><html><head></head><body><a href="#bad">Link</a></body></html>'; pat = 'Broken internal anchor' },
+                @{ name = 'latex no mathjax'; html = '<!DOCTYPE html><html><head></head><body><p>Formula \(a+b\)</p></body></html>'; pat = 'Detected LaTeX math delimiters' }
+            )) {
+                [System.IO.File]::WriteAllText($plBad, $neg.html, (New-Object System.Text.UTF8Encoding($false)))
+                $rNeg = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $plBad, '-OutHtmlPath', (Join-Path $plRoot 'bad_pl_out.html'), '-PreserveLayout')
+                Assert-True ($rNeg.ExitCode -ne 0 -and $rNeg.Output -match $neg.pat) "PreserveLayout QA [$($neg.name)] expected '$($neg.pat)', got: $($rNeg.Output)"
+            }
+        } finally {
+            Pop-Location
+        }
+    }
+
+    Invoke-TestCase 'html_packager.ps1 auto-numbers collisions (_2, _3), syncs paired PDF, and preserves in-place mode' {
+        $packPs1 = Join-Path $toolsDir 'html_packager.ps1'
+        $colRoot = Join-Path $tmpRoot 'collision_ws'
+        $colWork = Join-Path $colRoot 'work'
+        $colOut = Join-Path $colRoot 'output'
+        [void][System.IO.Directory]::CreateDirectory($colWork)
+        [void][System.IO.Directory]::CreateDirectory($colOut)
+
+        $src1 = Join-Path $colWork 'draft1.html'
+        $src2 = Join-Path $colWork 'draft2.html'
+        [System.IO.File]::WriteAllText($src1, '<!DOCTYPE html><html><head><title>V1</title></head><body><p>Version 1</p></body></html>', (New-Object System.Text.UTF8Encoding($false)))
+        [System.IO.File]::WriteAllText($src2, '<!DOCTYPE html><html><head><title>V2</title></head><body><p>Version 2</p></body></html>', (New-Object System.Text.UTF8Encoding($false)))
+
+        $targetLayout = Join-Path $colOut 'doc_layout_vi.html'
+        $rCol1 = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $src1, '-OutHtmlPath', $targetLayout, '-PreserveLayout', '-AlsoPdf')
+        Assert-Equal 0 $rCol1.ExitCode "Collision run 1 failed: $($rCol1.Output)"
+        Assert-True ($rCol1.Output -notmatch 'Output collision avoided') 'Run 1 should not trigger auto-numbering'
+
+        $rCol2 = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $src2, '-OutHtmlPath', $targetLayout, '-PreserveLayout', '-AlsoPdf')
+        Assert-Equal 0 $rCol2.ExitCode "Collision run 2 failed: $($rCol2.Output)"
+        Assert-True ($rCol2.Output -match 'Output collision avoided; auto-numbered ->') "Expected auto-number log: $($rCol2.Output)"
+        $targetLayout2 = Join-Path $colOut 'doc_layout_vi_2.html'
+        Assert-True (Test-Path -LiteralPath $targetLayout2 -PathType Leaf) 'doc_layout_vi_2.html missing'
+        Assert-True (([System.IO.File]::ReadAllText($targetLayout, [System.Text.Encoding]::UTF8)) -match 'Version 1') 'Run 1 output must remain intact'
+        Assert-True (([System.IO.File]::ReadAllText($targetLayout2, [System.Text.Encoding]::UTF8)) -match 'Version 2') 'Run 2 output should be in _2'
+
+        # Run 3 with same base path bumps cleanly to _3
+        $rCol3 = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $src2, '-OutHtmlPath', $targetLayout, '-PreserveLayout', '-AlsoPdf')
+        Assert-Equal 0 $rCol3.ExitCode "Collision run 3 failed: $($rCol3.Output)"
+        $targetLayout3 = Join-Path $colOut 'doc_layout_vi_3.html'
+        Assert-True (Test-Path -LiteralPath $targetLayout3 -PathType Leaf) 'Run 3 should create _3.html'
+
+        # Orphaned PDF collision should still bump BOTH HTML and PDF to _2
+        $orphanPdf = Join-Path $colOut 'orphan_vi.pdf'
+        [System.IO.File]::WriteAllText($orphanPdf, 'ORIGINAL_PDF', (New-Object System.Text.UTF8Encoding($false)))
+        $rOrphan = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $src2, '-OutHtmlPath', (Join-Path $colOut 'orphan_vi.html'), '-AlsoPdf')
+        Assert-Equal 0 $rOrphan.ExitCode "Orphan PDF collision failed: $($rOrphan.Output)"
+        Assert-True (Test-Path -LiteralPath (Join-Path $colOut 'orphan_vi_2.html') -PathType Leaf) 'Orphan collision should produce orphan_vi_2.html'
+        Assert-Equal 'ORIGINAL_PDF' ([System.IO.File]::ReadAllText($orphanPdf, [System.Text.Encoding]::UTF8)) 'Orphaned PDF must not be overwritten'
+
+        # Omitting -OutHtmlPath updates source in place without _2
+        $inPlace = Join-Path $colWork 'inplace.html'
+        [System.IO.File]::WriteAllText($inPlace, '<!DOCTYPE html><html><head><title>IP</title></head><body><p>InPlace</p></body></html>', (New-Object System.Text.UTF8Encoding($false)))
+        $rIp = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $inPlace)
+        Assert-Equal 0 $rIp.ExitCode "In-place run failed: $($rIp.Output)"
+        Assert-True (([System.IO.File]::ReadAllText($inPlace, [System.Text.Encoding]::UTF8)) -match 'data-reader-shell') 'In-place should update source HTML directly'
+        Assert-True (-not (Test-Path -LiteralPath (Join-Path $colWork 'inplace_2.html'))) 'In-place must not create _2'
+
+        if (Find-LocalBrowser) {
+            Assert-True (Test-Path -LiteralPath (Join-Path $colOut 'doc_layout_vi.pdf') -PathType Leaf) 'Run 1 PDF missing'
+            Assert-True (Test-Path -LiteralPath (Join-Path $colOut 'doc_layout_vi_2.pdf') -PathType Leaf) 'Run 2 paired _2.pdf missing'
+            Assert-True (Test-Path -LiteralPath (Join-Path $colOut 'doc_layout_vi_3.pdf') -PathType Leaf) 'Run 3 paired _3.pdf missing'
+            Assert-True (Test-Path -LiteralPath (Join-Path $colOut 'orphan_vi_2.pdf') -PathType Leaf) 'Orphan collision paired _2.pdf missing'
+
+            $standalonePdf = Join-Path $colOut 'standalone.pdf'
+            [System.IO.File]::WriteAllText($standalonePdf, 'EXISTING_PDF', (New-Object System.Text.UTF8Encoding($false)))
+            $rPdfCol = Invoke-CliPs1 $packPs1 @('-Action', 'HtmlToPdf', '-HtmlPath', $targetLayout2, '-OutPdfPath', $standalonePdf)
+            Assert-Equal 0 $rPdfCol.ExitCode "Standalone HtmlToPdf collision failed: $($rPdfCol.Output)"
+            Assert-True (Test-Path -LiteralPath (Join-Path $colOut 'standalone_2.pdf') -PathType Leaf) 'Standalone HtmlToPdf should auto-number _2.pdf'
+            Assert-Equal 'EXISTING_PDF' ([System.IO.File]::ReadAllText($standalonePdf, [System.Text.Encoding]::UTF8)) 'Standalone existing PDF must remain intact'
+        }
+    }
+
     Invoke-TestCase 'html_packager.ps1 -CleanDir safety guards, lock resilience, and end-to-end -AlsoPdf' {
         $packPs1 = Join-Path $toolsDir 'html_packager.ps1'
         $extractPs1 = Join-Path $toolsDir 'extract_pdf_assets.ps1'
@@ -356,7 +477,7 @@ try {
             [System.IO.File]::WriteAllText($draft, '<!DOCTYPE html><html><head><title>E2E</title></head><body><h1>E2E</h1><figure><img src="assets/fig_p1_1.png" alt="Diagram"><figcaption>Figure 1</figcaption></figure></body></html>', (New-Object System.Text.UTF8Encoding($false)))
 
             # Refuses unsafe CleanDir outside work\
-            $rUnsafe = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', 'work\draft.html', '-OutHtmlPath', 'output\e2e_vi.html', '-CleanDir', 'output')
+            $rUnsafe = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', 'work\draft.html', '-OutHtmlPath', 'output\unsafe_vi.html', '-CleanDir', 'output')
             Assert-True ($rUnsafe.ExitCode -ne 0 -and $rUnsafe.Output -match 'Refusing to clean unsafe directory') "Should refuse CleanDir output: $($rUnsafe.Output)"
 
             # Full packaging with -AlsoPdf and -CleanDir work

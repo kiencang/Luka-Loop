@@ -20,7 +20,7 @@ Sao đó giải nén file zip đó ở bất kỳ thư mục làm việc nào m�
 
 Phần khó nhất đã xong! Giờ để dùng công cụ dịch, bạn chỉ việc vào Antigravity, chọn Workspace > Create Project > Add Folder, rồi bạn thêm thư mục vừa giải nén xong là OK.
 
-Giờ thì bạn chỉ việc tải file PDF rồi gõ câu lệnh kiểu như `Dịch tài liệu sang tiếng Việt.` là agent Gemini sẽ tiến hành dịch, và gửi kết quả về cả ở 2 định dạng HTML và PDF. 
+Giờ thì bạn chỉ việc tải file PDF rồi gõ câu lệnh kiểu như `Dịch tài liệu sang tiếng Việt.` là agent Gemini sẽ tiến hành dịch, và gửi kết quả về cả ở 2 định dạng HTML và PDF. Nếu muốn giữ sát bố cục/thiết kế gốc từng trang của PDF (slide, brochure, tạp chí nhiều cột...), hãy nêu rõ trong yêu cầu (ví dụ: `Dịch tài liệu sang tiếng Việt và bảo toàn thiết kế/layout.`).
 
 **Lưu ý**:
 - Khi làm việc với Antigravity nên chọn chế độ **Turbo** (thay vì mặc định Request Review) để không phải liên tục nhận được các câu hỏi xác nhận quyền thực thi.
@@ -28,14 +28,15 @@ Giờ thì bạn chỉ việc tải file PDF rồi gõ câu lệnh kiểu như `
 
 ## Cấu trúc dự án
 - [`AGENTS.md`](./AGENTS.md) — Quy tắc điều phối dành cho AI Agent trong workspace.
-- [`.agents/skills/pdf-to-html-vi/`](./.agents/skills/pdf-to-html-vi/) — Skill `pdf-to-html-vi` gồm quy trình 4 bước ([`SKILL.md`](./.agents/skills/pdf-to-html-vi/SKILL.md)) và bộ chuẩn dịch thuật học thuật / CSS ([`si_academic_html.md`](./.agents/skills/pdf-to-html-vi/si_academic_html.md)).
+- [`.agents/skills/pdf-to-html-vi/`](./.agents/skills/pdf-to-html-vi/) — Skill mặc định `pdf-to-html-vi` (đọc mượt 1 cột) gồm quy trình 4 bước ([`SKILL.md`](./.agents/skills/pdf-to-html-vi/SKILL.md)) và bộ chuẩn dịch thuật học thuật / CSS ([`si_academic_html.md`](./.agents/skills/pdf-to-html-vi/si_academic_html.md)).
+- [`.agents/skills/pdf-to-html-vi-layout/`](./.agents/skills/pdf-to-html-vi-layout/) — Skill tùy chọn `pdf-to-html-vi-layout` (kích hoạt khi yêu cầu bảo toàn thiết kế/layout) gồm quy trình tách pha tiết kiệm token ([`SKILL.md`](./.agents/skills/pdf-to-html-vi-layout/SKILL.md)), bộ quy chuẩn chuyên dịch ([`si_translation.md`](./.agents/skills/pdf-to-html-vi-layout/si_translation.md)) và bộ quy chuẩn thiết kế từng trang ([`si_layout.md`](./.agents/skills/pdf-to-html-vi-layout/si_layout.md)).
 - [`tools/`](./tools/) — Bộ công cụ PowerShell & portable:
   - [`_path_guards.ps1`](./tools/_path_guards.ps1) — Tiện ích dùng chung kiểm tra và bảo vệ đường dẫn cục bộ (`Test-IsReparsePoint`, `Assert-SafeOutputPath`, `Assert-LocalNoUncPath`).
   - [`extract_pdf_assets.ps1`](./tools/extract_pdf_assets.ps1) gọi [`extract_assets/extract_assets.exe`](./tools/extract_assets/extract_assets.exe) để tự động tách ảnh/sơ đồ và xuất `manifest.json`.
   - [`pdf_fallback_tools.ps1`](./tools/pdf_fallback_tools.ps1) render trang PDF scan qua WinRT `Windows.Data.Pdf` và cắt khung ảnh theo JSON.
-  - [`html_packager.ps1`](./tools/html_packager.ps1) nhúng ảnh Base64 tối ưu, bơm lớp vỏ đọc [`reader_shell.html`](./tools/reader_shell.html) (gồm nút chỉnh độ rộng `740px` bước `10px`, chuyển 3 chế độ màu Sáng / Dịu mắt / Tối, mục lục tự động, phóng to ảnh), kiểm định Auto-QA và xuất PDF.
+  - [`html_packager.ps1`](./tools/html_packager.ps1) nhúng ảnh Base64 tối ưu, bơm lớp vỏ đọc [`reader_shell.html`](./tools/reader_shell.html) (hoặc giữ nguyên HTML thuần khi bật `-PreserveLayout`), kiểm định Auto-QA, tự động đánh số chống ghi đè (`_2`, `_3`...) khi trùng tên trong `output/` và xuất PDF.
   - [`src/extract_assets.py`](./tools/src/extract_assets.py) — Mã nguồn Python gốc dùng để biên dịch ra `extract_assets.exe` *(chỉ dùng tham khảo/build lại; khi chạy dịch thuật tuyệt đối không gọi Python hệ thống)*.
-- `output/` — Thư mục chứa tệp đầu ra (`*_vi.html`, `*_vi.pdf`), tự động được tạo khi đóng gói và được bỏ qua bởi [`.gitignore`](./.gitignore).
+- `output/` — Thư mục chứa tệp đầu ra (`*_vi.html`/`*_vi.pdf` cho bản đọc mượt mặc định; `*_layout_vi.html`/`*_layout_vi.pdf` cho bản bảo toàn thiết kế; tự động thêm `_2`, `_3`... nếu dịch lại nhiều lần cùng một file), tự động được tạo khi đóng gói và được bỏ qua bởi [`.gitignore`](./.gitignore).
 
 ## Cách công cụ xử lý ảnh
 
@@ -84,6 +85,11 @@ flowchart TD
         S4 --> OUT["Xuất song song output/*_vi.html & output/*_vi.pdf -> tự dọn sạch work/"]
     end
 ```
+
+## Tuyên bố từ chối trách nhiệm
+Công cụ này có thể được sử dụng cho mục đích nghiên cứu và học tập cá nhân.
+
+`luka-loop` cũng như người phát triển nó không đưa ra bất kỳ bảo đảm rõ ràng hay ngụ ý nào, cũng như không tuyên bố rằng công cụ sẽ vận hành hoàn hảo, chính xác hoặc cập nhật. Người phát triển sẽ không chịu trách nhiệm cho bất kỳ tổn thất hay thiệt hại nào phát sinh trực tiếp hoặc gián tiếp liên quan đến hoặc phát sinh từ việc sử dụng công cụ này.
 
 ## Giấy phép & Thành phần Bên thứ ba (License & Third-Party Notices)
 

@@ -3,8 +3,8 @@
     Pure Windows PowerShell 5.1 HTML Image Embedder, Reader Shell Injector, Auto-QA Gate & Headless PDF Exporter.
 .DESCRIPTION
     Packages translated HTML documents into self-contained files and printable PDFs:
-      -Action EmbedImages : Embed local PNG/JPG images as optimized Base64, inject outer reader shell (tools\reader_shell.html) idempotently, run HTML Auto-QA, optionally export PDF (-AlsoPdf), and optionally clean a temp directory (-CleanDir) on success
-      -Action HtmlToPdf   : Convert a self-contained HTML file to clean PDF using built-in Microsoft Edge or Chrome headless
+      -Action EmbedImages : Embed local PNG/JPG images as optimized Base64, inject outer reader shell (tools\reader_shell.html) idempotently (unless -PreserveLayout), run HTML Auto-QA, optionally export PDF (-AlsoPdf), always auto-number colliding output names (_2, _3, ...), and optionally clean a temp directory (-CleanDir) on success
+      -Action HtmlToPdf   : Convert a self-contained HTML file to clean PDF using built-in Microsoft Edge or Chrome headless (always auto-numbers colliding output names)
 #>
 param(
     [Parameter(Mandatory = $true)]
@@ -15,6 +15,7 @@ param(
     [string]$OutHtmlPath = '',
     [string]$OutPdfPath = '',
     [switch]$AlsoPdf,
+    [switch]$PreserveLayout,
     [ValidateRange(1, 100)]
     [int]$JpegQuality = 90,
     [ValidateRange(0, 10000)]
@@ -184,8 +185,15 @@ function Get-ImgSrcValue {
 }
 
 function Invoke-HtmlQaCheck {
-    param([string]$HtmlText)
+    param(
+        [string]$HtmlText,
+        [bool]$SkipTableWrapperCheck = $false
+    )
     $issues = New-Object 'System.Collections.Generic.List[string]'
+
+    if ($HtmlText -notmatch '(?i)<head\b[^>]*>' -or $HtmlText -notmatch '(?i)</head>' -or $HtmlText -notmatch '(?i)<body\b[^>]*>' -or $HtmlText -notmatch '(?i)</body>') {
+        $issues.Add("HTML must contain complete <head>...</head> and <body>...</body> sections.")
+    }
 
     # Strip <script> and <style> before checking prose/layout/img tags
     $domOnly = [regex]::Replace($HtmlText, '(?is)<(?:script|style)\b[^>]*>.*?</(?:script|style)>', '')
@@ -218,7 +226,7 @@ function Invoke-HtmlQaCheck {
 
     $tableCount = ([regex]::Matches($domOnly, '(?i)<table\b')).Count
     $wrapperCount = ([regex]::Matches($domOnly, '(?i)\bclass\s*=\s*(?:"[^"]*\btable-wrapper\b[^"]*"|''[^'']*\btable-wrapper\b[^'']*'')')).Count
-    if ($tableCount -gt $wrapperCount) {
+    if (-not $SkipTableWrapperCheck -and $tableCount -gt $wrapperCount) {
         $issues.Add("Found $tableCount <table> element(s) but only $wrapperCount .table-wrapper container(s).")
     }
 
@@ -246,7 +254,12 @@ function Invoke-HtmlQaCheck {
     if ($issues.Count -gt 0) {
         throw ("HTML Auto-QA FAILED:`n - " + ($issues -join "`n - "))
     }
-    Write-Output ("[QA PASS] Base64 images: {0} | Tables wrapped: {1}/{2} | LaTeX/MathJax OK | Broken anchors: 0" -f $b64Count, $wrapperCount, $tableCount)
+    $tableStatus = if ($SkipTableWrapperCheck) {
+        "Tables: $tableCount (wrapper optional)"
+    } else {
+        "Tables wrapped: $wrapperCount/$tableCount"
+    }
+    Write-Output ("[QA PASS] Base64 images: {0} | {1} | LaTeX/MathJax OK | Broken anchors: 0" -f $b64Count, $tableStatus)
 }
 
 function Find-HeadlessBrowser {
@@ -267,6 +280,37 @@ function Find-HeadlessBrowser {
     return $null
 }
 
+function Get-IndexedFilePath {
+    param(
+        [string]$BasePath,
+        [int]$Index
+    )
+    if ($Index -le 1) { return $BasePath }
+    $dir = [System.IO.Path]::GetDirectoryName($BasePath)
+    $stem = [System.IO.Path]::GetFileNameWithoutExtension($BasePath)
+    $ext = [System.IO.Path]::GetExtension($BasePath)
+    return (Join-Path $dir ("{0}_{1}{2}" -f $stem, $Index, $ext))
+}
+
+function Find-NextAvailableIndex {
+    <# Finds the lowest >=1 suffix index where none of the candidate paths already exist. #>
+    param([string[]]$CandidatePaths)
+    $idx = 1
+    while ($true) {
+        $anyExists = $false
+        foreach ($base in $CandidatePaths) {
+            if (-not $base) { continue }
+            $cand = Get-IndexedFilePath -BasePath $base -Index $idx
+            if (Test-Path -LiteralPath $cand) {
+                $anyExists = $true
+                break
+            }
+        }
+        if (-not $anyExists) { return $idx }
+        $idx++
+    }
+}
+
 function Invoke-HtmlToPdf {
     param(
         [string]$InHtml,
@@ -285,6 +329,12 @@ function Invoke-HtmlToPdf {
     $destPdf = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($rawPdf))
     Assert-LocalNoUncPath -PathValue $destPdf -ParamName '-OutPdfPath'
     Assert-SafeOutputPath -TargetPath $destPdf -Label '-OutPdfPath'
+    $pdfIdx = Find-NextAvailableIndex -CandidatePaths @($destPdf)
+    if ($pdfIdx -gt 1) {
+        $destPdf = Get-IndexedFilePath -BasePath $destPdf -Index $pdfIdx
+        Assert-SafeOutputPath -TargetPath $destPdf -Label '-OutPdfPath'
+        Write-Output ("Output collision avoided; auto-numbered -> {0}" -f $destPdf)
+    }
     $parentDir = Split-Path $destPdf -Parent
     if ($parentDir -and -not (Test-Path -LiteralPath $parentDir -PathType Container)) {
         [void][System.IO.Directory]::CreateDirectory($parentDir)
@@ -598,6 +648,7 @@ function Invoke-EmbedImages {
         [string]$OutHtml,
         [string]$OutPdf = '',
         [bool]$ExportPdf = $false,
+        [bool]$PreserveLayoutMode = $false,
         [int]$Quality = 90,
         [int]$MaxWidth = 1400,
         [string]$CleanTargetDir = '',
@@ -640,20 +691,61 @@ function Invoke-EmbedImages {
         return ('<img' + $newAttrs + '>')
     })
 
-    $shellRes = Invoke-InjectReaderShell -HtmlText $updated
-    $updated = $shellRes.Html
-    Invoke-HtmlQaCheck -HtmlText $updated
+    $shellInjected = @()
+    if (-not $PreserveLayoutMode) {
+        $shellRes = Invoke-InjectReaderShell -HtmlText $updated
+        $updated = $shellRes.Html
+        $shellInjected = @($shellRes.Injected)
+    }
+    Invoke-HtmlQaCheck -HtmlText $updated -SkipTableWrapperCheck:$PreserveLayoutMode
 
-    $rawDest = if ($OutHtml) { $OutHtml } else { $absHtml }
+    $hasExplicitOutHtml = [bool]($OutHtml -and $OutHtml.Trim())
+    $rawDest = if ($hasExplicitOutHtml) { $OutHtml } else { $absHtml }
     $dest = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($rawDest))
     Assert-LocalNoUncPath -PathValue $dest -ParamName '-OutHtmlPath'
     Assert-SafeOutputPath -TargetPath $dest -Label '-OutHtmlPath'
+
+    $wantPdf = $ExportPdf -or [bool]($OutPdf -and $OutPdf.Trim())
+    $hasCustomOutPdf = [bool]($OutPdf -and $OutPdf.Trim())
     $pdfProtected = ''
-    if ($ExportPdf -or $OutPdf) {
-        $rawPdfOut = if ($OutPdf) { $OutPdf } else { [System.IO.Path]::ChangeExtension($dest, '.pdf') }
+    if ($wantPdf) {
+        $rawPdfOut = if ($hasCustomOutPdf) { $OutPdf } else { [System.IO.Path]::ChangeExtension($dest, '.pdf') }
         $pdfProtected = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($rawPdfOut))
+        Assert-LocalNoUncPath -PathValue $pdfProtected -ParamName '-OutPdfPath'
         Assert-SafeOutputPath -TargetPath $pdfProtected -Label '-OutPdfPath'
     }
+
+    if ($hasExplicitOutHtml -and (-not $hasCustomOutPdf)) {
+        $pairCandidates = if ($wantPdf) { @($dest, $pdfProtected) } else { @($dest) }
+        $pairIdx = Find-NextAvailableIndex -CandidatePaths $pairCandidates
+        if ($pairIdx -gt 1) {
+            $dest = Get-IndexedFilePath -BasePath $dest -Index $pairIdx
+            Assert-SafeOutputPath -TargetPath $dest -Label '-OutHtmlPath'
+            Write-Output ("Output collision avoided; auto-numbered -> {0}" -f $dest)
+            if ($wantPdf) {
+                $pdfProtected = Get-IndexedFilePath -BasePath $pdfProtected -Index $pairIdx
+                Assert-SafeOutputPath -TargetPath $pdfProtected -Label '-OutPdfPath'
+            }
+        }
+    } else {
+        if ($hasExplicitOutHtml) {
+            $htmlIdx = Find-NextAvailableIndex -CandidatePaths @($dest)
+            if ($htmlIdx -gt 1) {
+                $dest = Get-IndexedFilePath -BasePath $dest -Index $htmlIdx
+                Assert-SafeOutputPath -TargetPath $dest -Label '-OutHtmlPath'
+                Write-Output ("Output collision avoided; auto-numbered -> {0}" -f $dest)
+            }
+        }
+        if ($wantPdf) {
+            $pdfIdx = Find-NextAvailableIndex -CandidatePaths @($pdfProtected)
+            if ($pdfIdx -gt 1) {
+                $pdfProtected = Get-IndexedFilePath -BasePath $pdfProtected -Index $pdfIdx
+                Assert-SafeOutputPath -TargetPath $pdfProtected -Label '-OutPdfPath'
+                Write-Output ("Output collision avoided; auto-numbered -> {0}" -f $pdfProtected)
+            }
+        }
+    }
+
     $destDir = Split-Path $dest -Parent
     if ($destDir -and -not (Test-Path -LiteralPath $destDir -PathType Container)) {
         [void][System.IO.Directory]::CreateDirectory($destDir)
@@ -664,14 +756,16 @@ function Invoke-EmbedImages {
         $savedKb = [Math]::Round(($stats.OrigBytes - $stats.FinalBytes) / 1024.0, 1)
         Write-Output ("Optimized {0}/{1} images (Quality={2}%, saved {3:N1} KB raw)" -f $stats.Compressed, $stats.Total, $Quality, $savedKb)
     }
-    if ($shellRes.Injected.Count -gt 0) {
-        Write-Output ("Injected reader shell -> {0}" -f ($shellRes.Injected -join ', '))
+    if ($PreserveLayoutMode) {
+        Write-Output "PreserveLayout mode: skipped reader shell injection"
+    } elseif ($shellInjected.Count -gt 0) {
+        Write-Output ("Injected reader shell -> {0}" -f ($shellInjected -join ', '))
     } else {
         Write-Output "Reader shell already present (skipped injection)"
     }
     Write-Output ("Embedded images into HTML -> {0} ({1:N0} bytes)" -f $dest, $sz)
-    if ($ExportPdf -or $OutPdf) {
-        Invoke-HtmlToPdf -InHtml $dest -OutPdf $OutPdf -TimeoutSeconds $TimeoutSeconds
+    if ($wantPdf) {
+        Invoke-HtmlToPdf -InHtml $dest -OutPdf $pdfProtected -TimeoutSeconds $TimeoutSeconds
     }
     if ($CleanTargetDir) {
         Invoke-SafeCleanDir -TargetDir $CleanTargetDir -ProtectedPaths @($dest, $pdfProtected)
@@ -679,6 +773,6 @@ function Invoke-EmbedImages {
 }
 
 switch ($Action) {
-    'EmbedImages' { Invoke-EmbedImages -InHtml $HtmlPath -OutHtml $OutHtmlPath -OutPdf $OutPdfPath -ExportPdf ([bool]$AlsoPdf) -Quality $JpegQuality -MaxWidth $MaxImageWidth -CleanTargetDir $CleanDir -TimeoutSeconds $PdfTimeoutSeconds }
+    'EmbedImages' { Invoke-EmbedImages -InHtml $HtmlPath -OutHtml $OutHtmlPath -OutPdf $OutPdfPath -ExportPdf ([bool]$AlsoPdf) -PreserveLayoutMode ([bool]$PreserveLayout) -Quality $JpegQuality -MaxWidth $MaxImageWidth -CleanTargetDir $CleanDir -TimeoutSeconds $PdfTimeoutSeconds }
     'HtmlToPdf'   { Invoke-HtmlToPdf -InHtml $HtmlPath -OutPdf $OutPdfPath -CleanTargetDir $CleanDir -TimeoutSeconds $PdfTimeoutSeconds }
 }

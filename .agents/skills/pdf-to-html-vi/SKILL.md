@@ -62,11 +62,11 @@ Chạy **một lệnh duy nhất** để nhúng Base64, chạy Auto-QA, xuất s
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1" -Action EmbedImages -HtmlPath "work\draft.html" -OutHtmlPath "output\<tên_file_gốc>_vi.html" -AlsoPdf -CleanDir "work"
 ```
 
-- **Quy tắc đặt tên file đầu ra:** Lưu trong thư mục `output\` và giữ nguyên chính xác phần tên gốc không đuôi của file PDF trong workspace (vd: `bao-cao-2026.pdf` $\rightarrow$ `output\bao-cao-2026_vi.html` và `output\bao-cao-2026_vi.pdf`, không tự dịch tên file hay tự đổi sang slug khác). Riêng trường hợp kéo-thả vào chat khiến tệp tải lên mang tên tạm `media_<id>.pdf` (hệ thống không lưu tên gốc ban đầu trên máy): **không lấy tên tạm `media_...` và không tìm ngược tên gốc trên máy**, hãy đặt tên theo **tiêu đề chính ngắn gọn của tài liệu** (dạng ASCII `snake_case`, không dấu, trừ khi người dùng chỉ định rõ tên đầu ra) kèm `_vi.html` / `_vi.pdf`.
+- **Quy tắc đặt tên file đầu ra & Chống ghi đè:** Lưu trong thư mục `output\` và giữ nguyên chính xác phần tên gốc không đuôi của file PDF trong workspace (vd: `bao-cao-2026.pdf` $\rightarrow$ `output\bao-cao-2026_vi.html` và `output\bao-cao-2026_vi.pdf`, không tự dịch tên file hay tự đổi sang slug khác). Riêng trường hợp kéo-thả vào chat khiến tệp tải lên mang tên tạm `media_<id>.pdf` (hệ thống không lưu tên gốc ban đầu trên máy): **không lấy tên tạm `media_...` và không tìm ngược tên gốc trên máy**, hãy đặt tên theo **tiêu đề chính ngắn gọn của tài liệu** (dạng ASCII `snake_case`, không dấu, trừ khi người dùng chỉ định rõ tên đầu ra) kèm `_vi.html` / `_vi.pdf`. **Không tự đoán/gắn tên model AI** vào tên file (chỉ thêm nhãn nếu người dùng yêu cầu rõ). Khi tệp đích đã tồn tại trong `output\`, `html_packager.ps1` luôn tự động đánh số đồng bộ cả cặp thành `_vi_2`, `_vi_3`...
 
 - **Contract `tools\html_packager.ps1`:**
   - **Action `EmbedImages`:**
-    - Tham số: `-HtmlPath` *(bắt buộc)*, `-OutHtmlPath` *(tùy chọn; bỏ trống sẽ ghi đè `-HtmlPath` theo UTF-8 không BOM)*, `-AlsoPdf` *(switch xuất PDF cùng tên bên cạnh HTML đích)*, `-OutPdfPath` *(tùy chọn chỉ định đường dẫn PDF đích; cũng tự bật xuất PDF)*, `-JpegQuality` *(mặc định `90`)*, `-MaxImageWidth` *(mặc định `1400` px)*, `-CleanDir` *(tùy chọn; truyền `"work"` để tự xóa thư mục tạm **chỉ sau khi** `[QA PASS]` và xuất PDF thành công, và từ chối xóa nếu thư mục đích chứa tệp đầu ra hoặc là thư mục gốc)*.
+    - Tham số: `-HtmlPath` *(bắt buộc)*, `-OutHtmlPath` *(tùy chọn; bỏ trống sẽ cập nhật trực tiếp `-HtmlPath` theo UTF-8 không BOM)*, `-AlsoPdf` *(switch xuất PDF cùng tên bên cạnh HTML đích)*, `-OutPdfPath` *(tùy chọn chỉ định đường dẫn PDF đích; cũng tự bật xuất PDF)*, `-JpegQuality` *(mặc định `90`)*, `-MaxImageWidth` *(mặc định `1400` px)*, `-CleanDir` *(tùy chọn; truyền `"work"` để tự xóa thư mục tạm **chỉ sau khi** `[QA PASS]` và xuất PDF thành công, và từ chối xóa nếu thư mục đích chứa tệp đầu ra hoặc là thư mục gốc)*.
     - **Tự động gắn lớp vỏ tương tác (`tools\reader_shell.html`):** Trước khi chạy Auto-QA, kiểm tra tệp HTML có đủ `<head>...</head>` và `<body>...</body>`, rồi bơm idempotent các mảnh còn thiếu (CSS vỏ `rsfv-*` trước `</head>`, thanh `.rsfv-toolbar` ngay sau `<body...>`, và `#rsfv-img-lightbox` + `<script>` trước `</body>`); bỏ qua nếu HTML đã có sẵn vỏ tương tác (kể cả định dạng cũ `.reader-toolbar` / `#img-lightbox`).
     - **Tối ưu ảnh:** Ảnh chụp nhiều màu không có kênh alpha (`>= 200` cụm màu mẫu) được thử nén JPEG theo `-JpegQuality` và chỉ giữ khi nhỏ hơn bản gốc (`<= 85%` nếu không resize); sơ đồ ít màu hoặc có độ trong suốt được giữ nguyên PNG.
     - **Cổng Auto-QA (chạy trước khi ghi tệp ra `output\` — ném lỗi dừng chạy nếu vi phạm bất kỳ điều kiện nào sau đây; khi fail sẽ không tạo/ghi đè tệp đích và giữ nguyên `work\` để sửa):**
@@ -82,16 +82,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1
   - **Đầu ra stdout xác nhận thành công (theo thứ tự thực thi):**
     - `[QA PASS] Base64 images: <N> | Tables wrapped: <M>/<M> | LaTeX/MathJax OK | Broken anchors: 0`
     - `Injected reader shell -> CSS, Toolbar, Script` *(hoặc `Reader shell already present (skipped injection)`)*
+    - `Output collision avoided; auto-numbered -> <đường_dẫn>` *(nếu tệp cũ đã tồn tại)*
     - `Embedded images into HTML -> <đường_dẫn>.html (<bytes> bytes)`
     - `Exported PDF -> <đường_dẫn>.pdf (<bytes> bytes)`
     - `Cleaned temp directory -> <đường_dẫn>\work` *(khi dùng `-CleanDir`)*
 - Xác nhận từ stdout lệnh trên đã có `[QA PASS]`, `Injected reader shell` (hoặc `already present`), `Embedded images into HTML`, `Exported PDF` và `Cleaned temp directory` (không cần gọi thêm lệnh xóa `work\` riêng).
-- **Quy tắc phản hồi sau khi hoàn tất:** Chỉ trả về liên kết tới các tệp đầu ra theo đúng mẫu thân thiện với người dùng cuối bên dưới (**tránh dùng các cụm từ kỹ thuật** như `"tự chứa"`, `"Self-contained"`, `"Base64"`, `"QA PASS"`, hay nhắc thư mục tạm `work/`; **tuyệt đối không tự ý viết bản tóm tắt hay lặp lại nội dung tài liệu đã dịch** trừ khi người dùng yêu cầu rõ):
+- **Quy tắc phản hồi sau khi hoàn tất:** Lấy **đúng tên tệp thực tế** in ở `Embedded images into HTML -> ...` và `Exported PDF -> ...` trên stdout (kể cả khi tự đánh số `_2`, `_3`...), chỉ trả về liên kết tới các tệp đầu ra theo đúng mẫu thân thiện với người dùng cuối bên dưới (**tránh dùng các cụm từ kỹ thuật** như `"tự chứa"`, `"Self-contained"`, `"Base64"`, `"QA PASS"`, hay nhắc thư mục tạm `work/`; **tuyệt đối không tự ý viết bản tóm tắt hay lặp lại nội dung tài liệu đã dịch** trừ khi người dùng yêu cầu rõ):
 
   ```markdown
   Bản dịch tiếng Việt đã hoàn thành (nằm ở thư mục `output` trong thư mục ứng dụng):
-  - **HTML (mở bằng trình duyệt):** [<tên_đích>_vi.html](file:///<đường_dẫn_workspace>/output/<tên_đích>_vi.html) *(thường cho kết quả hiển thị, bố cục đẹp hơn)*
-  - **PDF:** [<tên_đích>_vi.pdf](file:///<đường_dẫn_workspace>/output/<tên_đích>_vi.pdf)
+  - **HTML (mở bằng trình duyệt):** [<tên_tệp_thực_tế>.html](file:///<đường_dẫn_workspace>/output/<tên_tệp_thực_tế>.html) *(thường cho kết quả hiển thị, bố cục đẹp hơn)*
+  - **PDF:** [<tên_tệp_thực_tế>.pdf](file:///<đường_dẫn_workspace>/output/<tên_tệp_thực_tế>.pdf)
 
   **Trạng thái kiểm định:** Đạt chuẩn (đã tích hợp đủ <N> ảnh vào HTML, <M>/<M> bảng hiển thị chuẩn, 0 liên kết gãy).
   ```
