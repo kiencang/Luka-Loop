@@ -602,7 +602,9 @@ class TestPathGuardsModule(unittest.TestCase):
         outside.write_bytes(b"png")
 
         roots = [allowed_dir]
-        self.assertEqual(pg.resolve_safe_crop_input_file(str(img), roots), img.resolve())
+        actual_img = pg.resolve_safe_crop_input_file(str(img), roots)
+        self.assertEqual(actual_img, Path(os.path.abspath(img)))
+        self.assertTrue(os.path.samefile(actual_img, img))
         with self.assertRaisesRegex(ValueError, "outside allowed directories"):
             pg.resolve_safe_crop_input_file(str(outside), roots)
         with self.assertRaisesRegex(ValueError, "Path traversal blocked"):
@@ -640,7 +642,8 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         ]
         transcript.write_text("\n".join(lines) + "\n", encoding="utf-8")
         resolved = hpc.find_latest_pdf_in_transcript(transcript)
-        self.assertEqual(resolved, p2.resolve())
+        self.assertEqual(resolved, Path(os.path.abspath(p2)))
+        self.assertTrue(os.path.samefile(resolved, p2))
 
         from io import StringIO
         from contextlib import redirect_stdout
