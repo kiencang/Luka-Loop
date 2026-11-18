@@ -136,10 +136,8 @@ def assert_safe_output_path(
         cursor = norm_target
         drive_root = _norm_abs_str(ntpath.splitdrive(norm_target)[0] + os.sep)
         while cursor and cursor.lower() != drive_root.lower():
-            if os.path.lexists(cursor):
-                if is_reparse_point(cursor):
-                    raise ValueError(f"Refusing to write through symlink/junction (ReparsePoint) for {label}: {cursor}")
-                break
+            if os.path.lexists(cursor) and is_reparse_point(cursor):
+                raise ValueError(f"Refusing to write through symlink/junction (ReparsePoint) for {label}: {cursor}")
             parent = os.path.dirname(cursor).rstrip("\\/")
             if not parent or parent == cursor:
                 break

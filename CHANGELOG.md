@@ -2,6 +2,20 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **luka-loop** sẽ được ghi lại trong file này.
 
+## [1.1.2] - 2026-11-19
+### Added
+- Bổ sung mục **Cách công cụ giảm dung lượng ảnh** kèm sơ đồ Mermaid và tóm tắt 3 chốt bảo vệ vào `README.md`;
+- Mở rộng `tests\test_extract_assets.py` (lên 18 ca) và `tests\test_powershell.ps1` cho các ca ảnh thang xám 8-bit, JPEG ít màu vượt `1400 px`, Auto-QA DOM/comment và kiểm tra junction nhánh ngoài workspace.
+
+### Changed
+- Nâng hệ số nén JPEG mặc định (`-JpegQuality` / `--quality`) từ `90` lên `95` đồng bộ trên `tools\html_packager.ps1`, `tools\src\html_packager_core.py`, `tools\src\extract_assets.py`, cả hai `SKILL.md` và bộ kiểm thử;
+- Bổ sung quy tắc giới hạn phạm vi ghi tệp (`work\` / `output\` trong workspace) vào `AGENTS.md` và làm rõ chỉ thị xử lý liên tục tài liệu dài, đồng bộ mô tả Auto-QA mới trong cả hai `SKILL.md`.
+
+### Fixed
+- Sửa tối ưu ảnh trong `tools\src\extract_assets.py`: `_analyze_sample_grid` nhận diện ảnh thuần thang xám (`max-min <= 2`) để đếm đủ sắc độ 8-bit (`0..255`), và `_optimize_image_bytes` cho phép co kích thước JPEG ít màu vượt `MaxImageWidth` (`1400 px`) khi giúp giảm dung lượng;
+- Thay kiểm tra regex phẳng trong `run_html_qa_check` (`tools\src\html_packager_core.py`) bằng `_QADOMScanner(HTMLParser)`: kiểm tra lồng thẻ `.table-wrapper` thực sự trên DOM, bỏ qua HTML comment (`<!-- ... -->`) và `<script>`/`<style>`/`<textarea>`, xử lý `<code>` lồng nhau, xác nhận MathJax `<script>` nằm trong `<head>`, đồng thời bỏ qua comment/raw blocks khi nhúng `<img>` và tiêm `reader_shell.html`;
+- Sửa nhánh ngoài workspace của `assert_safe_output_path` (`tools\src\path_guards.py`) và `Assert-SafeOutputPath` (`tools\_path_guards.ps1`): bỏ `break` sớm để kiểm tra toàn bộ các thư mục tổ tiên tồn tại cho tới gốc ổ đĩa thay vì bỏ sót symlink/junction phía trên tệp hoặc thư mục con đã tồn tại.
+
 ## [1.1.1] - 2026-11-18
 ### Changed
 - Đồng bộ chuẩn typography SKILL 1 (`pdf-to-html-vi\si_academic_html.md`) sang họ font `Inter` (fallback Windows `'Segoe UI'`), bật `tabular-nums` cho `table`, `'JetBrains Mono'` cho code và cập nhật thông báo font trong `THIRD_PARTY_LICENSES.md`;

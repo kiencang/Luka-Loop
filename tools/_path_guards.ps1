@@ -79,11 +79,8 @@ function Assert-SafeOutputPath {
         $driveRoot = [System.IO.Path]::GetPathRoot($normTarget).TrimEnd('\', '/')
         while ($cursor -and -not $cursor.Equals($driveRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
             $item = Get-Item -LiteralPath $cursor -Force -ErrorAction SilentlyContinue
-            if ($item) {
-                if (Test-IsReparsePoint -Item $item) {
-                    throw "Refusing to write through symlink/junction (ReparsePoint) for ${Label}: $cursor"
-                }
-                break
+            if ($item -and (Test-IsReparsePoint -Item $item)) {
+                throw "Refusing to write through symlink/junction (ReparsePoint) for ${Label}: $cursor"
             }
             $parent = Split-Path $cursor -Parent
             if (-not $parent -or $parent -eq $cursor) { break }

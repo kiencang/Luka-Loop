@@ -53,7 +53,7 @@ Viết file trung gian `work\draft.html` (bắt đầu `<!DOCTYPE html>`, kết 
 - **Khung CSS & Vỏ đọc tương tác (`reader_shell.html`):** Chèn đầy đủ khối CSS nội dung (`Inter`) từ [si_academic_html.md](./si_academic_html.md); **đặt phần đầu bài trong `<header>` và bọc phần thân bài trong `<article>` (hoặc `<main>`)** với `<h1>`–`<h3>`, `<figure><img><figcaption>` để Bước 4 tự động gắn thanh công cụ, hộp Mục lục và lightbox chuẩn vị trí (không tự viết thêm thanh công cụ/lightbox).
 - **Cấu trúc 1 cột, Bảng, Sơ đồ & LaTeX:** Ép văn bản chính về **1 cột duy nhất** (nối câu gãy dòng PDF, bỏ header/footer lặp thừa); bọc mọi `<table>` trực tiếp trong `<div class="table-wrapper">` kèm `<thead>`/`<tbody>`/`<th>`. Khi vẽ sơ đồ **Nhóm A bằng HTML/CSS**, **BẮT BUỘC dùng biến màu `var(--...)`** (tuyệt đối không hardcode `#000`/`#fff` gây lỗi chế độ Tối). Nếu có công thức toán, dùng `\( \)` / `\[ \]` + nhúng `<script ... MathJax>` trong `<head>`, và **chừa khoảng trắng quanh `<` và `>` (`\( x < y \)`)** để tránh trình duyệt nuốt nhầm thẻ HTML.
 - **Quy ước đường dẫn ảnh:** `html_packager.ps1` phân giải `src` tương đối theo thư mục cha của `-HtmlPath` (tức `work\`). Trong `work\draft.html` **BẮT BUỘC viết `src="assets/<tên_file>.png"`** *(tuyệt đối không viết `work/assets/...`)* và chỉ dùng `.png`, `.jpg` hoặc `.jpeg`. Bảo đảm đủ mọi minh họa Nhóm B / ảnh ô `<td>` từ `manifest.json` (kèm toàn bộ `out_name` từ `CropFromJson`, nếu có).
-- **Xử lý Tài liệu Khoa học Dài (`> 10 trang`):** Chia theo từng mục/chương hoặc cụm 5–8 trang, ghi khung đầu `<head>` vào `work\draft.html` trước rồi nối dần (`Append` hoặc `edit_file`) từng `<section>` đầy đủ trước khi đóng `</article></body></html>`.
+- **Xử lý Tài liệu Khoa học Dài (`> 10 trang`):** Chia theo từng mục/chương hoặc cụm `5–8` trang, ghi khung đầu `<head>` vào `work\draft.html` trước rồi nối dần (`Append` hoặc `edit_file`) từng `<section>` đầy đủ trước khi đóng `</article></body></html>`. **Thực hiện liên tục đủ mọi lô từ trang đầu tới trang cuối rồi chạy luôn Bước 4 xuất tệp; TUYỆT ĐỐI KHÔNG dừng lại giữa chừng để báo tiến độ hay hỏi xác nhận làm tiếp.**
 - Rà nhanh **Mục 5** của [si_academic_html.md](./si_academic_html.md) trước khi chạy Bước 4.
 
 ## Bước 4: Đóng gói song song HTML + PDF, kiểm tra & tự dọn nháp (`tools\html_packager.ps1`)
@@ -67,15 +67,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1
 
 - **Contract `tools\html_packager.ps1`:**
   - **Action `EmbedImages`:**
-    - Tham số: `-HtmlPath` *(bắt buộc)*, `-OutHtmlPath` *(tùy chọn; bỏ trống sẽ cập nhật trực tiếp `-HtmlPath` theo UTF-8 không BOM)*, `-AlsoPdf` *(switch xuất PDF cùng tên bên cạnh HTML đích)*, `-OutPdfPath` *(tùy chọn chỉ định đường dẫn PDF đích; cũng tự bật xuất PDF)*, `-JpegQuality` *(mặc định `90`)*, `-MaxImageWidth` *(mặc định `1400` px)*, `-CleanDir` *(tùy chọn; truyền `"work"` để tự xóa thư mục tạm **chỉ sau khi** `[QA PASS]` và xuất PDF thành công, và từ chối xóa nếu thư mục đích chứa tệp đầu ra hoặc là thư mục gốc)*.
+    - Tham số: `-HtmlPath` *(bắt buộc)*, `-OutHtmlPath` *(tùy chọn; bỏ trống sẽ cập nhật trực tiếp `-HtmlPath` theo UTF-8 không BOM)*, `-AlsoPdf` *(switch xuất PDF cùng tên bên cạnh HTML đích)*, `-OutPdfPath` *(tùy chọn chỉ định đường dẫn PDF đích; cũng tự bật xuất PDF)*, `-JpegQuality` *(mặc định `95`)*, `-MaxImageWidth` *(mặc định `1400` px)*, `-CleanDir` *(tùy chọn; truyền `"work"` để tự xóa thư mục tạm **chỉ sau khi** `[QA PASS]` và xuất PDF thành công, và từ chối xóa nếu thư mục đích chứa tệp đầu ra hoặc là thư mục gốc)*.
     - **Tự động gắn lớp vỏ tương tác (`tools\reader_shell.html`):** Trước khi chạy Auto-QA, kiểm tra tệp HTML có đủ `<head>...</head>` và `<body>...</body>`, rồi bơm idempotent các mảnh còn thiếu (CSS vỏ `rsfv-*` trước `</head>`, thanh `.rsfv-toolbar` ngay sau `<body...>`, và `#rsfv-img-lightbox` + `<script>` trước `</body>`); bỏ qua nếu HTML đã có sẵn vỏ tương tác (kể cả định dạng cũ `.reader-toolbar` / `#img-lightbox`).
     - **Tối ưu ảnh:** Ảnh chụp nhiều màu không có kênh alpha (`>= 200` cụm màu mẫu) được thử nén JPEG theo `-JpegQuality` và chỉ giữ khi nhỏ hơn bản gốc (`<= 85%` nếu không resize); sơ đồ ít màu hoặc có độ trong suốt được giữ nguyên PNG.
     - **Cổng Auto-QA (chạy trước khi ghi tệp ra `output\` — ném lỗi dừng chạy nếu vi phạm bất kỳ điều kiện nào sau đây; khi fail sẽ không tạo/ghi đè tệp đích và giữ nguyên `work\` để sửa):**
       1. `0` thẻ `<img>` trỏ tới tệp cục bộ chưa được nhúng (mọi `src` phải là `data:image/...` hoặc `http(s)://`).
       2. Mọi thẻ `<img>` đều phải có thuộc tính `alt`.
-      3. Số container `.table-wrapper` ≥ số `<table>` (ngoài `<script>`/`<style>`).
-      4. Nếu ngoài `<script>`/`<style>` xuất hiện `\(` hoặc `\[`, HTML phải chứa `<script ... MathJax>`.
-      5. `0` liên kết nội bộ `href="#..."` bị gãy (đều có `id="..."` tương ứng).
+      3. Mọi `<table>` đều phải nằm bên trong phần tử bọc `.table-wrapper` trong DOM thật (ngoài HTML comment / `<script>` / `<style>` / `<textarea>`).
+      4. Nếu trong văn bản ngoài `<pre>`/`<code>`/`<textarea>`/`<script>`/`<style>` và HTML comment xuất hiện `\(` hoặc `\[`, HTML phải chứa `<script ... MathJax>` bên trong `<head>`.
+      5. `0` liên kết nội bộ `href="#..."` bị gãy (đều có `id="..."` tương ứng trong DOM thật).
       - *Phục hồi khi QA fail:* Đọc thông báo lỗi từ stdout/stderr, mở sửa trực tiếp `work\draft.html` rồi chạy lại đúng lệnh Bước 4.
   - **Action `HtmlToPdf`** *(xuất PDF độc lập từ tệp HTML đã đóng gói trọn vẹn / self-contained)*:
     - CLI: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1" -Action HtmlToPdf -HtmlPath "<in.html>" [-OutPdfPath "<out.pdf>"] [-CleanDir "<dir>"]`

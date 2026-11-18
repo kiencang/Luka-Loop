@@ -21,7 +21,7 @@ param(
     [switch]$PreserveLayout,
 
     [ValidateRange(1, 100)]
-    [int]$JpegQuality = 90,
+    [int]$JpegQuality = 95,
 
     [ValidateRange(0, 10000)]
     [int]$MaxImageWidth = 1400,

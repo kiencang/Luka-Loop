@@ -1087,7 +1087,7 @@ def crop_from_json(spec_path: Path, out_dir: Path) -> list[Path]:
 
 
 def _analyze_sample_grid(pix: pymupdf.Pixmap) -> tuple[int, bool]:
-    """Sample a ~60x60 pixel grid to count distinct 15-bit quantized colors and alpha presence."""
+    """Sample a ~60x60 pixel grid to count distinct 15-bit colors (or 8-bit gray tones) and alpha presence."""
     w, h = pix.width, pix.height
     if w <= 0 or h <= 0:
         return 0, False
@@ -1099,6 +1099,8 @@ def _analyze_sample_grid(pix: pymupdf.Pixmap) -> tuple[int, bool]:
     mv = pix.samples_mv
 
     colors: set[int] = set()
+    gray_tones: set[int] = set()
+    all_gray = True
     has_alpha = False
     for y in range(0, h, step_y):
         row_off = y * w
@@ -1107,13 +1109,18 @@ def _analyze_sample_grid(pix: pymupdf.Pixmap) -> tuple[int, bool]:
             r, g, b, a = _decode_pixel_rgb_alpha(mv, idx, color_n, has_alpha_chan)
             if a < 250:
                 has_alpha = True
+            if all_gray:
+                if max(r, g, b) - min(r, g, b) <= 2:
+                    gray_tones.add((54 * r + 183 * g + 19 * b) >> 8)
+                else:
+                    all_gray = False
             q = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3)
             colors.add(q)
-    return len(colors), has_alpha
+    return (len(gray_tones) if all_gray else len(colors)), has_alpha
 
 
 def _optimize_image_bytes(
-    img_path: Path, quality: int = 90, max_width: int = 1400
+    img_path: Path, quality: int = 95, max_width: int = 1400
 ) -> tuple[bytes, str, int]:
     """Analyze, resize if wider than `max_width`, and selectively compress one image in memory."""
     _ensure_pymupdf()
@@ -1136,7 +1143,7 @@ def _optimize_image_bytes(
         work_pix = pymupdf.Pixmap(pix, new_w, new_h, None)
         was_resized = True
 
-    if is_rich_photo and not has_alpha:
+    if not has_alpha and (is_rich_photo or (was_resized and orig_mime == "image/jpeg")):
         jpg_pix = pymupdf.Pixmap(work_pix, 0) if work_pix.alpha else work_pix
         jpg_bytes = jpg_pix.tobytes("jpeg", jpg_quality=quality)
         if len(jpg_bytes) < orig_len and (was_resized or len(jpg_bytes) <= int(orig_len * 0.85)):
@@ -1181,7 +1188,7 @@ def optimize_images_batch(
     spec_path: Path,
     out_dir: Path,
     out_json_path: Path,
-    quality: int = 90,
+    quality: int = 95,
     max_width: int = 1400,
 ) -> dict:
     """Optimize a batch of local PNG/JPEG files referenced by `spec_path` and write metadata to `out_json_path`."""
@@ -1379,7 +1386,7 @@ def _dispatch_cli(raw_argv: list[str]) -> None:
         ap.add_argument("--spec", type=Path, required=True)
         ap.add_argument("--out-dir", type=Path, required=True)
         ap.add_argument("--out-json", type=Path, required=True)
-        ap.add_argument("--quality", type=_validate_quality, default=90)
+        ap.add_argument("--quality", type=_validate_quality, default=95)
         ap.add_argument("--max-width", type=_validate_max_width, default=1400)
         args = ap.parse_args(rest)
         optimize_images_batch(
@@ -1396,7 +1403,7 @@ def _dispatch_cli(raw_argv: list[str]) -> None:
         ap.add_argument("--out-pdf", type=str, default="")
         ap.add_argument("--also-pdf", action="store_true")
         ap.add_argument("--preserve-layout", action="store_true")
-        ap.add_argument("--quality", type=_validate_quality, default=90)
+        ap.add_argument("--quality", type=_validate_quality, default=95)
         ap.add_argument("--max-width", type=_validate_max_width, default=1400)
         ap.add_argument("--clean-dir", type=str, default="")
         ap.add_argument("--timeout-seconds", type=_validate_timeout, default=60)

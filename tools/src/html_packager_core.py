@@ -13,6 +13,7 @@ import sys
 import tempfile
 import time
 import uuid
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Callable
 
@@ -31,11 +32,92 @@ IMG_SRC_RX = re.compile(r'(?is)((?:^|\s)src\s*=\s*)(?:"([^"]*)"|\'([^\']*)\'|([^
 _DATA_IMG_RX = re.compile(r"^data:image/(?:png|jpeg|jpg|webp);base64,", re.IGNORECASE)
 _EXT_IMG_RX = re.compile(r"(?i)^(?:data:|https?://)")
 _LOCAL_OPT_EXT_RX = re.compile(r"(?i)\.(?:png|jpe?g)$")
-_STRIP_SCRIPT_STYLE_RX = re.compile(r"(?is)<(?:script|style)\b[^>]*>.*?</(?:script|style)>")
-_STRIP_PRE_RX = re.compile(r"(?is)<pre\b[^>]*>.*?</pre>")
-_STRIP_CODE_RX = re.compile(r"(?is)<code\b[^>]*>.*?</code>")
-_STRIP_TEXTAREA_RX = re.compile(r"(?is)<textarea\b[^>]*>.*?</textarea>")
-_DATA_URI_PAYLOAD_RX = re.compile(r"(?i)(data:image/[a-z0-9.+-]+;base64,)[A-Za-z0-9+/=\s]+")
+_HTML_IGNORED_SEGMENTS_RX = re.compile(
+    r"(?is)<!--.*?-->|<script\b[^>]*>.*?</script>|<style\b[^>]*>.*?</style>|<textarea\b[^>]*>.*?</textarea>"
+)
+_HTML_VOID_TAGS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
+_RAW_DOM_EXCLUDED_TAGS = frozenset({"script", "style", "textarea"})
+_LATEX_IGNORED_TAGS = frozenset({"script", "style", "pre", "code", "textarea"})
+_P_AUTO_CLOSE_TRIGGERS = frozenset(
+    {
+        "address",
+        "article",
+        "aside",
+        "blockquote",
+        "details",
+        "dialog",
+        "dd",
+        "div",
+        "dl",
+        "dt",
+        "fieldset",
+        "figcaption",
+        "figure",
+        "footer",
+        "form",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "header",
+        "hgroup",
+        "hr",
+        "li",
+        "main",
+        "menu",
+        "nav",
+        "ol",
+        "p",
+        "pre",
+        "section",
+        "table",
+        "ul",
+    }
+)
+_P_SCOPE_BOUNDARIES = frozenset(
+    {
+        "address",
+        "article",
+        "aside",
+        "blockquote",
+        "body",
+        "details",
+        "dialog",
+        "div",
+        "fieldset",
+        "figcaption",
+        "figure",
+        "footer",
+        "header",
+        "html",
+        "li",
+        "main",
+        "nav",
+        "section",
+        "table",
+        "td",
+        "th",
+    }
+)
 
 
 def _resolve_pdf_from_line(line: str) -> str | None:
@@ -138,15 +220,52 @@ def _get_shell_section(template: str, tag_name: str) -> str:
     return m.group(1).strip()
 
 
+def _strip_html_comments(html_text: str) -> str:
+    """Remove HTML comments while leaving <script>, <style>, and <textarea> contents intact."""
+    return _HTML_IGNORED_SEGMENTS_RX.sub(
+        lambda m: "" if m.group(0).startswith("<!--") else m.group(0),
+        html_text,
+    )
+
+
+def _sub_outside_ignored(
+    text: str,
+    target_rx: re.Pattern[str],
+    repl: Callable[[re.Match[str]], str] | str,
+    count: int = 0,
+) -> tuple[str, int]:
+    """Apply `target_rx` substitutions only on HTML markup outside comments, scripts, styles, and textareas."""
+    parts: list[str] = []
+    pos = 0
+    total_subs = 0
+    for ign in _HTML_IGNORED_SEGMENTS_RX.finditer(text):
+        seg = text[pos : ign.start()]
+        if seg and (count == 0 or total_subs < count):
+            rem = (count - total_subs) if count > 0 else 0
+            seg, n = target_rx.subn(repl, seg, count=rem)
+            total_subs += n
+        parts.append(seg)
+        parts.append(ign.group(0))
+        pos = ign.end()
+    tail = text[pos:]
+    if tail and (count == 0 or total_subs < count):
+        rem = (count - total_subs) if count > 0 else 0
+        tail, n = target_rx.subn(repl, tail, count=rem)
+        total_subs += n
+    parts.append(tail)
+    return "".join(parts), total_subs
+
+
 def inject_reader_shell(html_text: str, shell_path: Path | None = None) -> tuple[str, list[str]]:
     """Idempotently inject reader CSS, toolbar, and script from tools/reader_shell.html."""
     resolved_shell = shell_path if shell_path is not None else (get_tools_dir() / "reader_shell.html")
     if not resolved_shell.is_file():
         raise FileNotFoundError(f"Reader shell template not found: {resolved_shell}")
+    dom_check = _HTML_IGNORED_SEGMENTS_RX.sub("", html_text)
     if (
-        not re.search(r"(?i)</head>", html_text)
-        or not re.search(r"(?i)<body\b[^>]*>", html_text)
-        or not re.search(r"(?i)</body>", html_text)
+        not re.search(r"(?i)</head>", dom_check)
+        or not re.search(r"(?i)<body\b[^>]*>", dom_check)
+        or not re.search(r"(?i)</body>", dom_check)
     ):
         raise ValueError("HTML must contain <head>...</head> and <body>...</body> for reader shell injection.")
 
@@ -157,93 +276,208 @@ def inject_reader_shell(html_text: str, shell_path: Path | None = None) -> tuple
 
     injected: list[str] = []
     out = html_text
+    no_comments = _strip_html_comments(out)
 
     has_css = bool(
-        re.search(r'(?i)data-reader-shell\s*=\s*"1"', out)
-        or (re.search(r"(?i)\.reader-toolbar\b", out) and re.search(r"(?i)\.img-lightbox\b", out))
+        re.search(r'(?i)data-reader-shell\s*=\s*"1"', no_comments)
+        or (re.search(r"(?i)\.reader-toolbar\b", no_comments) and re.search(r"(?i)\.img-lightbox\b", no_comments))
     )
     if not has_css:
-        out = re.sub(r"(?i)</head>", lambda m: f"{shell_css}\n{m.group(0)}", out, count=1)
+        out, _ = _sub_outside_ignored(out, re.compile(r"(?i)</head>"), lambda m: f"{shell_css}\n{m.group(0)}", count=1)
         injected.append("CSS")
 
     has_toolbar = bool(
-        re.search(r'(?i)data-reader-shell\s*=\s*"toolbar"', out)
-        or re.search(r'(?i)class\s*=\s*"[^"]*\b(?:rsfv-toolbar|reader-toolbar)\b', out)
+        re.search(r'(?i)data-reader-shell\s*=\s*"toolbar"', no_comments)
+        or re.search(r'(?i)class\s*=\s*"[^"]*\b(?:rsfv-toolbar|reader-toolbar)\b', no_comments)
     )
     if not has_toolbar:
-        out = re.sub(r"(?i)<body\b[^>]*>", lambda m: f"{m.group(0)}\n{shell_toolbar}", out, count=1)
+        out, _ = _sub_outside_ignored(
+            out,
+            re.compile(r"(?i)<body\b[^>]*>"),
+            lambda m: f"{m.group(0)}\n{shell_toolbar}",
+            count=1,
+        )
         injected.append("Toolbar")
 
     has_script = bool(
-        re.search(r'(?i)data-reader-shell\s*=\s*"script"', out)
-        or re.search(r'(?i)\bid\s*=\s*"(?:rsfv-img-lightbox|img-lightbox)"', out)
+        re.search(r'(?i)data-reader-shell\s*=\s*"script"', no_comments)
+        or re.search(r'(?i)\bid\s*=\s*"(?:rsfv-img-lightbox|img-lightbox)"', no_comments)
     )
     if not has_script:
-        out = re.sub(r"(?i)</body>", lambda m: f"{shell_script}\n{m.group(0)}", out, count=1)
+        out, _ = _sub_outside_ignored(out, re.compile(r"(?i)</body>"), lambda m: f"{shell_script}\n{m.group(0)}", count=1)
         injected.append("Script")
 
     return out, injected
 
 
+class _QADOMScanner(HTMLParser):
+    """Single-pass DOM scanner tracking tag nesting while ignoring HTML comments and raw blocks."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._open_stack: list[tuple[str, bool]] = []
+        self._prose_buf: list[str] = []
+        self.has_head_open = False
+        self.has_head_close = False
+        self.has_body_open = False
+        self.has_body_close = False
+        self.b64_count = 0
+        self.unembedded_imgs = 0
+        self.missing_alt_imgs = 0
+        self.table_count = 0
+        self.wrapped_table_count = 0
+        self.has_latex = False
+        self.has_mathjax_in_head = False
+        self.seen_ids: set[str] = set()
+        self.anchor_refs: list[str] = []
+
+    def _in_tags(self, tag_set: frozenset[str]) -> bool:
+        return any(t in tag_set for t, _ in self._open_stack)
+
+    def _flush_prose(self) -> None:
+        if not self._prose_buf:
+            return
+        if not self.has_latex:
+            chunk = "".join(self._prose_buf)
+            if r"\(" in chunk or r"\[" in chunk:
+                self.has_latex = True
+        self._prose_buf.clear()
+
+    def _close_implicit_p(self) -> None:
+        for idx in range(len(self._open_stack) - 1, -1, -1):
+            t, _ = self._open_stack[idx]
+            if t == "p":
+                del self._open_stack[idx:]
+                return
+            if t in _P_SCOPE_BOUNDARIES:
+                return
+
+    def _pop_open_tag(self, target_tag: str) -> None:
+        for idx in range(len(self._open_stack) - 1, -1, -1):
+            if self._open_stack[idx][0] == target_tag:
+                del self._open_stack[idx:]
+                return
+
+    def _process_start_tag(self, tag: str, attrs: list[tuple[str, str | None]], self_closing: bool) -> None:
+        self._flush_prose()
+        t = tag.lower()
+        if self._in_tags(_RAW_DOM_EXCLUDED_TAGS):
+            return
+
+        if t in _P_AUTO_CLOSE_TRIGGERS:
+            self._close_implicit_p()
+
+        if t == "head":
+            self.has_head_open = True
+        elif t == "body":
+            self.has_body_open = True
+        elif t == "script":
+            if any(t_name == "head" for t_name, _ in self._open_stack) and any(
+                "mathjax" in (k or "").lower() or (v is not None and "mathjax" in v.lower())
+                for k, v in attrs
+            ):
+                self.has_mathjax_in_head = True
+        elif t == "img":
+            has_alt = False
+            for k, v in attrs:
+                kl = (k or "").lower()
+                if kl == "alt":
+                    has_alt = True
+                elif kl == "src" and v is not None and v != "":
+                    src_val = v.strip()
+                    if _DATA_IMG_RX.match(src_val):
+                        self.b64_count += 1
+                    elif not _EXT_IMG_RX.match(src_val):
+                        self.unembedded_imgs += 1
+            if not has_alt:
+                self.missing_alt_imgs += 1
+        elif t == "table":
+            self.table_count += 1
+            if any(is_w for _, is_w in self._open_stack):
+                self.wrapped_table_count += 1
+
+        is_wrapper = False
+        for k, v in attrs:
+            kl = (k or "").lower()
+            if kl == "id" and v:
+                id_val = v.strip()
+                if id_val:
+                    self.seen_ids.add(id_val)
+            elif kl == "href" and v:
+                href_val = v.strip()
+                if href_val.startswith("#") and len(href_val) > 1:
+                    self.anchor_refs.append(href_val[1:])
+            elif kl == "class" and v and t != "table":
+                if "table-wrapper" in v.lower().split():
+                    is_wrapper = True
+
+        if not self_closing and t not in _HTML_VOID_TAGS:
+            self._open_stack.append((t, is_wrapper))
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._process_start_tag(tag, attrs, self_closing=False)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._process_start_tag(tag, attrs, self_closing=True)
+
+    def handle_endtag(self, tag: str) -> None:
+        self._flush_prose()
+        t = tag.lower()
+        if self._in_tags(_RAW_DOM_EXCLUDED_TAGS) and t not in _RAW_DOM_EXCLUDED_TAGS:
+            return
+        if t == "head":
+            self.has_head_close = True
+        elif t == "body":
+            self.has_body_close = True
+        self._pop_open_tag(t)
+
+    def handle_data(self, data: str) -> None:
+        if self.has_latex or self._in_tags(_LATEX_IGNORED_TAGS):
+            return
+        self._prose_buf.append(data)
+
+    def handle_comment(self, data: str) -> None:
+        self._flush_prose()
+
+    def close(self) -> None:
+        self._flush_prose()
+        super().close()
+
+
 def run_html_qa_check(html_text: str, skip_table_wrapper_check: bool = False) -> None:
-    """Validate structure, Base64 images, alt tags, table wrappers, MathJax, and internal anchors."""
+    """Validate structure, Base64 images, alt tags, real .table-wrapper nesting, MathJax, and anchors."""
+    scanner = _QADOMScanner()
+    scanner.feed(html_text)
+    scanner.close()
+
     issues: list[str] = []
-    if (
-        not re.search(r"(?i)<head\b[^>]*>", html_text)
-        or not re.search(r"(?i)</head>", html_text)
-        or not re.search(r"(?i)<body\b[^>]*>", html_text)
-        or not re.search(r"(?i)</body>", html_text)
+    if not (
+        scanner.has_head_open
+        and scanner.has_head_close
+        and scanner.has_body_open
+        and scanner.has_body_close
     ):
         issues.append("HTML must contain complete <head>...</head> and <body>...</body> sections.")
 
-    dom_only = _STRIP_SCRIPT_STYLE_RX.sub("", html_text)
-    qa_scan = _DATA_URI_PAYLOAD_RX.sub(r"\1OK", dom_only)
+    if scanner.unembedded_imgs > 0:
+        issues.append(f"Found {scanner.unembedded_imgs} un-embedded local <img> src link(s).")
+    if scanner.missing_alt_imgs > 0:
+        issues.append(f"Found {scanner.missing_alt_imgs} <img> tag(s) missing alt attribute.")
 
-    b64_count = 0
-    unembedded = 0
-    missing_alt = 0
-    for img_match in IMG_TAG_RX.finditer(qa_scan):
-        attrs = img_match.group(1)
-        if not re.search(r"(?is)(?:^|\s)alt\s*=", attrs):
-            missing_alt += 1
-        for src_match in IMG_SRC_RX.finditer(attrs):
-            raw_src = _get_img_src_value(src_match)
-            if raw_src == "":
-                continue
-            src_val = raw_src.strip()
-            if _DATA_IMG_RX.match(src_val):
-                b64_count += 1
-            elif not _EXT_IMG_RX.match(src_val):
-                unembedded += 1
-
-    if unembedded > 0:
-        issues.append(f"Found {unembedded} un-embedded local <img> src link(s).")
-    if missing_alt > 0:
-        issues.append(f"Found {missing_alt} <img> tag(s) missing alt attribute.")
-
-    table_count = len(re.findall(r"(?i)<table\b", qa_scan))
-    wrapper_count = len(
-        re.findall(
-            r'(?i)\bclass\s*=\s*(?:"[^"]*\btable-wrapper\b[^"]*"|\'[^\']*\btable-wrapper\b[^\']*\')',
-            qa_scan,
+    unwrapped_tables = scanner.table_count - scanner.wrapped_table_count
+    if not skip_table_wrapper_check and unwrapped_tables > 0:
+        issues.append(
+            f"Found {unwrapped_tables} <table> element(s) not wrapped inside a .table-wrapper container."
         )
-    )
-    if not skip_table_wrapper_check and table_count > wrapper_count:
-        issues.append(f"Found {table_count} <table> element(s) but only {wrapper_count} .table-wrapper container(s).")
 
-    prose_for_latex = _STRIP_PRE_RX.sub("", qa_scan)
-    prose_for_latex = _STRIP_CODE_RX.sub("", prose_for_latex)
-    prose_for_latex = _STRIP_TEXTAREA_RX.sub("", prose_for_latex)
-    has_latex = (r"\(" in prose_for_latex) or (r"\[" in prose_for_latex)
-    has_mathjax = bool(re.search(r"(?i)<script\b[^>]*MathJax", html_text))
-    if has_latex and not has_mathjax:
+    if scanner.has_latex and not scanner.has_mathjax_in_head:
         issues.append("Detected LaTeX math delimiters without MathJax <script> in <head>.")
 
     broken_anchors: list[str] = []
-    for m in re.finditer(r'(?i)\bhref\s*=\s*(?:"#([^"]+)"|\'#([^\']+)\')', qa_scan):
-        anchor = m.group(1) if m.group(1) is not None else m.group(2)
-        esc = re.escape(anchor)
-        if not re.search(rf'(?i)\bid\s*=\s*(?:"{esc}"|\'{esc}\')', qa_scan):
+    seen_broken: set[str] = set()
+    for anchor in scanner.anchor_refs:
+        if anchor not in scanner.seen_ids and anchor not in seen_broken:
+            seen_broken.add(anchor)
             broken_anchors.append(f"#{anchor}")
     if broken_anchors:
         issues.append(f"Broken internal anchor(s): {', '.join(broken_anchors)}")
@@ -251,8 +485,12 @@ def run_html_qa_check(html_text: str, skip_table_wrapper_check: bool = False) ->
     if issues:
         raise ValueError("HTML Auto-QA FAILED:\n - " + "\n - ".join(issues))
 
-    table_status = f"Tables: {table_count} (wrapper optional)" if skip_table_wrapper_check else f"Tables wrapped: {wrapper_count}/{table_count}"
-    print(f"[QA PASS] Base64 images: {b64_count} | {table_status} | LaTeX/MathJax OK | Broken anchors: 0")
+    table_status = (
+        f"Tables: {scanner.table_count} (wrapper optional)"
+        if skip_table_wrapper_check
+        else f"Tables wrapped: {scanner.wrapped_table_count}/{scanner.table_count}"
+    )
+    print(f"[QA PASS] Base64 images: {scanner.b64_count} | {table_status} | LaTeX/MathJax OK | Broken anchors: 0")
 
 
 def get_indexed_file_path(base_path: Path, index: int) -> Path:
@@ -394,7 +632,7 @@ def embed_images_and_package(
     out_pdf_path: str = "",
     also_pdf: bool = False,
     preserve_layout: bool = False,
-    quality: int = 90,
+    quality: int = 95,
     max_width: int = 1400,
     clean_dir: str = "",
     timeout_seconds: int = 60,
@@ -449,7 +687,7 @@ def embed_images_and_package(
     def _replace_img_tag(img_match: re.Match[str]) -> str:
         return "<img" + IMG_SRC_RX.sub(_replace_src, img_match.group(1)) + ">"
 
-    updated = IMG_TAG_RX.sub(_replace_img_tag, content)
+    updated, _ = _sub_outside_ignored(content, IMG_TAG_RX, _replace_img_tag)
 
     shell_injected: list[str] = []
     if not preserve_layout:

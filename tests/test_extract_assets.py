@@ -516,8 +516,6 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
                 str(out_dir),
                 "--out-json",
                 str(out_json),
-                "--quality",
-                "90",
                 "--max-width",
                 "200",
             ],
@@ -543,8 +541,11 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         self.assertEqual(res[2]["mime"], "image/png")
         self.assertIsNone(res[2]["out_file"])
 
-        # CMYK JPEG -> processed safely as JPEG without error
+        # CMYK JPEG -> processed safely, resized to 200px & kept as JPEG
         self.assertEqual(res[3]["mime"], "image/jpeg")
+        self.assertIsNotNone(res[3]["out_file"])
+        self.assertEqual(pymupdf.Pixmap(res[3]["out_file"]).width, 200)
+        self.assertLess(res[3]["final_len"], res[3]["orig_len"])
 
         # Opaque RGBA rich photo -> stripped alpha & compressed to JPEG
         self.assertEqual(res[4]["mime"], "image/jpeg")
@@ -555,6 +556,148 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         self.assertIsNotNone(res[5]["out_file"])
         self.assertEqual(pymupdf.Pixmap(res[5]["out_file"]).width, 200)
         self.assertLess(res[5]["final_len"], res[5]["orig_len"])
+
+    def test_optimize_image_bytes_low_color_grayscale_and_resize_edges(self) -> None:
+        import random
+
+        # 1. Wide low-color RGB JPEG (600x300, 2 colors) -> resized to 200px JPEG & smaller
+        w, h = 600, 300
+        diag_buf = bytearray([250, 250, 250] * (w * h))
+        for y in range(60, 240):
+            row_off = y * w * 3
+            for x in range(80, 520):
+                diag_buf[row_off + x * 3 : row_off + x * 3 + 3] = b"\x10\x40\x90"
+        diag_wide_jpg = self.tmp_dir / "diag_wide.jpg"
+        diag_wide_jpg.write_bytes(
+            pymupdf.Pixmap(pymupdf.csRGB, w, h, bytes(diag_buf), False).tobytes("jpeg", jpg_quality=95)
+        )
+        diag_colors, diag_alpha = ea._analyze_sample_grid(pymupdf.Pixmap(str(diag_wide_jpg)))
+        self.assertLess(diag_colors, 200)
+        self.assertFalse(diag_alpha)
+
+        out_diag, mime_diag, orig_diag_len = ea._optimize_image_bytes(diag_wide_jpg, quality=90, max_width=200)
+        self.assertEqual(mime_diag, "image/jpeg")
+        self.assertLess(len(out_diag), orig_diag_len)
+        resized_diag_pix = pymupdf.Pixmap(out_diag)
+        self.assertEqual((resized_diag_pix.width, resized_diag_pix.height), (200, 100))
+
+        # 2. Wide noisy grayscale JPEG (600x300, csGRAY) -> resized to 200px JPEG & smaller
+        rng = random.Random(11)
+        gray_wide_buf = bytes(rng.randrange(256) for _ in range(w * h))
+        gray_wide_jpg = self.tmp_dir / "gray_photo_wide.jpg"
+        gray_wide_jpg.write_bytes(
+            pymupdf.Pixmap(pymupdf.csGRAY, w, h, gray_wide_buf, False).tobytes("jpeg", jpg_quality=95)
+        )
+        out_gw, mime_gw, orig_gw_len = ea._optimize_image_bytes(gray_wide_jpg, quality=90, max_width=200)
+        self.assertEqual(mime_gw, "image/jpeg")
+        self.assertLess(len(out_gw), orig_gw_len)
+        self.assertEqual(pymupdf.Pixmap(out_gw).width, 200)
+
+        # 3. Non-resized rich grayscale photo saved as RGB PNG (160x120, >=200 8-bit tones) -> compressed to JPEG
+        gp_w, gp_h = 160, 120
+        gp_buf = bytearray(gp_w * gp_h * 3)
+        for y in range(gp_h):
+            for x in range(gp_w):
+                val = max(0, min(255, int((x / float(gp_w)) * 220 + 15 + rng.randint(-15, 15))))
+                i = (y * gp_w + x) * 3
+                gp_buf[i : i + 3] = bytes((val, val, val))
+        gray_photo_png = self.tmp_dir / "gray_photo_rgb.png"
+        gray_photo_png.write_bytes(pymupdf.Pixmap(pymupdf.csRGB, gp_w, gp_h, bytes(gp_buf), False).tobytes("png"))
+        gp_tones, gp_alpha = ea._analyze_sample_grid(pymupdf.Pixmap(str(gray_photo_png)))
+        self.assertGreaterEqual(gp_tones, 200)
+        self.assertFalse(gp_alpha)
+        out_gp, mime_gp, orig_gp_len = ea._optimize_image_bytes(gray_photo_png, quality=85, max_width=200)
+        self.assertEqual(mime_gp, "image/jpeg")
+        self.assertLessEqual(len(out_gp), int(orig_gp_len * 0.85))
+
+        # 4. Non-resized low-color B&W diagram PNG (160x120, 2 tones) -> kept untouched PNG
+        bw_buf = bytearray([255, 255, 255] * (gp_w * gp_h))
+        for y in range(20, 100):
+            row_off = y * gp_w * 3
+            for x in range(20, 140):
+                if x in (20, 139) or y in (20, 99):
+                    bw_buf[row_off + x * 3 : row_off + x * 3 + 3] = b"\x00\x00\x00"
+        bw_diag_png = self.tmp_dir / "bw_diag.png"
+        bw_orig = pymupdf.Pixmap(pymupdf.csRGB, gp_w, gp_h, bytes(bw_buf), False).tobytes("png")
+        bw_diag_png.write_bytes(bw_orig)
+        bw_tones, _ = ea._analyze_sample_grid(pymupdf.Pixmap(str(bw_diag_png)))
+        self.assertLess(bw_tones, 200)
+        out_bw, mime_bw, _ = ea._optimize_image_bytes(bw_diag_png, quality=90, max_width=200)
+        self.assertEqual(mime_bw, "image/png")
+        self.assertEqual(out_bw, bw_orig)
+
+        # 5. Small non-resized low-color JPEG (120x80) -> kept untouched without re-encoding
+        sm_w, sm_h = 120, 80
+        sm_buf = bytearray([245, 245, 245] * (sm_w * sm_h))
+        for y in range(15, 65):
+            row_off = y * sm_w * 3
+            for x in range(20, 100):
+                sm_buf[row_off + x * 3 : row_off + x * 3 + 3] = b"\x20\x50\xa0"
+        small_jpg = self.tmp_dir / "diag_small.jpg"
+        small_orig = pymupdf.Pixmap(pymupdf.csRGB, sm_w, sm_h, bytes(sm_buf), False).tobytes("jpeg", jpg_quality=95)
+        small_jpg.write_bytes(small_orig)
+        out_sm, mime_sm, _ = ea._optimize_image_bytes(small_jpg, quality=90, max_width=200)
+        self.assertEqual(mime_sm, "image/jpeg")
+        self.assertEqual(out_sm, small_orig)
+
+        # 6. Already-tight low-quality wide JPEG (400x200 @ q=10) with quality=95 -> never bloats bytes
+        tight_jpg = self.tmp_dir / "low_q_wide.jpg"
+        tight_orig = self._make_noisy_rgb_pixmap(400, 200, seed=99).tobytes("jpeg", jpg_quality=10)
+        tight_jpg.write_bytes(tight_orig)
+        out_tight, mime_tight, _ = ea._optimize_image_bytes(tight_jpg, quality=95, max_width=200)
+        self.assertEqual(mime_tight, "image/jpeg")
+        self.assertEqual(out_tight, tight_orig)
+
+        # 7. max_width=0 disables resizing on wide low-color JPEG
+        diag_raw_orig = diag_wide_jpg.read_bytes()
+        out_noresize, mime_noresize, _ = ea._optimize_image_bytes(diag_wide_jpg, quality=90, max_width=0)
+        self.assertEqual(mime_noresize, "image/jpeg")
+        self.assertEqual(out_noresize, diag_raw_orig)
+        self.assertEqual(pymupdf.Pixmap(out_noresize).width, 600)
+
+        # 2b. Wide low-tone grayscale JPEG (600x300, csGRAY, 2 tones < 200) -> resized to 200px JPEG & smaller
+        gray_diag_buf = bytearray([240] * (w * h))
+        for y in range(60, 240):
+            row_off = y * w
+            gray_diag_buf[row_off + 80 : row_off + 520] = bytes([30] * 440)
+        gray_diag_jpg = self.tmp_dir / "gray_diag_wide.jpg"
+        gray_diag_jpg.write_bytes(
+            pymupdf.Pixmap(pymupdf.csGRAY, w, h, bytes(gray_diag_buf), False).tobytes("jpeg", jpg_quality=95)
+        )
+        gd_tones, gd_alpha = ea._analyze_sample_grid(pymupdf.Pixmap(str(gray_diag_jpg)))
+        self.assertLess(gd_tones, 200)
+        self.assertFalse(gd_alpha)
+        out_gd, mime_gd, orig_gd_len = ea._optimize_image_bytes(gray_diag_jpg, quality=90, max_width=200)
+        self.assertEqual(mime_gd, "image/jpeg")
+        self.assertLess(len(out_gd), orig_gd_len)
+        self.assertEqual(pymupdf.Pixmap(out_gd).width, 200)
+
+        # 8. Missing image file raises FileNotFoundError
+        with self.assertRaises(FileNotFoundError):
+            ea._optimize_image_bytes(self.tmp_dir / "missing.jpg")
+
+        # 9. End-to-end embed_images_and_package integrates wide low-color JPEG and grayscale PNG properly
+        pkg_html = self.tmp_dir / "pkg_opt.html"
+        pkg_out = self.tmp_dir / "pkg_opt_out.html"
+        pkg_html.write_text(
+            "<!DOCTYPE html><html><head><title>Opt</title></head><body>"
+            "<figure><img src='diag_wide.jpg' alt='Wide low-color JPEG'></figure>"
+            "<figure><img src='gray_photo_rgb.png' alt='Grayscale photo PNG'></figure>"
+            "<figure><img src='bw_diag.png' alt='B&W diagram PNG'></figure>"
+            "</body></html>",
+            encoding="utf-8",
+        )
+        res_pkg, _ = hpc.embed_images_and_package(
+            html_path=pkg_html,
+            optimize_image_bytes_fn=ea._optimize_image_bytes,
+            out_html_path=str(pkg_out),
+            preserve_layout=True,
+            quality=85,
+            max_width=200,
+        )
+        pkg_text = res_pkg.read_text(encoding="utf-8")
+        self.assertEqual(pkg_text.count("data:image/jpeg;base64,"), 2)
+        self.assertEqual(pkg_text.count("data:image/png;base64,"), 1)
 
 
 class TestPathGuardsModule(unittest.TestCase):
@@ -576,8 +719,11 @@ class TestPathGuardsModule(unittest.TestCase):
         if sys.platform != "win32":
             self.skipTest("Windows junction test requires win32")
         target = self.tmp_dir / "real_target"
-        target.mkdir()
+        real_sub = target / "real_subdir"
+        real_sub.mkdir(parents=True)
         (target / "secret.png").write_bytes(b"png")
+        (target / "direct_existing.html").write_text("old", encoding="utf-8")
+        (real_sub / "existing.html").write_text("old", encoding="utf-8")
         junc = self.tmp_dir / "junc_dir"
         res = subprocess.run(
             ["cmd", "/c", "mklink", "/J", str(junc), str(target)],
@@ -592,6 +738,29 @@ class TestPathGuardsModule(unittest.TestCase):
             pg.assert_safe_output_path(junc / "out.html", "OutHtmlPath", is_directory=False)
         with self.assertRaisesRegex(ValueError, "symlink/junction"):
             pg.resolve_safe_sub_image_path(self.tmp_dir, "junc_dir/secret.png")
+
+        # Outside workspace/CWD/TEMP (else branch): must walk all existing ancestors up to drive root
+        from unittest import mock
+
+        isolated_temp = str(self.tmp_dir / "__isolated_anchor__")
+        with mock.patch.object(pg.tempfile, "gettempdir", return_value=isolated_temp):
+            for blocked_out in (
+                junc / "real_subdir" / "new.html",
+                junc / "real_subdir" / "existing.html",
+                junc / "direct_existing.html",
+            ):
+                with self.subTest(blocked_out=blocked_out):
+                    with self.assertRaisesRegex(ValueError, "symlink/junction"):
+                        pg.assert_safe_output_path(blocked_out, "OutHtmlPath", is_directory=False)
+            with self.assertRaisesRegex(ValueError, "symlink/junction"):
+                pg.resolve_safe_out_directory(junc / "real_subdir", "-OutDir", create=False)
+
+            has_reparse_ancestor = any(pg.is_reparse_point(p) for p in target.parents)
+            if not has_reparse_ancestor:
+                self.assertEqual(
+                    pg.assert_safe_output_path(real_sub / "new.html", "OutHtmlPath", is_directory=False),
+                    Path(os.path.abspath(real_sub / "new.html")),
+                )
 
     def test_crop_roots_and_safe_clean_dir(self) -> None:
         allowed_dir = self.tmp_dir / "work" / "pages"
@@ -720,6 +889,100 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         packaged = res_html.read_text(encoding="utf-8")
         self.assertIn("data:image/", packaged)
         self.assertIn('data-reader-shell="toolbar"', packaged)
+
+    def test_qa_dom_nesting_comments_and_shell_isolation(self) -> None:
+        # 1. Valid document with commented-out invalid fragments, nested <code>, <textarea>, and nested <table>
+        valid_html = (
+            "<!DOCTYPE html><html>"
+            '<!-- <head></head><body></body> <img src="dead.png"> <table></table> '
+            r'<div class="table-wrapper"></div> \(fake\) \[fake\] <a href="#ghost">g</a> '
+            '<span id="ghost"></span> <script id="MathJax-script"></script> -->'
+            "<head><title>DOM QA</title></head>"
+            "<body>"
+            '<p id="top">Top <a href="#top">Back</a></p>'
+            "<pre><code>outer <code>inner</code> \\(not_math\\)</code></pre>"
+            '<textarea><img src="ignored.png"><table><tr><td>T</td></tr></table>\\(t\\)<a href="#nope">x</a></textarea>'
+            '<p data-sample="<table>">Text</p>'
+            '<div class="table-wrapper"><table><tr><td>'
+            "<table><tr><td>Nested</td></tr></table>"
+            "</td></tr></table></div>"
+            "</body></html>"
+        )
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        pass_buf = StringIO()
+        with redirect_stdout(pass_buf):
+            hpc.run_html_qa_check(valid_html)
+        self.assertIn("Tables wrapped: 2/2", pass_buf.getvalue())
+
+        # 2. Reader shell injection and <img> embedding skip HTML comments
+        work_dir = self.tmp_dir / "work_comments"
+        assets_dir = work_dir / "assets"
+        assets_dir.mkdir(parents=True)
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 30), False)
+        pix.clear_with(180)
+        (assets_dir / "real.png").write_bytes(pix.tobytes("png"))
+
+        draft = work_dir / "draft.html"
+        out_html = self.tmp_dir / "out_comments.html"
+        draft.write_text(
+            "<!DOCTYPE html><html>"
+            '<!-- </head><body><img src="assets/real.png"></body> -->'
+            "<head><title>C</title></head>"
+            '<body><img src="assets/real.png" alt="Real"></body></html>',
+            encoding="utf-8",
+        )
+        with redirect_stdout(StringIO()):
+            res_path, _ = hpc.embed_images_and_package(
+                html_path=draft,
+                optimize_image_bytes_fn=ea._optimize_image_bytes,
+                out_html_path=str(out_html),
+            )
+        packaged = res_path.read_text(encoding="utf-8")
+        self.assertIn('<!-- </head><body><img src="assets/real.png"></body> -->', packaged)
+        self.assertEqual(packaged.count("data:image/png;base64,"), 1)
+        self.assertGreater(packaged.index('data-reader-shell="toolbar"'), packaged.index("</head>"))
+
+        # 3. Failing DOM/comment trap cases must be caught
+        fail_cases = [
+            (
+                '<!DOCTYPE html><html><head></head><body><div class="table-wrapper"></div><table><tr><td>1</td></tr></table></body></html>',
+                r"not wrapped inside a \.table-wrapper container",
+            ),
+            (
+                '<!DOCTYPE html><html><head></head><body><p class="table-wrapper"><table><tr><td>1</td></tr></table></p></body></html>',
+                r"not wrapped inside a \.table-wrapper container",
+            ),
+            (
+                '<!DOCTYPE html><html><head></head><body><table class="table-wrapper"><tr><td>1</td></tr></table></body></html>',
+                r"not wrapped inside a \.table-wrapper container",
+            ),
+            (
+                '<!DOCTYPE html><html><head></head><body><!-- <div class="table-wrapper"> --><table><tr><td>1</td></tr></table></body></html>',
+                r"not wrapped inside a \.table-wrapper container",
+            ),
+            (
+                '<!DOCTYPE html><html><head></head><body><a href="#ghost">L</a><!-- <h2 id="ghost">G</h2> --></body></html>',
+                r"Broken internal anchor.*#ghost",
+            ),
+            (
+                r'<!DOCTYPE html><html><head><!-- <script id="MathJax-script"></script> --></head><body><p>\(x\)</p></body></html>',
+                r"Detected LaTeX math delimiters without MathJax <script> in <head>",
+            ),
+            (
+                r'<!DOCTYPE html><html><head></head><body><script id="MathJax-script"></script><p>\(x\)</p></body></html>',
+                r"Detected LaTeX math delimiters without MathJax <script> in <head>",
+            ),
+            (
+                "<!DOCTYPE html><html><!-- <head></head><body></body> --><p>No real body</p></html>",
+                r"complete <head>.*</head> and <body>.*</body>",
+            ),
+        ]
+        for bad_html, expected_rx in fail_cases:
+            with self.subTest(expected=expected_rx, html=bad_html):
+                with self.assertRaisesRegex(ValueError, expected_rx):
+                    hpc.run_html_qa_check(bad_html)
 
 
 if __name__ == "__main__":

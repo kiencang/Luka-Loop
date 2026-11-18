@@ -274,8 +274,11 @@ try {
         $sub = Join-Path $tmpRoot 'junc_case'
         [void][System.IO.Directory]::CreateDirectory($sub)
         $real = Join-Path $sub 'real'
+        $realSub = Join-Path $real 'real_subdir'
         $junc = Join-Path $sub 'junc'
-        [void][System.IO.Directory]::CreateDirectory($real)
+        [void][System.IO.Directory]::CreateDirectory($realSub)
+        [System.IO.File]::WriteAllText((Join-Path $real 'direct_existing.html'), 'old')
+        [System.IO.File]::WriteAllText((Join-Path $realSub 'existing.html'), 'old')
         cmd /c mklink /J "`"$junc`"" "`"$real`"" | Out-Null
         try {
             $realItem = Get-Item -LiteralPath $real -Force
@@ -284,7 +287,32 @@ try {
             Assert-True (Test-IsReparsePoint -Item $juncItem) 'Active junction should be flagged'
             Assert-Throws { Assert-SafeOutputPath -TargetPath (Join-Path $junc 'out.html') -Label 'TestOut' } 'symlink/junction' 'Should block write through junction'
 
-            Remove-Item -LiteralPath $real -Force
+            # Outside workspace/CWD/TEMP (else branch): must catch junction above existing dirs/files up to drive root
+            $prevTemp = $env:TEMP
+            $env:TEMP = Join-Path $sub '__isolated_anchor__'
+            try {
+                Assert-Throws { Assert-SafeOutputPath -TargetPath (Join-Path $junc 'real_subdir\new.html') -Label 'TestOut' } 'symlink/junction' 'Should block new file in existing subdir under outside junction'
+                Assert-Throws { Assert-SafeOutputPath -TargetPath (Join-Path $junc 'real_subdir\existing.html') -Label 'TestOut' } 'symlink/junction' 'Should block existing file in existing subdir under outside junction'
+                Assert-Throws { Assert-SafeOutputPath -TargetPath (Join-Path $junc 'direct_existing.html') -Label 'TestOut' } 'symlink/junction' 'Should block existing file directly under outside junction'
+                Assert-Throws { Assert-SafeOutputPath -TargetPath (Join-Path $junc 'real_subdir') -Label 'TestDir' -IsDirectory } 'symlink/junction' 'Should block existing subdir directory under outside junction'
+
+                $ancestorHasReparse = $false
+                $pCursor = Split-Path $realSub -Parent
+                while ($pCursor) {
+                    $pIt = Get-Item -LiteralPath $pCursor -Force -ErrorAction SilentlyContinue
+                    if ($pIt -and (Test-IsReparsePoint -Item $pIt)) { $ancestorHasReparse = $true; break }
+                    $pNext = Split-Path $pCursor -Parent
+                    if (-not $pNext -or $pNext -eq $pCursor) { break }
+                    $pCursor = $pNext
+                }
+                if (-not $ancestorHasReparse) {
+                    Assert-SafeOutputPath -TargetPath (Join-Path $realSub 'ok.html') -Label 'TestOut'
+                }
+            } finally {
+                $env:TEMP = $prevTemp
+            }
+
+            Remove-Item -LiteralPath $real -Recurse -Force
             $brokenItem = Get-Item -LiteralPath $junc -Force
             Assert-True (Test-IsReparsePoint -Item $brokenItem) 'Broken junction should still be flagged'
         } finally {
@@ -428,6 +456,7 @@ try {
         [System.IO.File]::WriteAllText($goodIn, $goodHtml, (New-Object System.Text.UTF8Encoding($false)))
         $rGood = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $goodIn, '-OutHtmlPath', $goodOut, '-MaxImageWidth', '200')
         Assert-Equal 0 $rGood.ExitCode "Good HTML failed: $($rGood.Output)"
+        Assert-True ($rGood.Output -match 'Quality=95%') "Expected default JpegQuality=95%, got: $($rGood.Output)"
         Assert-True ($rGood.Output -match '\[QA PASS\] Base64 images: 3 \| Tables wrapped: 1/1') "Unexpected QA pass output: $($rGood.Output)"
         Assert-True ($rGood.Output -match 'Injected reader shell -> CSS, Toolbar, Script') 'Expected shell injection'
         $outText = [System.IO.File]::ReadAllText($goodOut, [System.Text.Encoding]::UTF8)
@@ -440,19 +469,85 @@ try {
         Assert-Equal 0 $rIdemp.ExitCode "Idempotent pack failed: $($rIdemp.Output)"
         Assert-True ($rIdemp.Output -match 'Reader shell already present \(skipped injection\)') "Expected skipped injection: $($rIdemp.Output)"
 
+        # Grayscale photo PNG (>=200 8-bit tones -> JPEG) and wide low-color PNG (resized PNG) via extract_assets.exe
+        $grayPhotoPng = Join-Path $qaDir 'gray_photo.png'
+        $gpRaw = New-Object byte[] (220 * 120 * 3)
+        $rng = New-Object System.Random(17)
+        for ($y = 0; $y -lt 120; $y++) {
+            for ($x = 0; $x -lt 220; $x++) {
+                $v = [Math]::Max(0, [Math]::Min(255, [int](($x / 220.0) * 220 + 15 + $rng.Next(-15, 16))))
+                $off = ($y * 220 + $x) * 3
+                $gpRaw[$off] = [byte]$v; $gpRaw[$off + 1] = [byte]$v; $gpRaw[$off + 2] = [byte]$v
+            }
+        }
+        New-TestPng -OutPath $grayPhotoPng -Width 220 -Height 120 -ColorType 2 -RawPixels $gpRaw
+
+        $wideDiagPng = Join-Path $qaDir 'wide_diag.png'
+        $wdW = 600; $wdH = 240; $wdStride = $wdW * 3
+        $wdRow0 = New-Object byte[] $wdStride
+        $wdRow1 = New-Object byte[] $wdStride
+        for ($x = 0; $x -lt $wdW; $x++) {
+            $blk = ([Math]::Floor($x / 24) % 2) -eq 0
+            $c0 = if ($blk) { [byte]25 } else { [byte]235 }
+            $c1 = if ($blk) { [byte]235 } else { [byte]25 }
+            $off = $x * 3
+            $wdRow0[$off] = $c0; $wdRow0[$off + 1] = $c0; $wdRow0[$off + 2] = 245
+            $wdRow1[$off] = $c1; $wdRow1[$off + 1] = $c1; $wdRow1[$off + 2] = 245
+        }
+        $wdRaw = New-Object byte[] ($wdStride * $wdH)
+        for ($y = 0; $y -lt $wdH; $y++) {
+            $srcRow = if (([Math]::Floor($y / 24) % 2) -eq 0) { $wdRow0 } else { $wdRow1 }
+            [Array]::Copy($srcRow, 0, $wdRaw, $y * $wdStride, $wdStride)
+        }
+        New-TestPng -OutPath $wideDiagPng -Width $wdW -Height $wdH -ColorType 2 -RawPixels $wdRaw
+
+        $optSpec = Join-Path $qaDir 'opt_spec_ps.json'
+        $optOutDir = Join-Path $qaDir 'opt_out_ps'
+        $optOutJson = Join-Path $qaDir 'opt_res_ps.json'
+        [System.IO.File]::WriteAllText($optSpec, (@{ items = @(@{ path = $grayPhotoPng }, @{ path = $wideDiagPng }) } | ConvertTo-Json -Depth 3), (New-Object System.Text.UTF8Encoding($false)))
+        $exePath = Join-Path $toolsDir 'extract_assets\extract_assets.exe'
+        $optOutLog = (& $exePath --mode optimize-images "--spec=$optSpec" "--out-dir=$optOutDir" "--out-json=$optOutJson" --quality=85 --max-width=200 2>&1 | Out-String)
+        Assert-Equal 0 $LASTEXITCODE "optimize-images grayscale/wide failed: $optOutLog"
+        $optRes = (Get-Content -LiteralPath $optOutJson -Raw -Encoding UTF8 | ConvertFrom-Json).results
+        Assert-Equal 'image/jpeg' $optRes[0].mime 'Grayscale continuous-tone photo PNG should compress to JPEG'
+        Assert-True ($optRes[0].final_len -lt $optRes[0].orig_len) 'Grayscale photo JPEG should shrink file size'
+        Assert-Equal 'image/png' $optRes[1].mime 'Wide low-color diagram PNG should stay PNG'
+        Assert-True ($null -ne $optRes[1].out_file -and $optRes[1].final_len -lt $optRes[1].orig_len) 'Wide diagram PNG should be resized and smaller'
+
         # Real LaTeX with MathJax <script> passes
         $mathOk = Join-Path $qaDir 'math_ok.html'
         [System.IO.File]::WriteAllText($mathOk, '<!DOCTYPE html><html><head><script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head><body><p>Formula \(a+b\)</p></body></html>', (New-Object System.Text.UTF8Encoding($false)))
         $rMath = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $mathOk, '-OutHtmlPath', (Join-Path $qaDir 'math_out.html'))
         Assert-Equal 0 $rMath.ExitCode "MathJax HTML failed: $($rMath.Output)"
 
+        # Comments containing fake failures, nested <code>, and nested tables inside .table-wrapper must pass cleanly
+        $commentOk = Join-Path $qaDir 'comment_ok.html'
+        $commentOut = Join-Path $qaDir 'comment_out.html'
+        $commentHtml = @'
+<!DOCTYPE html><html>
+<!-- </head><body><img src="missing.png"><table></table><div class="table-wrapper"></div>\(bad\)<a href="#ghost">G</a><span id="ghost"></span> -->
+<head><title>Comment Safe</title></head>
+<body>
+<h1 id="ok">OK</h1><a href="#ok">Link</a>
+<pre><code>outer <code>inner</code> \(ignore\)</code></pre>
+<div class="table-wrapper"><table><tr><td><table><tr><td>Sub</td></tr></table></td></tr></table></div>
+</body></html>
+'@
+        [System.IO.File]::WriteAllText($commentOk, $commentHtml, (New-Object System.Text.UTF8Encoding($false)))
+        $rComment = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $commentOk, '-OutHtmlPath', $commentOut)
+        Assert-Equal 0 $rComment.ExitCode "Comment-safe QA HTML failed: $($rComment.Output)"
+        Assert-True ($rComment.Output -match '\[QA PASS\] Base64 images: 0 \| Tables wrapped: 2/2') "Unexpected comment-safe QA output: $($rComment.Output)"
+
         # Negative QA cases
         foreach ($neg in @(
             @{ name = 'missing alt'; html = '<!DOCTYPE html><html><head></head><body><img src="photo.png"></body></html>'; pat = 'missing alt attribute' },
             @{ name = 'unembedded img'; html = '<!DOCTYPE html><html><head></head><body><img src="missing.png" alt="x"></body></html>'; pat = 'un-embedded local' },
             @{ name = 'unwrapped table'; html = '<!DOCTYPE html><html><head></head><body><table><tr><td>1</td></tr></table></body></html>'; pat = 'table-wrapper container' },
+            @{ name = 'empty wrapper sibling table'; html = '<!DOCTYPE html><html><head></head><body><div class="table-wrapper"></div><table><tr><td>1</td></tr></table></body></html>'; pat = 'table-wrapper container' },
             @{ name = 'broken anchor'; html = '<!DOCTYPE html><html><head></head><body><a href="#nope">Link</a></body></html>'; pat = 'Broken internal anchor' },
-            @{ name = 'latex no mathjax'; html = '<!DOCTYPE html><html><head></head><body><p>Value \(x\)</p></body></html>'; pat = 'Detected LaTeX math delimiters' }
+            @{ name = 'commented anchor target'; html = '<!DOCTYPE html><html><head></head><body><a href="#ghost">Link</a><!-- <h2 id="ghost">Ghost</h2> --></body></html>'; pat = 'Broken internal anchor' },
+            @{ name = 'latex no mathjax'; html = '<!DOCTYPE html><html><head></head><body><p>Value \(x\)</p></body></html>'; pat = 'Detected LaTeX math delimiters' },
+            @{ name = 'commented mathjax'; html = '<!DOCTYPE html><html><head><!-- <script id="MathJax-script"></script> --></head><body><p>Value \(x\)</p></body></html>'; pat = 'Detected LaTeX math delimiters' }
         )) {
             $negFile = Join-Path $qaDir 'neg.html'
             [System.IO.File]::WriteAllText($negFile, $neg.html, (New-Object System.Text.UTF8Encoding($false)))
