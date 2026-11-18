@@ -162,7 +162,7 @@ function Invoke-ExtractAssetsExe {
     $exeDir = Join-Path $PSScriptRoot 'extract_assets'
     $exePath = Join-Path $exeDir 'extract_assets.exe'
     if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
-        throw "Extractor executable not found: $exePath"
+        throw "Extractor executable not found: $exePath. Download the ready-to-use package (luka-loop-win-x64.zip) from GitHub Releases or run tools\build_extractor.ps1 for local dev builds."
     }
     $dirItem = Get-Item -LiteralPath $exeDir -Force -ErrorAction SilentlyContinue
     if ($dirItem -and (Test-IsReparsePoint -Item $dirItem)) {

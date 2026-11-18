@@ -2,7 +2,7 @@
 
 Mã nguồn gốc của dự án **luka-loop** (bao gồm `AGENTS.md`, thư mục `.agents/skills/`, các script PowerShell trong `tools/`, `tools/reader_shell.html` và mã nguồn tham chiếu `tools/src/extract_assets.py`) được phát hành theo [MIT License](./LICENSE).
 
-Tuy nhiên, gói công cụ thực thi dựng sẵn dành cho Windows tại [`tools/extract_assets/`](./tools/extract_assets/) phân phối kèm các thư viện và tệp nhị phân của bên thứ ba dưới các giấy phép riêng biệt sau đây:
+Tuy nhiên, gói công cụ thực thi dựng sẵn dành cho Windows (`tools/extract_assets/`, được biên dịch tự động trên GitHub Actions và phân phối kèm trong gói phát hành Release `luka-loop-win-x64.zip`) chứa các thư viện và tệp nhị phân của bên thứ ba dưới các giấy phép riêng biệt sau đây:
 
 ## Tổng hợp thành phần bên thứ ba trong `tools/extract_assets/`
 
@@ -19,7 +19,7 @@ Tuy nhiên, gói công cụ thực thi dựng sẵn dành cho Windows tại [`to
 ## Thông báo chi tiết theo từng thành phần
 
 ### 1. PyMuPDF / MuPDF (GNU Affero General Public License v3.0 — AGPL-3.0)
-- Gói thực thi [`tools/extract_assets/extract_assets.exe`](./tools/extract_assets/extract_assets.exe) được biên dịch liên kết trực tiếp với thư viện **PyMuPDF / MuPDF**, do đó bản phân phối nhị phân kết hợp trong [`tools/extract_assets/`](./tools/extract_assets/) tuân theo các điều khoản của **AGPL-3.0**.
+- Gói thực thi `tools/extract_assets/extract_assets.exe` (tự động build từ [`tools/build_extractor.ps1`](./tools/build_extractor.ps1)) được biên dịch liên kết trực tiếp với thư viện **PyMuPDF / MuPDF**, do đó bản phân phối nhị phân kết hợp tuân theo các điều khoản của **AGPL-3.0**.
 - Toàn bộ mã nguồn phía ứng dụng dùng để tạo `extract_assets.exe` được công khai đầy đủ tại [`tools/src/extract_assets.py`](./tools/src/extract_assets.py). Mã nguồn thượng nguồn của PyMuPDF và MuPDF được cung cấp công khai bởi Artifex Software tại <https://github.com/pymupdf/PyMuPDF> và <https://mupdf.com/>.
 - Toàn văn giấy phép xem tại [`licenses/AGPL-3.0.txt`](./licenses/AGPL-3.0.txt).
 

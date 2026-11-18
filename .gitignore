@@ -1,4 +1,8 @@
 output/
 work/
+tools/extract_assets/
+dist/
+build/
+*.spec
 __pycache__/
 *.pyc
