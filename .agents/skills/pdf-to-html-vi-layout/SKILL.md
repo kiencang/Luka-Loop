@@ -8,7 +8,7 @@ description: >-
 
 Quy trình 4 bước tự động hoàn toàn (người dùng **không cần gõ bất kỳ câu lệnh nào**). Phần **Contract công cụ** bên dưới đã mô tả đủ đầu vào/đầu ra và quy ước đường dẫn; Agent **gọi trực tiếp CLI theo đúng contract và không cần mở mã nguồn trong `tools\`**.
 
-> **QUY TẮC CỨNG (KHÔNG DÙNG PYTHON HỆ THỐNG):** **Tuyệt đối KHÔNG gọi `python`, `python3`, `py`, `pip`** hoặc chạy tệp nguồn tham khảo `tools\src\extract_assets.py`. Mọi thao tác tách ảnh, fallback scan và đóng gói đều chạy bằng công cụ portable (`tools\extract_pdf_assets.ps1` gọi `extract_assets.exe`, `tools\pdf_fallback_tools.ps1` và `tools\html_packager.ps1`).
+> **QUY TẮC CỨNG (KHÔNG DÙNG PYTHON HỆ THỐNG):** **Tuyệt đối KHÔNG gọi `python`, `python3`, `py`, `pip`** hoặc mở/chạy các tệp nguồn tham khảo trong `tools\src\`. Mọi thao tác tách ảnh, fallback scan và đóng gói đều chạy bằng các wrapper portable chuyển tiếp vào `extract_assets.exe` (`tools\extract_pdf_assets.ps1`, `tools\pdf_fallback_tools.ps1` và `tools\html_packager.ps1`).
 
 ---
 

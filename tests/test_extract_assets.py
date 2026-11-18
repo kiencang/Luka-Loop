@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,8 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 import extract_assets as ea  # noqa: E402
+import html_packager_core as hpc  # noqa: E402
+import path_guards as pg  # noqa: E402
 
 
 class TestExtractAssetsTextAndClassification(unittest.TestCase):
@@ -552,6 +555,168 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         self.assertIsNotNone(res[5]["out_file"])
         self.assertEqual(pymupdf.Pixmap(res[5]["out_file"]).width, 200)
         self.assertLess(res[5]["final_len"], res[5]["orig_len"])
+
+
+class TestPathGuardsModule(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp_ctx = tempfile.TemporaryDirectory()
+        self.tmp_dir = Path(self._tmp_ctx.name)
+
+    def tearDown(self) -> None:
+        self._tmp_ctx.cleanup()
+
+    def test_unc_and_non_fs_paths_blocked(self) -> None:
+        for bad in (r"\\server\share\a.pdf", "//host/share/b.png", r"FileSystem::\\srv\s"):
+            with self.assertRaisesRegex(ValueError, "Refusing UNC"):
+                pg.assert_local_no_unc_path(bad, "-PdfPath")
+        with self.assertRaisesRegex(ValueError, "non-filesystem"):
+            pg.assert_safe_output_path(r"HKLM:\Software\Test", "OutDir", is_directory=True)
+
+    def test_reparse_junction_detected_and_blocked(self) -> None:
+        if sys.platform != "win32":
+            self.skipTest("Windows junction test requires win32")
+        target = self.tmp_dir / "real_target"
+        target.mkdir()
+        (target / "secret.png").write_bytes(b"png")
+        junc = self.tmp_dir / "junc_dir"
+        res = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(junc), str(target)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if res.returncode != 0:
+            self.skipTest(f"mklink /J unavailable: {res.stderr}")
+        self.assertTrue(pg.is_reparse_point(junc))
+        with self.assertRaisesRegex(ValueError, "symlink/junction"):
+            pg.assert_safe_output_path(junc / "out.html", "OutHtmlPath", is_directory=False)
+        with self.assertRaisesRegex(ValueError, "symlink/junction"):
+            pg.resolve_safe_sub_image_path(self.tmp_dir, "junc_dir/secret.png")
+
+    def test_crop_roots_and_safe_clean_dir(self) -> None:
+        allowed_dir = self.tmp_dir / "work" / "pages"
+        allowed_dir.mkdir(parents=True)
+        img = allowed_dir / "p1.png"
+        img.write_bytes(b"png")
+        outside = self.tmp_dir / "outside.png"
+        outside.write_bytes(b"png")
+
+        roots = [allowed_dir]
+        self.assertEqual(pg.resolve_safe_crop_input_file(str(img), roots), img.resolve())
+        with self.assertRaisesRegex(ValueError, "outside allowed directories"):
+            pg.resolve_safe_crop_input_file(str(outside), roots)
+        with self.assertRaisesRegex(ValueError, "Path traversal blocked"):
+            pg.resolve_safe_crop_out_file(allowed_dir, "../escape.png")
+
+        work_dir = self.tmp_dir / "work"
+        (work_dir / "sub").mkdir(parents=True, exist_ok=True)
+        (work_dir / "sub" / "a.txt").write_text("x", encoding="utf-8")
+        pg.safe_clean_dir(str(work_dir), repo_root=self.tmp_dir)
+        self.assertFalse(work_dir.exists())
+
+        with self.assertRaisesRegex(ValueError, "Refusing to clean unsafe directory"):
+            pg.safe_clean_dir(str(self.tmp_dir / "other_named_dir"), repo_root=self.tmp_dir)
+
+
+class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp_ctx = tempfile.TemporaryDirectory()
+        self.tmp_dir = Path(self._tmp_ctx.name)
+
+    def tearDown(self) -> None:
+        self._tmp_ctx.cleanup()
+
+    def test_find_latest_pdf_in_transcript_and_compacted_manifest(self) -> None:
+        p1 = self.tmp_dir / "first.pdf"
+        p2 = self.tmp_dir / "tài_liệu_việt.pdf"
+        p1.write_bytes(b"%PDF-1.4\n")
+        p2.write_bytes(b"%PDF-1.4\n")
+
+        transcript = self.tmp_dir / "transcript.jsonl"
+        lines = [
+            json.dumps({"type": "ASSISTANT", "media": [{"uri": str(p1), "mime_type": "application/pdf"}]}),
+            json.dumps({"type": "USER_INPUT", "media": [{"uri": str(p1), "mime_type": "application/pdf"}]}),
+            json.dumps({"type": "USER_INPUT", "media": [{"uri": p2.as_uri(), "mime_type": "application/pdf"}]}),
+        ]
+        transcript.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        resolved = hpc.find_latest_pdf_in_transcript(transcript)
+        self.assertEqual(resolved, p2.resolve())
+
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        buf = StringIO()
+        meta = {
+            "pdf": "sample.pdf",
+            "figures": [
+                {
+                    "file": "fig_1.png",
+                    "caption": "One two three four five six seven",
+                    "context": None,
+                }
+            ],
+        }
+        with redirect_stdout(buf):
+            hpc.emit_compacted_manifest_stdout(meta, self.tmp_dir / "manifest.json", max_words=3, max_bytes=4096)
+        out_text = buf.getvalue()
+        self.assertIn("=== MANIFEST JSON START ===", out_text)
+        self.assertIn("One two three...", out_text)
+
+        buf2 = StringIO()
+        with redirect_stdout(buf2):
+            hpc.emit_compacted_manifest_stdout(meta, self.tmp_dir / "manifest.json", max_words=3, max_bytes=10)
+        self.assertIn("Manifest too large for stdout", buf2.getvalue())
+
+    def test_embed_images_in_memory_qa_and_collision_numbering(self) -> None:
+        work_dir = self.tmp_dir / "work"
+        assets_dir = work_dir / "assets"
+        out_dir = self.tmp_dir / "output"
+        assets_dir.mkdir(parents=True)
+        out_dir.mkdir(parents=True)
+
+        # Create sample PNG and JPEG assets
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 80, 60), False)
+        pix.clear_with(200)
+        (assets_dir / "fig1.png").write_bytes(pix.tobytes("png"))
+
+        draft = work_dir / "draft.html"
+        draft.write_text(
+            "<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><title>Test</title></head>"
+            "<body><h1 id='top'>Tiêu đề</h1><a href='#top'>Top</a>"
+            "<figure><img src='assets/fig1.png' alt='Hình minh họa'></figure>"
+            "<div class='table-wrapper'><table><tr><th>Cột</th></tr></table></div></body></html>",
+            encoding="utf-8",
+        )
+
+        existing = out_dir / "paper_vi.html"
+        existing.write_text("old", encoding="utf-8")
+
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        buf = StringIO()
+        prev_cwd = os.getcwd()
+        os.chdir(self.tmp_dir)
+        try:
+            with redirect_stdout(buf):
+                res_html, res_pdf = hpc.embed_images_and_package(
+                    html_path=draft,
+                    optimize_image_bytes_fn=ea._optimize_image_bytes,
+                    out_html_path=str(existing),
+                    clean_dir="work",
+                )
+        finally:
+            os.chdir(prev_cwd)
+        log = buf.getvalue()
+        self.assertEqual(res_html.name, "paper_vi_2.html")
+        self.assertIsNone(res_pdf)
+        self.assertFalse(work_dir.exists())
+        self.assertIn("Output collision avoided; auto-numbered ->", log)
+        self.assertIn("Injected reader shell -> CSS, Toolbar, Script", log)
+        self.assertIn("[QA PASS] Base64 images: 1 | Tables wrapped: 1/1", log)
+        packaged = res_html.read_text(encoding="utf-8")
+        self.assertIn("data:image/", packaged)
+        self.assertIn('data-reader-shell="toolbar"', packaged)
 
 
 if __name__ == "__main__":

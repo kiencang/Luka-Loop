@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Step 1 PDF Asset Extraction Wrapper (Supports Direct -PdfPath or Drag-and-Drop -TranscriptPath).
+    Thin PowerShell wrapper forwarding PDF extraction and transcript resolution to extract_assets.exe.
 .DESCRIPTION
-    Resolves the PDF file path (either directly via -PdfPath or by locating the most recent PDF attachment
-    in transcript.jsonl via -TranscriptPath), prints the resolved PDF path, invokes extract_assets.exe,
-    and prints manifest.json to stdout when -Meta is set and its size is within -MaxMetaBytes.
+    Resolves the PDF (via -PdfPath or -TranscriptPath) and runs tools\extract_assets\extract_assets.exe
+    with all path safety guards, manifest generation, and bounded stdout compaction handled natively.
+    Compatible with Windows PowerShell 5.1 and PowerShell 7+.
 #>
 param(
     [string]$PdfPath = '',
@@ -13,7 +13,9 @@ param(
     [ValidateRange(36, 1200)]
     [int]$Dpi = 180,
     [switch]$Meta,
+    [ValidateRange(0, 10485760)]
     [int]$MaxMetaBytes = 16384,
+    [ValidateRange(0, 1000)]
     [int]$MaxMetaWords = 20
 )
 
@@ -30,141 +32,25 @@ if ((($pathGuardsItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)
 }
 . $pathGuardsScript
 
-function Resolve-PdfFromLine {
-    param([string]$Line)
-    if ($Line -notmatch '"type"\s*:\s*"USER_INPUT"' -or $Line -notmatch 'application\\?/pdf|\.pdf') {
-        return $null
-    }
-    try {
-        $entry = $Line | ConvertFrom-Json
-    } catch {
-        return $null
-    }
-    if ($entry.type -ne 'USER_INPUT' -or -not $entry.media) {
-        return $null
-    }
-    foreach ($m in @($entry.media)) {
-        $uri = [string]$m.uri
-        if ($uri -and ($m.mime_type -eq 'application/pdf' -or $uri -match '(?i)\.pdf$')) {
-            Assert-LocalNoUncPath -PathValue $uri -ParamName 'TranscriptMediaUri'
-            if ($uri -match '^file:///') {
-                $uri = ([System.Uri]$uri).LocalPath
-                Assert-LocalNoUncPath -PathValue $uri -ParamName 'TranscriptMediaUri'
-            }
-            return $uri
-        }
-    }
-    return $null
+if (-not $PdfPath -and -not $TranscriptPath) {
+    throw 'Either -PdfPath or -TranscriptPath must be provided.'
 }
 
-function Find-LatestPdfInTranscript {
-    param([string]$PathToTranscript)
-    Assert-LocalNoUncPath -PathValue $PathToTranscript -ParamName '-TranscriptPath'
-    if (-not (Test-Path -LiteralPath $PathToTranscript -PathType Leaf)) {
-        throw "Transcript file not found: $PathToTranscript"
-    }
-    $absTranscript = (Resolve-Path -LiteralPath $PathToTranscript).Path
-    Assert-LocalNoUncPath -PathValue $absTranscript -ParamName '-TranscriptPath'
-
-    # Fast path: scan last 50 lines first to avoid reading huge history files
-    $tailLines = @(Get-Content -LiteralPath $absTranscript -Tail 50 -Encoding UTF8)
-    for ($i = $tailLines.Count - 1; $i -ge 0; $i--) {
-        $found = Resolve-PdfFromLine -Line $tailLines[$i]
-        if ($found) { return $found }
-    }
-
-    # Fallback: scan earlier lines in reverse if PDF was sent earlier in the conversation
-    $allLines = [System.IO.File]::ReadAllLines($absTranscript, [System.Text.Encoding]::UTF8)
-    for ($i = $allLines.Length - 1; $i -ge 0; $i--) {
-        $found = Resolve-PdfFromLine -Line $allLines[$i]
-        if ($found) { return $found }
-    }
-
-    throw "No PDF attachment found in USER_INPUT entries of transcript: $absTranscript"
-}
-
-Assert-LocalNoUncPath -PathValue $PdfPath -ParamName '-PdfPath'
-Assert-LocalNoUncPath -PathValue $TranscriptPath -ParamName '-TranscriptPath'
-Assert-LocalNoUncPath -PathValue $OutDir -ParamName '-OutDir'
-
-$targetPdf = $PdfPath
-if (-not $targetPdf) {
-    if (-not $TranscriptPath) {
-        throw "Either -PdfPath or -TranscriptPath must be provided."
-    }
-    $targetPdf = Find-LatestPdfInTranscript -PathToTranscript $TranscriptPath
-}
-
-Assert-LocalNoUncPath -PathValue $targetPdf -ParamName 'ResolvedPdf'
-if (-not (Test-Path -LiteralPath $targetPdf -PathType Leaf)) {
-    throw "Resolved PDF file does not exist: $targetPdf"
-}
-$absPdf = (Resolve-Path -LiteralPath $targetPdf).Path
-Assert-LocalNoUncPath -PathValue $absPdf -ParamName 'ResolvedPdf'
-Write-Output ("Resolved PDF -> {0}" -f $absPdf)
-
-$outDirFull = Resolve-SafeOutDirectory -OutDir $OutDir -ParamName '-OutDir'
-
-# Avoid Python argparse misinterpreting an OutDir starting with '-' as an option flag
-$cliOutDir = if ($OutDir.TrimStart().StartsWith('-')) { $outDirFull } else { $OutDir }
-$exeArgs = @($absPdf, '--out-dir', $cliOutDir, '--dpi', [string]$Dpi)
+$exeArgs = @(
+    '--mode', 'extract',
+    "--out-dir=$OutDir",
+    "--dpi=$Dpi",
+    "--max-meta-bytes=$MaxMetaBytes",
+    "--max-meta-words=$MaxMetaWords"
+)
 if ($Meta) {
-    $exeArgs += '--meta'
+    $exeArgs += @('--meta', '--stdout-meta')
+}
+if ($PdfPath -and $PdfPath.Trim()) {
+    $exeArgs += '--print-resolved'
+    $exeArgs += @('--', $PdfPath)
+} else {
+    $exeArgs += "--transcript=$TranscriptPath"
 }
 
 Invoke-ExtractAssetsExe -Arguments $exeArgs
-
-function Limit-ManifestWords {
-    param(
-        [string]$Text,
-        [int]$MaxWords = 20
-    )
-    if ($null -eq $Text) { return '' }
-    $normalized = ($Text -replace '[\x00-\x1F]+', ' ').Trim()
-    if (-not $normalized -or $MaxWords -le 0) {
-        return $normalized
-    }
-    $words = @($normalized -split '\s+' | Where-Object { $_ -ne '' })
-    if ($words.Count -le $MaxWords) {
-        return ($words -join ' ')
-    }
-    return (($words[0..($MaxWords - 1)] -join ' ') + '...')
-}
-
-function Get-CompactedManifestText {
-    param(
-        [string]$ManifestPath,
-        [int]$MaxWords = 20
-    )
-    if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
-        return ''
-    }
-    $rawJson = [System.IO.File]::ReadAllText($ManifestPath, [System.Text.Encoding]::UTF8)
-    if ($MaxWords -le 0) {
-        return $rawJson.TrimEnd()
-    }
-    $updatedJson = [regex]::Replace($rawJson, '("(?<key>caption|context)"\s*:\s*)(?<val>"(?:\\.|[^"\\])*")', {
-        param($m)
-        $decoded = [string]($m.Groups['val'].Value | ConvertFrom-Json)
-        $short = Limit-ManifestWords -Text $decoded -MaxWords $MaxWords
-        $jsonStr = ConvertTo-Json -InputObject ([string]$short) -Compress
-        return ($m.Groups[1].Value + $jsonStr)
-    })
-    return $updatedJson.TrimEnd()
-}
-
-if ($Meta) {
-    $manifestPath = Join-Path $outDirFull 'manifest.json'
-    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
-        $absManifest = (Resolve-Path -LiteralPath $manifestPath).Path
-        $stdoutJson = Get-CompactedManifestText -ManifestPath $absManifest -MaxWords $MaxMetaWords
-        $stdoutBytes = [System.Text.Encoding]::UTF8.GetByteCount($stdoutJson)
-        if ($stdoutBytes -le $MaxMetaBytes) {
-            Write-Output '=== MANIFEST JSON START ==='
-            Write-Output $stdoutJson
-            Write-Output '=== MANIFEST JSON END ==='
-        } else {
-            Write-Output ("Manifest too large for stdout ({0:N0} bytes > {1:N0} limit); use read_file -> {2}" -f $stdoutBytes, $MaxMetaBytes, $absManifest)
-        }
-    }
-}

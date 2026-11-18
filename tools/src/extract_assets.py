@@ -26,11 +26,42 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-import pymupdf
+from typing import TYPE_CHECKING
+
+from html_packager_core import (
+    embed_images_and_package,
+    emit_compacted_manifest_stdout,
+    find_latest_pdf_in_transcript,
+    html_to_pdf,
+)
+from path_guards import (
+    assert_local_no_unc_path,
+    get_allowed_crop_input_roots,
+    resolve_safe_crop_input_file,
+    resolve_safe_crop_out_file,
+    resolve_safe_out_directory,
+)
+
+if TYPE_CHECKING:
+    import pymupdf as _pymupdf_type  # noqa: F401
+
+pymupdf = None
+
+
+def _ensure_pymupdf():
+    """Lazily import PyMuPDF so non-PDF/0-image commands avoid loading MuPDF DLLs."""
+    global pymupdf
+    if pymupdf is None:
+        # Silence PyMuPDF 1.28+ optional layout-package nag on clean structured stdout.
+        os.environ.setdefault("PYMUPDF_SUGGEST_LAYOUT_ANALYZER", "0")
+        import pymupdf as _pm
+        pymupdf = _pm
+    return pymupdf
 
 
 _LEAD_TRIM_RE = re.compile(r"^[\s•·▪▫▶►▸●○■□.\-–—*:]+")
@@ -667,6 +698,7 @@ def _collect_page_candidates(
     page: pymupdf.Page,
 ) -> tuple[list[CandidateBox], list[TextBlock], list[TextBlock], bool]:
     """Collect figure candidates, text blocks, figure captions, and scan flag for `page`."""
+    _ensure_pymupdf()
     pw, ph = page.rect.width, page.rect.height
     text_blocks = _collect_text_blocks(page)
     fig_captions = [tb for tb in text_blocks if tb.kind == "fig_caption"]
@@ -697,6 +729,7 @@ def _collect_page_candidates(
 
 def collect_page_figures(page: pymupdf.Page) -> tuple[list[pymupdf.Rect], bool]:
     """Collect logical figure bounding boxes on `page` and flag scanned pages."""
+    _ensure_pymupdf()
     candidates, _, _, is_scanned = _collect_page_candidates(page)
     return [c.rect for c in candidates], is_scanned
 
@@ -735,12 +768,24 @@ def _validate_quality(value: str) -> int:
 
 
 def _validate_max_width(value: str) -> int:
-    max_width = int(value)
-    if max_width < 0 or max_width > 10000:
-        raise argparse.ArgumentTypeError(
-            f"--max-width must be between 0 and 10000 (got {max_width})"
-        )
-    return max_width
+    width = int(value)
+    if width < 0 or width > 10000:
+        raise argparse.ArgumentTypeError(f"--max-width must be between 0 and 10000 (got {width})")
+    return width
+
+
+def _validate_timeout(value: str) -> int:
+    t = int(value)
+    if t < 5 or t > 600:
+        raise argparse.ArgumentTypeError(f"--timeout-seconds must be between 5 and 600 (got {t})")
+    return t
+
+
+def _validate_non_negative_int(value: str) -> int:
+    v = int(value)
+    if v < 0:
+        raise argparse.ArgumentTypeError(f"Expected non-negative integer (got {v})")
+    return v
 
 
 def _read_json_utf8(path: Path) -> object:
@@ -820,25 +865,27 @@ def render_pages(
     pdf_path: Path, out_dir: Path, scale: float = 2.5, pages: str = ""
 ) -> list[Path]:
     """Render selected PDF pages to opaque white-background PNGs (`page_1.png`, ...)."""
+    _ensure_pymupdf()
+    assert_local_no_unc_path(pdf_path, "-PdfPath")
     if not pdf_path.is_file():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")
     if not math.isfinite(scale) or scale < 0.5 or scale > 10.0:
         raise ValueError(f"RenderScale out of safe range (0.5..10.0): {scale}")
 
+    safe_out_dir = resolve_safe_out_directory(out_dir, "-OutDir", create=True)
     saved: list[Path] = []
     with pymupdf.open(pdf_path) as doc:
         if doc.needs_pass:
             raise RuntimeError(f"PDF is password-protected/encrypted and cannot be rendered: {pdf_path}")
         total_pages = len(doc)
         target_pages = _parse_page_list(pages, total_pages)
-        out_dir.mkdir(parents=True, exist_ok=True)
 
         for pno in target_pages:
             page = doc[pno - 1]
             target_w = max(800, int(round(page.rect.width * scale)))
             zoom = target_w / max(1e-6, page.rect.width)
             pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
-            out_png = out_dir / f"page_{pno}.png"
+            out_png = safe_out_dir / f"page_{pno}.png"
             out_png.write_bytes(pix.tobytes("png"))
             saved.append(out_png)
             print(f"Rendered page {pno}/{total_pages} -> {out_png} ({pix.width}px wide)")
@@ -992,6 +1039,8 @@ def _validate_crop_box(box: object, out_name: str) -> tuple[float, float, float,
 
 def crop_from_json(spec_path: Path, out_dir: Path) -> list[Path]:
     """Crop normalized [x0, y0, x1, y1] regions defined in JSON spec with optional white-border auto-trim."""
+    _ensure_pymupdf()
+    assert_local_no_unc_path(spec_path, "-SpecJson")
     raw = _read_json_utf8(spec_path)
     if isinstance(raw, dict) and "items" in raw:
         items = raw["items"]
@@ -1004,18 +1053,18 @@ def crop_from_json(spec_path: Path, out_dir: Path) -> list[Path]:
     if not isinstance(items, list):
         raise ValueError(f"Invalid crop spec items list in {spec_path}")
 
-    out_dir.mkdir(parents=True, exist_ok=True)
+    safe_out_dir = resolve_safe_out_directory(out_dir, "-OutDir", create=True)
+    abs_json = Path(os.path.abspath(str(spec_path)))
+    allowed_roots = get_allowed_crop_input_roots(json_dir=abs_json.parent, dest_dir=safe_out_dir)
+
     saved: list[Path] = []
     for item in items:
         if not isinstance(item, dict):
             raise ValueError("Each crop spec item must be a JSON object.")
-        out_name = _validate_bare_filename(str(item.get("out_name", "")))
+        out_name = str(item.get("out_name", "")).strip()
+        out_file = resolve_safe_crop_out_file(safe_out_dir, out_name, _INVALID_FILENAME_CHARS)
         src_raw = str(item.get("src_path") or item.get("page_png") or "").strip()
-        if not src_raw:
-            raise ValueError(f"Missing page_png/src_path in crop spec for '{out_name}'.")
-        src_path = Path(src_raw)
-        if not src_path.is_file():
-            raise FileNotFoundError(f"Source crop image not found: {src_path}")
+        src_path = resolve_safe_crop_input_file(src_raw, allowed_roots)
 
         bx0, by0, bx1, by1 = _validate_crop_box(item.get("box"), out_name)
         pix = _ensure_rgb_or_gray(pymupdf.Pixmap(str(src_path)))
@@ -1031,7 +1080,6 @@ def crop_from_json(spec_path: Path, out_dir: Path) -> list[Path]:
         if item.get("auto_trim", True) is not False:
             cropped = _trim_white_margins(cropped)
 
-        out_file = out_dir / out_name
         out_file.write_bytes(cropped.tobytes("png"))
         saved.append(out_file)
         print(f"Cropped {out_name} -> {out_file} ({cropped.width}x{cropped.height})")
@@ -1064,10 +1112,11 @@ def _analyze_sample_grid(pix: pymupdf.Pixmap) -> tuple[int, bool]:
     return len(colors), has_alpha
 
 
-def _optimize_single_image(
-    img_path: Path, out_dir: Path, index: int, quality: int, max_width: int
-) -> dict:
-    """Analyze, resize if wider than `max_width`, and selectively JPEG/PNG compress one image."""
+def _optimize_image_bytes(
+    img_path: Path, quality: int = 90, max_width: int = 1400
+) -> tuple[bytes, str, int]:
+    """Analyze, resize if wider than `max_width`, and selectively compress one image in memory."""
+    _ensure_pymupdf()
     if not img_path.is_file():
         raise FileNotFoundError(f"Image file not found: {img_path}")
 
@@ -1091,33 +1140,38 @@ def _optimize_single_image(
         jpg_pix = pymupdf.Pixmap(work_pix, 0) if work_pix.alpha else work_pix
         jpg_bytes = jpg_pix.tobytes("jpeg", jpg_quality=quality)
         if len(jpg_bytes) < orig_len and (was_resized or len(jpg_bytes) <= int(orig_len * 0.85)):
-            out_file = out_dir / f"opt_{index}.jpg"
-            out_file.write_bytes(jpg_bytes)
-            return {
-                "path": str(img_path),
-                "out_file": str(out_file),
-                "mime": "image/jpeg",
-                "orig_len": orig_len,
-                "final_len": len(jpg_bytes),
-            }
+            return jpg_bytes, "image/jpeg", orig_len
 
     if was_resized and orig_mime == "image/png":
         png_bytes = work_pix.tobytes("png")
         if len(png_bytes) < orig_len:
-            out_file = out_dir / f"opt_{index}.png"
-            out_file.write_bytes(png_bytes)
-            return {
-                "path": str(img_path),
-                "out_file": str(out_file),
-                "mime": "image/png",
-                "orig_len": orig_len,
-                "final_len": len(png_bytes),
-            }
+            return png_bytes, "image/png", orig_len
+
+    return orig_bytes, orig_mime, orig_len
+
+
+def _optimize_single_image(
+    img_path: Path, out_dir: Path, index: int, quality: int, max_width: int
+) -> dict:
+    """Analyze, resize if wider than `max_width`, and selectively JPEG/PNG compress one image to `out_dir`."""
+    out_bytes, mime, orig_len = _optimize_image_bytes(img_path, quality=quality, max_width=max_width)
+    final_len = len(out_bytes)
+    if final_len < orig_len or (mime == "image/jpeg" and img_path.suffix.lower() not in (".jpg", ".jpeg")):
+        ext = ".jpg" if mime == "image/jpeg" else ".png"
+        out_file = out_dir / f"opt_{index}{ext}"
+        out_file.write_bytes(out_bytes)
+        return {
+            "path": str(img_path),
+            "out_file": str(out_file),
+            "mime": mime,
+            "orig_len": orig_len,
+            "final_len": final_len,
+        }
 
     return {
         "path": str(img_path),
         "out_file": None,
-        "mime": orig_mime,
+        "mime": mime,
         "orig_len": orig_len,
         "final_len": orig_len,
     }
@@ -1131,6 +1185,7 @@ def optimize_images_batch(
     max_width: int = 1400,
 ) -> dict:
     """Optimize a batch of local PNG/JPEG files referenced by `spec_path` and write metadata to `out_json_path`."""
+    _ensure_pymupdf()
     if quality < 1 or quality > 100:
         raise ValueError(f"JpegQuality out of valid range (1..100): {quality}")
     if max_width < 0 or max_width > 10000:
@@ -1159,14 +1214,23 @@ def optimize_images_batch(
 
 
 def extract_images(
-    pdf_path: Path, out_dir: Path, dpi: int = 180, write_meta: bool = False
+    pdf_path: Path,
+    out_dir: Path,
+    dpi: int = 180,
+    write_meta: bool = False,
+    stdout_meta: bool = False,
+    max_meta_words: int = 20,
+    max_meta_bytes: int = 16384,
 ) -> list[Path]:
     """Render every detected bitmap or vector figure region in `pdf_path` to PNG."""
+    _ensure_pymupdf()
+    assert_local_no_unc_path(pdf_path, "ResolvedPdf")
     if not pdf_path.is_file():
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
     if dpi < 36 or dpi > 1200:
         raise ValueError(f"dpi must be between 36 and 1200 (got {dpi})")
 
+    safe_out_dir = resolve_safe_out_directory(out_dir, "-OutDir", create=False)
     saved: list[Path] = []
     scanned_pages: list[int] = []
     manifest_items: list[dict] = []
@@ -1175,7 +1239,7 @@ def extract_images(
         if doc.needs_pass:
             raise RuntimeError(f"PDF is password-protected/encrypted and cannot be extracted: {pdf_path}")
 
-        out_dir.mkdir(parents=True, exist_ok=True)
+        safe_out_dir.mkdir(parents=True, exist_ok=True)
         total_pages = len(doc)
 
         for pno, page in enumerate(doc, 1):
@@ -1193,7 +1257,7 @@ def extract_images(
                 if clip.is_empty:
                     continue
                 out_name = f"fig_p{pno}_{idx}.png"
-                out_path = out_dir / out_name
+                out_path = safe_out_dir / out_name
                 pix = page.get_pixmap(clip=clip, dpi=dpi)
                 pix.save(out_path)
                 saved.append(out_path)
@@ -1225,13 +1289,13 @@ def extract_images(
                         }
                     )
 
-    print(f"Extracted {len(saved)} figures -> {out_dir}")
+    print(f"Extracted {len(saved)} figures -> {safe_out_dir}")
     if scanned_pages:
         print(
             f"[Note] Detected {len(scanned_pages)} scanned/full-page image page(s): {scanned_pages}"
         )
     if write_meta:
-        meta_path = out_dir / "manifest.json"
+        meta_path = safe_out_dir / "manifest.json"
         meta = {
             "pdf": pdf_path.name,
             "dpi": dpi,
@@ -1241,42 +1305,61 @@ def extract_images(
         }
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"Wrote manifest -> {meta_path}")
+        if stdout_meta:
+            emit_compacted_manifest_stdout(
+                meta,
+                meta_path,
+                max_words=max_meta_words,
+                max_bytes=max_meta_bytes,
+            )
     return saved
 
 
-def main(argv: list[str] | None = None) -> None:
-    _configure_utf8_stdio()
-    raw_argv = list(sys.argv[1:] if argv is None else argv)
-
+def _dispatch_cli(raw_argv: list[str]) -> None:
+    modes = ("extract", "render-pages", "crop-json", "optimize-images", "embed-images", "html-to-pdf")
     pre = argparse.ArgumentParser(add_help=False)
-    pre.add_argument(
-        "--mode",
-        choices=("extract", "render-pages", "crop-json", "optimize-images"),
-        default=None,
-    )
+    pre.add_argument("--mode", choices=modes, default=None)
     known, rest = pre.parse_known_args(raw_argv)
     mode = known.mode or "extract"
 
     if mode == "extract":
         ap = argparse.ArgumentParser(
-            description="Layout-aware figure image extractor & PDF/image utility (PyMuPDF)"
+            description="Layout-aware figure image extractor & standalone PDF/HTML packager (PyMuPDF)"
         )
-        ap.add_argument(
-            "--mode",
-            choices=("extract", "render-pages", "crop-json", "optimize-images"),
-            default="extract",
-            help="Operation mode (default: extract)",
-        )
-        ap.add_argument("pdf", type=Path)
+        ap.add_argument("--mode", choices=modes, default="extract", help="Operation mode (default: extract)")
+        ap.add_argument("pdf", nargs="?", type=Path, default=None)
+        ap.add_argument("--transcript", type=str, default="", help="Resolve latest PDF attachment from transcript.jsonl")
         ap.add_argument("--out-dir", type=Path, required=True)
         ap.add_argument("--dpi", type=_validate_dpi, default=180)
-        ap.add_argument(
-            "--meta",
-            action="store_true",
-            help="Write manifest.json mapping extracted images to captions and context",
-        )
+        ap.add_argument("--meta", action="store_true", help="Write manifest.json mapping extracted images")
+        ap.add_argument("--stdout-meta", action="store_true", help="Also print compacted manifest JSON to stdout")
+        ap.add_argument("--max-meta-bytes", type=_validate_non_negative_int, default=16384)
+        ap.add_argument("--max-meta-words", type=_validate_non_negative_int, default=20)
+        ap.add_argument("--print-resolved", action="store_true", help="Print 'Resolved PDF -> ...' line")
         args = ap.parse_args(rest)
-        extract_images(args.pdf, args.out_dir, args.dpi, write_meta=args.meta)
+
+        if args.pdf is not None and str(args.pdf).strip():
+            assert_local_no_unc_path(args.pdf, "-PdfPath")
+            if not args.pdf.is_file():
+                raise FileNotFoundError(f"Resolved PDF file does not exist: {args.pdf}")
+            target_pdf = Path(os.path.abspath(str(args.pdf)))
+        elif args.transcript and args.transcript.strip():
+            target_pdf = find_latest_pdf_in_transcript(args.transcript)
+        else:
+            raise ValueError("Either pdf path or --transcript must be provided.")
+
+        if args.print_resolved or args.transcript:
+            print(f"Resolved PDF -> {target_pdf}")
+
+        extract_images(
+            target_pdf,
+            args.out_dir,
+            args.dpi,
+            write_meta=args.meta,
+            stdout_meta=args.stdout_meta,
+            max_meta_words=args.max_meta_words,
+            max_meta_bytes=args.max_meta_bytes,
+        )
     elif mode == "render-pages":
         ap = argparse.ArgumentParser(description="Render PDF pages to PNG images")
         ap.add_argument("pdf", type=Path)
@@ -1291,7 +1374,7 @@ def main(argv: list[str] | None = None) -> None:
         ap.add_argument("--out-dir", type=Path, required=True)
         args = ap.parse_args(rest)
         crop_from_json(args.spec, args.out_dir)
-    else:
+    elif mode == "optimize-images":
         ap = argparse.ArgumentParser(description="Batch-analyze, resize, and optimize PNG/JPEG images")
         ap.add_argument("--spec", type=Path, required=True)
         ap.add_argument("--out-dir", type=Path, required=True)
@@ -1306,6 +1389,53 @@ def main(argv: list[str] | None = None) -> None:
             quality=args.quality,
             max_width=args.max_width,
         )
+    elif mode == "embed-images":
+        ap = argparse.ArgumentParser(description="Embed images in memory, inject reader shell, run QA, and optionally export PDF")
+        ap.add_argument("--html", type=Path, required=True)
+        ap.add_argument("--out-html", type=str, default="")
+        ap.add_argument("--out-pdf", type=str, default="")
+        ap.add_argument("--also-pdf", action="store_true")
+        ap.add_argument("--preserve-layout", action="store_true")
+        ap.add_argument("--quality", type=_validate_quality, default=90)
+        ap.add_argument("--max-width", type=_validate_max_width, default=1400)
+        ap.add_argument("--clean-dir", type=str, default="")
+        ap.add_argument("--timeout-seconds", type=_validate_timeout, default=60)
+        args = ap.parse_args(rest)
+        embed_images_and_package(
+            html_path=args.html,
+            optimize_image_bytes_fn=_optimize_image_bytes,
+            out_html_path=args.out_html,
+            out_pdf_path=args.out_pdf,
+            also_pdf=args.also_pdf,
+            preserve_layout=args.preserve_layout,
+            quality=args.quality,
+            max_width=args.max_width,
+            clean_dir=args.clean_dir,
+            timeout_seconds=args.timeout_seconds,
+        )
+    else:
+        ap = argparse.ArgumentParser(description="Convert self-contained HTML to PDF via headless Edge/Chrome")
+        ap.add_argument("--html", type=Path, required=True)
+        ap.add_argument("--out-pdf", type=str, default="")
+        ap.add_argument("--clean-dir", type=str, default="")
+        ap.add_argument("--timeout-seconds", type=_validate_timeout, default=60)
+        args = ap.parse_args(rest)
+        html_to_pdf(
+            html_path=args.html,
+            out_pdf_path=args.out_pdf,
+            clean_dir=args.clean_dir,
+            timeout_seconds=args.timeout_seconds,
+        )
+
+
+def main(argv: list[str] | None = None) -> None:
+    _configure_utf8_stdio()
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    try:
+        _dispatch_cli(raw_argv)
+    except (ValueError, FileNotFoundError, RuntimeError, TimeoutError, PermissionError, OSError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

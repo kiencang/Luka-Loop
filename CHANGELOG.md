@@ -2,6 +2,12 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **luka-loop** sẽ được ghi lại trong file này.
 
+## [1.1.0] - 2026-11-18
+### Changed
+- Tái cấu trúc `extract_assets.exe` tiếp nhận toàn bộ nghiệp vụ xử lý chính qua mô-đun `tools\src\path_guards.py` và `tools\src\html_packager_core.py`: kiểm tra an toàn đường dẫn/UNC/junction, phân giải PDF từ `transcript.jsonl`, tối ưu & nhúng Base64 trực tiếp trong bộ nhớ (không tạo ảnh tạm trên đĩa), Auto-QA HTML, bơm `reader_shell.html`, đánh số chống ghi đè, xuất PDF qua Edge/Chrome headless và dọn `work\`;
+- Nâng cấp `PyMuPDF` từ `1.25.2` lên `1.28.2` trong `tools\src\requirements-build.txt` và bật lazy-import `_ensure_pymupdf()` (tắt thông báo gợi ý `pymupdf_layout` trên stdout để giữ đầu ra sạch);
+- Rút gọn `tools\extract_pdf_assets.ps1`, `tools\pdf_fallback_tools.ps1` và `tools\html_packager.ps1` về dạng wrapper CLI siêu mỏng (51–85 dòng) giữ 100% tương thích tham số cũ, đồng bộ `.github\workflows\ci.yml` (`tools/src/*.py`), `build_extractor.ps1`, `SKILL.md`, `README.md`, `THIRD_PARTY_LICENSES.md` và bổ sung unit test trong `tests\test_extract_assets.py`.
+
 ## [1.0.8] - 2026-11-18
 ### Added
 - Thiết lập GitHub Actions CI/CD (`.github\workflows\ci.yml` và `release.yml`): kiểm thử tự động trên **Windows PowerShell 5.1**, **PowerShell 7** và Python (cache binary theo mã băm nguồn khi push nhánh `main`), và build sạch `extract_assets.exe` khi đẩy tag `v*` để đóng gói trọn bộ `luka-loop-win-x64.zip` kèm `hashes.sha256` lên GitHub Releases;

@@ -56,10 +56,13 @@ try {
         'fontTools', 'lxml', 'setuptools', 'pkg_resources',
         'multiprocessing', 'ssl', 'ctypes', 'xml'
     )
+    $srcDir = Join-Path $PSScriptRoot 'src'
     $pyiArgs = @(
         '-m', 'PyInstaller',
         '--noconfirm', '--clean', '--onedir',
         '--name', 'extract_assets',
+        '--paths', $srcDir,
+        '--hidden-import', 'pymupdf',
         '--distpath', $distDir,
         '--workpath', $workDir,
         '--specpath', $specDir

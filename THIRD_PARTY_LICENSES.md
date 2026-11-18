@@ -1,6 +1,6 @@
 # Third-Party Licenses & Notices
 
-Mã nguồn gốc của dự án **luka-loop** (bao gồm `AGENTS.md`, thư mục `.agents/skills/`, các script PowerShell trong `tools/`, `tools/reader_shell.html` và mã nguồn tham chiếu `tools/src/extract_assets.py`) được phát hành theo [MIT License](./LICENSE).
+Mã nguồn gốc của dự án **luka-loop** (bao gồm `AGENTS.md`, thư mục `.agents/skills/`, các script PowerShell trong `tools/`, `tools/reader_shell.html` và bộ mã nguồn tham chiếu trong `tools/src/`) được phát hành theo [MIT License](./LICENSE).
 
 Tuy nhiên, gói công cụ thực thi dựng sẵn dành cho Windows (`tools/extract_assets/`, được biên dịch tự động trên GitHub Actions và phân phối kèm trong gói phát hành Release `luka-loop-win-x64.zip`) chứa các thư viện và tệp nhị phân của bên thứ ba dưới các giấy phép riêng biệt sau đây:
 
@@ -20,7 +20,7 @@ Tuy nhiên, gói công cụ thực thi dựng sẵn dành cho Windows (`tools/ex
 
 ### 1. PyMuPDF / MuPDF (GNU Affero General Public License v3.0 — AGPL-3.0)
 - Gói thực thi `tools/extract_assets/extract_assets.exe` (tự động build từ [`tools/build_extractor.ps1`](./tools/build_extractor.ps1)) được biên dịch liên kết trực tiếp với thư viện **PyMuPDF / MuPDF**, do đó bản phân phối nhị phân kết hợp tuân theo các điều khoản của **AGPL-3.0**.
-- Toàn bộ mã nguồn phía ứng dụng dùng để tạo `extract_assets.exe` được công khai đầy đủ tại [`tools/src/extract_assets.py`](./tools/src/extract_assets.py). Mã nguồn thượng nguồn của PyMuPDF và MuPDF được cung cấp công khai bởi Artifex Software tại <https://github.com/pymupdf/PyMuPDF> và <https://mupdf.com/>.
+- Toàn bộ mã nguồn phía ứng dụng dùng để tạo `extract_assets.exe` được công khai đầy đủ tại [`tools/src/`](./tools/src/) ([`extract_assets.py`](./tools/src/extract_assets.py), [`html_packager_core.py`](./tools/src/html_packager_core.py), [`path_guards.py`](./tools/src/path_guards.py)). Mã nguồn thượng nguồn của PyMuPDF và MuPDF được cung cấp công khai bởi Artifex Software tại <https://github.com/pymupdf/PyMuPDF> và <https://mupdf.com/>.
 - Toàn văn giấy phép xem tại [`licenses/AGPL-3.0.txt`](./licenses/AGPL-3.0.txt).
 
 ### 2. Python 3.12.7 (Python Software Foundation License Version 2)
