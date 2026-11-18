@@ -9,7 +9,7 @@
 Bạn là **Kỹ sư Dàn trang & Typographer Cao cấp**. Với bản dịch đã hoàn chỉnh ở `work\translated.md`, nhiệm vụ của bạn ở pha này là tái tạo giao diện HTML/CSS **trung thực tối đa với cấu trúc thị giác từng trang của PDF gốc**, đồng thời giữ khả năng đọc sắc nét trên màn hình máy tính và xuất bản đẹp sang PDF.
 
 **Thứ tự ưu tiên (khi có xung đột ở Pha 3):**
-1. **KHÔNG MẤT NỘI DUNG / KHÔNG CẮT CHỮ:** Tiếng Việt dài hơn tiếng Anh `~15–25%` $\rightarrow$ không bao giờ ép `height` cứng + `overflow: hidden` làm mất chữ; mọi trang `.pdf-page` phải co giãn chiều cao tự nhiên (`height: auto`).
+1. **KHÔNG MẤT NỘI DUNG / KHÔNG CẮT CHỮ:** Tiếng Việt dài hơn tiếng Anh `~15–25%` → không bao giờ ép `height` cứng + `overflow: hidden` làm mất chữ; mọi trang `.pdf-page` phải co giãn chiều cao tự nhiên (`height: auto`).
 2. **BẢO TOÀN CẤU TRÚC THỊ GIÁC GỐC:** Giữ đúng số cột, phân vùng trái/phải, bảng biểu phức tạp, hộp callout, màu sắc/nhấn mạnh, đường kẻ và vị trí hình ảnh của từng trang PDF.
 3. **KHẢ NĂNG ĐỌC TỐI ƯU & KHÔNG TRÀN NGANG:** Thân bài mặc định `18px` bằng họ font không chân `Inter` (kèm fallback hệ thống), chống tràn ngang container.
 
@@ -218,8 +218,8 @@ pre code { background: transparent; padding: 0; }
      - Có thể tính gần đúng tỷ lệ bề rộng hiển thị của ảnh (vd `width = (x1 - x0) * 100%`) để hình minh họa trên `.pdf-page` có kích thước tương xứng bản gốc (kết hợp `max-width: 100%`).
    - **`placement` (`"figure"` | `"table_cell"`):** Khi là `"table_cell"`, đặt `<img src="assets/..." alt="..." style="max-width: 140px;">` vào đúng ô `<td>` của hàng bảng khớp `context`. Khi là `"figure"`, đặt trong `<figure>...</figure>` (chỉ thêm `<figcaption>` nếu gốc có chú thích, lấy toàn văn từ `work\translated.md` / PDF gốc, **không** dùng chuỗi rút gọn 20 từ `...` trên stdout).
    - **`source`, `drawings`, `width_px`, `height_px`, `dpi`:**
-     - `"raster"` hoặc `"hybrid"` $\rightarrow$ **Nhóm B** (giữ nguyên `<img src="assets/...">`; nếu chữ trong hình Nhóm B mờ, chạy lại Bước 1 với `-Dpi 250/300`).
-     - `"vector"` kèm `drawings` thấp/vừa (`<= ~30–50`) $\rightarrow$ ưu tiên tái tạo bằng HTML/CSS (**Nhóm A**) phối đúng bảng màu và font của `.pdf-page` (rất sắc nét và dễ căn kích thước theo thiết kế trang; nếu đã tái tạo hoàn chỉnh thì bỏ PNG gốc để tránh trùng). `"vector"` nhiều nét phức tạp (scatter/ROC/violin plot...) $\rightarrow$ **Nhóm B**, giữ nguyên PNG.
+     - `"raster"` hoặc `"hybrid"` → **Nhóm B** (giữ nguyên `<img src="assets/...">`; nếu chữ trong hình Nhóm B mờ, chạy lại Bước 1 với `-Dpi 250/300`).
+     - `"vector"` kèm `drawings` thấp/vừa (`<= ~30–50`) → ưu tiên tái tạo bằng HTML/CSS (**Nhóm A**) phối đúng bảng màu và font của `.pdf-page` (rất sắc nét và dễ căn kích thước theo thiết kế trang; nếu đã tái tạo hoàn chỉnh thì bỏ PNG gốc để tránh trùng). `"vector"` nhiều nét phức tạp (scatter/ROC/violin plot...) → **Nhóm B**, giữ nguyên PNG.
 2. **Không bao giờ bỏ sót hình hay ghi *"vui lòng xem ở bản gốc"*:** Mọi hình chụp/biểu đồ phức tạp đều phải giữ bằng `<img>` đã tách (hoặc cắt bằng `CropFromJson`), mọi sơ đồ đơn giản đều phải dựng HTML/CSS hoàn chỉnh.
 
 ---

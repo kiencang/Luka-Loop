@@ -17,7 +17,7 @@ Trước khi dịch, phải phân tích toàn diện cấu trúc logic, nội du
 **Quy tắc Giải quyết Xung đột [Dịch thuật vs. Định dạng]:**
 - Trước tiên luôn tạo ra bản dịch tiếng Việt **chính xác & tự nhiên** nhất.
 - Sau đó, cố gắng áp dụng định dạng gốc (đậm, nghiêng, màu...) vào **phần ý nghĩa tương đương** trong câu tiếng Việt đã tái cấu trúc bằng HTML/CSS.
-- Nếu việc áp định dạng làm câu dịch trở nên **thiếu tự nhiên, gượng gạo, hoặc sai lệch ý nghĩa** $\rightarrow$ **BẮT BUỘC BỎ QUA ĐỊNH DẠNG ĐÓ**. Chất lượng ngôn ngữ luôn thắng thế.
+- Nếu việc áp định dạng làm câu dịch trở nên **thiếu tự nhiên, gượng gạo, hoặc sai lệch ý nghĩa** → **BẮT BUỘC BỎ QUA ĐỊNH DẠNG ĐÓ**. Chất lượng ngôn ngữ luôn thắng thế.
 
 **Phạm vi xử lý:**
 - **CHỈ DỊCH & TÁI TẠO:** Toàn bộ text hiển thị, đọc được trong PDF (văn bản trong đoạn, tiêu đề, list, table, chú thích, text trong ảnh/biểu đồ, header/footer nội dung...), cùng các thành phần hình ảnh (`<img>`) và bảng (`<table>`).
@@ -30,8 +30,8 @@ Trước khi dịch, phải phân tích toàn diện cấu trúc logic, nội du
 - **Tái cấu trúc có kiểm soát (*Controlled Syntactic Restructuring* — Bắt buộc):** Tự do tái cấu trúc cú pháp, trật tự thành phần câu, hoặc tách/gộp câu để đạt nhịp điệu tiếng Việt tự nhiên nhất như người Việt bản xứ có kỹ năng viết tốt. **TUYỆT ĐỐI KHÔNG** làm thay đổi mức độ khẳng định (*assertion strength*), quan hệ nhân quả (*causality*), tính phủ định (*negation*), điều kiện (*conditionality*), khả năng (*possibility*), phạm vi (*logical & applicability scope*), sắc thái bất định (*hedging*) hay mức độ chắc chắn (*epistemic certainty*) của nguyên tác. Bảo toàn đầy đủ các mệnh đề (*propositions*) và quan hệ logic (*logical & discourse relations*); không bổ sung thông tin (*no ungrounded addition*), không tăng cường kết luận (*no claim inflation*), không biến nhận định tương quan (*correlation*) thành nhân quả (*causation*).
 - **Ưu tiên giọng chủ động (Có điều kiện):** Ưu tiên chuyển câu bị động sang chủ động nếu phù hợp. **TUYỆT ĐỐI LƯU Ý đối với tài liệu KHOA HỌC/KỸ THUẬT:** duy trì cấu trúc bị động (ví dụ: *"được tiến hành"*, *"được đo lường"*) nếu việc này giúp bảo đảm tính khách quan của thực nghiệm và giữ trọng tâm vào đối tượng nghiên cứu thay vì người thực hiện.
 - **Xử lý Ngôi xưng Học thuật (`We` / `I` / `The author`):**
-  - Khi tác giả dùng `We` để chỉ bản thân hoặc nhóm nghiên cứu (*"We conducted an experiment..."*) $\rightarrow$ dịch là **"chúng tôi"**.
-  - Khi tác giả dùng `We` mang tính dẫn dắt độc giả cùng suy luận/giải toán (*"Substituting x into Eq. 1, we obtain..."*) $\rightarrow$ dịch là **"chúng ta"**, **"ta"** (*"Thay x vào Phương trình 1, ta thu được..."*) hoặc chuyển sang câu vô nhân xưng khách quan.
+  - Khi tác giả dùng `We` để chỉ bản thân hoặc nhóm nghiên cứu (*"We conducted an experiment..."*) → dịch là **"chúng tôi"**.
+  - Khi tác giả dùng `We` mang tính dẫn dắt độc giả cùng suy luận/giải toán (*"Substituting x into Eq. 1, we obtain..."*) → dịch là **"chúng ta"**, **"ta"** (*"Thay x vào Phương trình 1, ta thu được..."*) hoặc chuyển sang câu vô nhân xưng khách quan.
 
 ### 2.1 Ví dụ Tái cấu trúc Học thuật (*Few-shot Reference*)
 *(Thoát ly hoàn toàn khỏi trật tự từ tiếng Anh để câu tiếng Việt mạch lạc nhất, nhưng BẢO TOÀN TUYỆT ĐỐI sắc thái khoa học)*:
@@ -78,32 +78,32 @@ Trước khi dịch, phải phân tích toàn diện cấu trúc logic, nội du
 - **Tránh lặp từ/cấu trúc:** Đa dạng hóa cách diễn đạt với các cấu trúc thông thường khi tiếng Anh lặp lại nhiều lần, nhưng **bắt buộc giữ thống nhất tuyệt đối với thuật ngữ chuyên ngành**.
 - **Phù hợp ngữ cảnh và giọng văn (*context & tone*):** Chọn văn phong phù hợp (trang trọng, kỹ thuật, khoa học, marketing...) và chuẩn vùng miền Việt Nam.
 - **Xử lý Mơ hồ 3 cấp độ (*Ambiguity & Vagueness Resolution*):**
-  1. *Mơ hồ ngôn ngữ / tham chiếu* (*Linguistic & Referential Ambiguity*) nhưng ngữ cảnh xung quanh đủ rõ $\rightarrow$ được phép khử nhập nhằng theo ngữ cảnh để câu tiếng Việt mạch lạc, rõ nghĩa.
-  2. *Mơ hồ thuật ngữ chuyên môn* (*Terminological & Domain Ambiguity*) $\rightarrow$ chọn phương án có căn cứ theo đúng miền chuyên ngành, tuyệt đối không tự sáng tạo từ mới.
-  3. *Mơ hồ nội dung / thiếu đặc tả nguồn* (*Source Underspecification & Epistemic Uncertainty*) $\rightarrow$ giữ nguyên mức độ bất định như bản gốc, tuyệt đối không suy diễn hay bổ sung thông tin (*No Hallucination / No Over-specification*).
+  1. *Mơ hồ ngôn ngữ / tham chiếu* (*Linguistic & Referential Ambiguity*) nhưng ngữ cảnh xung quanh đủ rõ → được phép khử nhập nhằng theo ngữ cảnh để câu tiếng Việt mạch lạc, rõ nghĩa.
+  2. *Mơ hồ thuật ngữ chuyên môn* (*Terminological & Domain Ambiguity*) → chọn phương án có căn cứ theo đúng miền chuyên ngành, tuyệt đối không tự sáng tạo từ mới.
+  3. *Mơ hồ nội dung / thiếu đặc tả nguồn* (*Source Underspecification & Epistemic Uncertainty*) → giữ nguyên mức độ bất định như bản gốc, tuyệt đối không suy diễn hay bổ sung thông tin (*No Hallucination / No Over-specification*).
 
 ---
 
 ## 3. Bản địa hóa, Đơn vị, Số liệu & Thuật ngữ
 
-- **Quy tắc Quy đổi Kép (Imperial $\rightarrow$ Metric):**
-  - Chuyển đổi sang đơn vị hệ mét chuẩn Việt Nam (miles $\rightarrow$ km, feet/inches $\rightarrow$ m/cm, lbs $\rightarrow$ kg, °F $\rightarrow$ °C) và **BẮT BUỘC giữ lại số liệu và đơn vị gốc trong ngoặc đơn** ngay phía sau để đảm bảo đối chiếu chính xác:
-    - `The package weighs 5 lbs and is 10 inches long.` $\rightarrow$ `Gói hàng nặng khoảng 2,27 kg (5 lbs) và dài 25,4 cm (10 inches).`
-    - `The temperature is 77°F.` $\rightarrow$ `Nhiệt độ là 25°C (77°F).`
+- **Quy tắc Quy đổi Kép (Imperial → Metric):**
+  - Chuyển đổi sang đơn vị hệ mét chuẩn Việt Nam (miles → km, feet/inches → m/cm, lbs → kg, °F → °C) và **BẮT BUỘC giữ lại số liệu và đơn vị gốc trong ngoặc đơn** ngay phía sau để đảm bảo đối chiếu chính xác:
+    - `The package weighs 5 lbs and is 10 inches long.` → `Gói hàng nặng khoảng 2,27 kg (5 lbs) và dài 25,4 cm (10 inches).`
+    - `The temperature is 77°F.` → `Nhiệt độ là 25°C (77°F).`
   - **Độ chính xác khi quy đổi:** Bảo toàn mức độ chi tiết tương đương số liệu gốc (thông thường tối đa 2 chữ số thập phân, trừ tài liệu khoa học đòi hỏi độ chính xác cao).
   - **Trường hợp giữ nguyên:** Thông số thương mại tiêu chuẩn hoặc tên model (vd: `"màn hình 27 inch"`, `"ống nước phi 21"`); có thể mở ngoặc ghi chú quy đổi nếu cần (`màn hình 27 inch (khoảng 68,6 cm)`).
 - **Định dạng số & Tiền tệ:**
   - Trong văn xuôi tiếng Việt: dấu chấm (`.`) phân cách hàng nghìn (`1.234.567`), dấu phẩy (`,`) làm dấu thập phân (`1.234,56`).
-  - Tiền tệ đặt sau số, cách một khoảng trắng: `$1,234,567.89` $\rightarrow$ `1.234.567,89 USD` (hoặc `đô la Mỹ`), `$25.99` $\rightarrow$ `25,99 đô la Mỹ`, `£100` $\rightarrow$ `100 bảng Anh`, `€50` $\rightarrow$ `50 EUR`.
+  - Tiền tệ đặt sau số, cách một khoảng trắng: `$1,234,567.89` → `1.234.567,89 USD` (hoặc `đô la Mỹ`), `$25.99` → `25,99 đô la Mỹ`, `£100` → `100 bảng Anh`, `€50` → `50 EUR`.
   - **CẢNH BÁO KỸ THUẬT (NGHIÊM NGẶT):** Trong **LaTeX** (`\(...\)`, `\[...\]`) và trong **Code HTML/CSS/SVG/JS** (`margin: 1.5rem`, `viewBox="0 0 10.5 20"`, `stroke-width="1.2"`), **TUYỆT ĐỐI giữ nguyên dấu chấm (`.`)** cho số thập phân.
-- **Ngày tháng:** `DD/MM/YYYY` hoặc `ngày DD tháng MM năm YYYY` (`October 26, 2023` $\rightarrow$ `26/10/2023` hoặc `ngày 26 tháng 10 năm 2023`).
+- **Ngày tháng:** `DD/MM/YYYY` hoặc `ngày DD tháng MM năm YYYY` (`October 26, 2023` → `26/10/2023` hoặc `ngày 26 tháng 10 năm 2023`).
 - **Thuật ngữ chuyên ngành (Ưu tiên #1A — Chính xác & Chuẩn hóa Học thuật):**
   - Luôn dùng thuật ngữ tiếng Việt đã chuẩn hóa và được cộng đồng học thuật Việt Nam công nhận rộng rãi (tham khảo từ điển chuyên ngành, ấn phẩm uy tín); chọn phương án phù hợp nhất với ngữ cảnh chuyên sâu. Với thuật ngữ chuyên môn sâu dễ gây nhầm lẫn (Y sinh, Cơ khí, Luật, Tài chính...), có thể mở ngoặc kèm tên tiếng Anh gốc ở lần xuất hiện đầu tiên để hỗ trợ đối chiếu (vd: *tư thế ghế bãi biển (beach chair position)*).
   - **Khi không có thuật ngữ Việt tương đương rõ ràng hoặc gây tranh cãi:** Giữ nguyên thuật ngữ tiếng Anh gốc (tránh tuyệt đối dịch *word-for-word*) và cân nhắc giải thích ngắn gọn bằng tiếng Việt ngay sau **lần xuất hiện đầu tiên** (vd: `...sử dụng phương pháp *gradient descent* (kỹ thuật tối ưu dựa trên đạo hàm)...`).
   - **Viết tắt (*Acronyms/Abbreviations*):** Lần đầu ghi đầy đủ + viết tắt (`Mạng Nơ-ron Sâu (DNN)`), các lần sau dùng `DNN`. Nếu chỉ có dạng viết tắt không định nghĩa trong bài, giữ nguyên và giải thích ngắn lần đầu nếu cần. Các từ viết tắt quốc tế phổ thông (`UNESCO`, `ASEAN`, `WHO`, `UNICEF`, `NATO`, `FBI`, `AI`, `CEO`...) giữ nguyên trực tiếp không cần dịch tên đầy đủ.
-  - **Trích dẫn & Tiêu đề khoa học:** Bảo toàn nguyên vẹn trích dẫn trong câu (`[1, 3-5]`, `(Smith et al., 2021)` $\rightarrow$ `(Smith và cộng sự, 2021)`). Chuẩn hóa tiền tố: `Figure/Fig.` $\rightarrow$ `Hình`; `Table` $\rightarrow$ `Bảng`; `Equation/Eq.` $\rightarrow$ `Phương trình`.
+  - **Trích dẫn & Tiêu đề khoa học:** Bảo toàn nguyên vẹn trích dẫn trong câu (`[1, 3-5]`, `(Smith et al., 2021)` → `(Smith và cộng sự, 2021)`). Chuẩn hóa tiền tố: `Figure/Fig.` → `Hình`; `Table` → `Bảng`; `Equation/Eq.` → `Phương trình`.
   - **Nhất quán tuyệt đối & Danh pháp khoa học:** Một phương án thuật ngữ đã chọn phải dùng đồng bộ từ đầu đến cuối tài liệu; danh pháp khoa học Latin (loài, hợp chất...) giữ nguyên chuẩn quốc tế trừ khi có tên Việt hóa chuẩn hóa rộng rãi.
-  - **Khử gạch nối ngắt dòng & Ký hiệu PDF:** Khi nối câu từ PDF, ghép liền các từ bị ngắt dòng bằng dấu gạch nối (vd: `arthro-` + `scopic` $\rightarrow$ `arthroscopic`), giữ nguyên từ ghép thực thụ; đồng thời đối chiếu kỹ ảnh trang gốc để không làm rơi/sai chữ Hy Lạp (`α`, `β`, `μ`, `Δ`), ký hiệu toán học (`±`, `≤`, `≥`) hay chỉ số hóa học (`CO₂`, `H₂O`, `Fe³⁺`).
+  - **Khử gạch nối ngắt dòng & Ký hiệu PDF:** Khi nối câu từ PDF, ghép liền các từ bị ngắt dòng bằng dấu gạch nối (vd: `arthro-` + `scopic` → `arthroscopic`), giữ nguyên từ ghép thực thụ; đồng thời đối chiếu kỹ ảnh trang gốc để không làm rơi/sai chữ Hy Lạp (`α`, `β`, `μ`, `Δ`), ký hiệu toán học (`±`, `≤`, `≥`) hay chỉ số hóa học (`CO₂`, `H₂O`, `Fe³⁺`).
 
 ---
 
@@ -236,19 +236,19 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; line-heigh
        - *Khi `placement` là `"figure"` và `caption` là `null`*: Đây là hình độc lập thiếu chú thích số hình (`context` là văn bản lân cận); đặt `<figure>` vào đúng đoạn ngữ cảnh tương ứng; chỉ thêm `<figcaption>` nếu gốc thực sự có dòng mô tả ngay dưới ảnh, tuyệt đối không tự bịa số hình hay chú thích.
   4. **Đánh giá nguồn hình, độ phức tạp vector & độ nét (`source`, `drawings`, `width_px`, `height_px`, `dpi`):**
      - `source` (`"raster"` | `"vector"` | `"hybrid"`) và `drawings` (`int`) cho biết nguồn gốc hình:
-       - `"raster"` (`drawings: 0`): Ảnh bitmap thuần (ảnh chụp, screenshot, ảnh mẫu) $\rightarrow$ gần như luôn giữ nguyên PNG (**Nhóm B**).
-       - `"hybrid"`: Ảnh nền bitmap có mũi tên/vùng đánh dấu vector đè lên $\rightarrow$ giữ nguyên ảnh PNG đã gộp (**Nhóm B**).
-       - `"vector"` kèm `drawings` thấp/vừa (vd `<= 30–50`): thường là sơ đồ khối, lưu đồ, biểu đồ đơn giản $\rightarrow$ ứng viên hàng đầu để **tái tạo bằng HTML/CSS (Nhóm A)**. Ngược lại, `"vector"` có hàng trăm/nghìn `drawings` thường là biểu đồ khoa học/plot dày đặc $\rightarrow$ nên giữ nguyên PNG (**Nhóm B**).
+       - `"raster"` (`drawings: 0`): Ảnh bitmap thuần (ảnh chụp, screenshot, ảnh mẫu) → gần như luôn giữ nguyên PNG (**Nhóm B**).
+       - `"hybrid"`: Ảnh nền bitmap có mũi tên/vùng đánh dấu vector đè lên → giữ nguyên ảnh PNG đã gộp (**Nhóm B**).
+       - `"vector"` kèm `drawings` thấp/vừa (vd `<= 30–50`): thường là sơ đồ khối, lưu đồ, biểu đồ đơn giản → ứng viên hàng đầu để **tái tạo bằng HTML/CSS (Nhóm A)**. Ngược lại, `"vector"` có hàng trăm/nghìn `drawings` thường là biểu đồ khoa học/plot dày đặc → nên giữ nguyên PNG (**Nhóm B**).
      - `width_px` và `height_px` là kích thước pixel thực tế của tệp PNG được tách ở độ phân giải `dpi` ghi ở đầu `manifest.json` (mặc định `180`). Dùng để phân biệt **ảnh nhỏ/thumbnail/icon** (`width_px` nhỏ — khống chế `max-width`) với **ảnh/sơ đồ chính** (`width_px` lớn). Nếu sơ đồ Nhóm B có nhiều chữ nhỏ mà `width_px` thấp khó đọc khi soi bằng `read_file`, có thể chạy lại Bước 1 với `-Dpi 250` hoặc `300`.
 - **Sàng lọc trước khi cắt fallback & Bắt buộc kiểm tra trực quan ảnh tách:**
   - **Không dùng `CropFromJson` cho sơ đồ đơn giản (Nhóm A — `Triage before Crop`):** Khi gặp trang scan (`scanned_pages`) hoặc hình trên PDF chuẩn mà Bước 1 tách sót, phải **phân loại bằng mắt từ PDF gốc / ảnh trang đính kèm trước khi cắt**. Nếu hình thuộc **Nhóm A** (dựng được bằng HTML/CSS):
-    - Nếu PDF gốc (hoặc ảnh chụp từng trang có sẵn khi kéo-thả PDF) đã đọc rõ hết chữ và liên kết $\rightarrow$ **bỏ qua cả `RenderPages` lẫn `CropFromJson`**, dựng thẳng khối HTML/CSS vào `work\draft.html`.
+    - Nếu PDF gốc (hoặc ảnh chụp từng trang có sẵn khi kéo-thả PDF) đã đọc rõ hết chữ và liên kết → **bỏ qua cả `RenderPages` lẫn `CropFromJson`**, dựng thẳng khối HTML/CSS vào `work\draft.html`.
     - Chỉ gọi `RenderPages` đúng trang đó *(vẫn **KHÔNG** viết `crop_spec.json` hay chạy `CropFromJson`)* khi ảnh trang scan bị mờ chữ cần render nét (`Scale 2.5`) để nhìn rõ nội dung phục vụ dựng HTML/CSS.
     - **CHỈ dùng `CropFromJson`** cho **Nhóm B** (ảnh chụp, biểu đồ khoa học phức tạp, minh họa đồ họa không thể dựng tương đương bằng HTML/CSS).
   - **Bắt buộc đối chiếu trực quan từng ảnh đã tách (`read_file` song song — Không lắp "mù" theo `manifest.json`):** Với mọi tệp `fig_pX_Y.png` đã tách trong `figures[]` cũng như ảnh `out_name` vừa cắt từ `CropFromJson`, gọi **song song trong 1 lượt** `read_file` để quan sát trực tiếp từng ảnh kết hợp đối chiếu `page`, `box`, `placement`, `source`/`drawings`, `caption`/`context` trong `manifest.json` và trang PDF gốc. Tuyệt đối **không suy đoán ghép ảnh chỉ từ tên file hay `box`** — đặc biệt khi một trang có nhiều ảnh con tương tự nhau (như lưới mẫu tế bào, ảnh trong các hàng bảng): việc nhìn tận mắt từng PNG là bắt buộc để kiểm chứng chất lượng cắt (không lệch/cụt viền/mất chữ), gán đúng 1–1 vào vị trí tương ứng, viết đúng mô tả `alt`, và chốt chính xác hình nào giữ `<img>` vs. hình nào tái tạo HTML/CSS.
 - **Tiêu chí phân loại độc lập từng hình/sơ đồ (Nhóm A vs. Nhóm B):**
   - Đánh giá độc lập cho từng hình cụ thể trên cùng một tài liệu (sơ đồ 1 tái tạo HTML/CSS còn biểu đồ 2 giữ nguyên PNG là hoàn toàn hợp lệ).
-  - **Nhóm A — Ưu tiên tái tạo tối đa bằng HTML/CSS:** Sơ đồ luồng/quy trình (*flowchart*), sơ đồ kiến trúc dạng khối + mũi tên quy mô vừa phải (khoảng $\le 15$ khối), cây phân cấp/tổ chức, ma trận so sánh (`2×2`, `3×3`), dòng thời gian (*timeline*), thẻ phân tầng, hoặc biểu đồ cột đơn giản có ít thanh và ghi sẵn số liệu rõ ràng. Khi tái tạo: bọc trong `<figure>` (kèm `<figcaption>` nếu gốc có chú thích), giữ khung chứa an toàn không tràn ngang (`max-width: 100%; overflow-x: auto;`), dịch toàn bộ text trong hình sang tiếng Việt, dùng CSS định vị khéo léo với hệ biến màu theo theme (`--bg`, `--surface`, `--text`, `--border`, `--accent`) để tương thích cả 3 giao diện Sáng/Dịu mắt/Tối, và tuyệt đối không tự bịa số liệu hay lược bớt nhãn chữ.
+  - **Nhóm A — Ưu tiên tái tạo tối đa bằng HTML/CSS:** Sơ đồ luồng/quy trình (*flowchart*), sơ đồ kiến trúc dạng khối + mũi tên quy mô vừa phải (khoảng ≤ 15 khối), cây phân cấp/tổ chức, ma trận so sánh (`2×2`, `3×3`), dòng thời gian (*timeline*), thẻ phân tầng, hoặc biểu đồ cột đơn giản có ít thanh và ghi sẵn số liệu rõ ràng. Khi tái tạo: bọc trong `<figure>` (kèm `<figcaption>` nếu gốc có chú thích), giữ khung chứa an toàn không tràn ngang (`max-width: 100%; overflow-x: auto;`), dịch toàn bộ text trong hình sang tiếng Việt, dùng CSS định vị khéo léo với hệ biến màu theo theme (`--bg`, `--surface`, `--text`, `--border`, `--accent`) để tương thích cả 3 giao diện Sáng/Dịu mắt/Tối, và tuyệt đối không tự bịa số liệu hay lược bớt nhãn chữ.
   - **Nhóm B — Giữ nguyên ảnh PNG (`<img src="assets/...">`):** Ảnh chụp thực tế (mẫu vật, hiện trường, y khoa, thiết bị, giao diện UI), biểu đồ dữ liệu dày đặc/liên tục (*scatter plot*, *line/ROC curve* nhiều điểm, *box/violin plot*, *heatmap*, phổ kỹ thuật), bản đồ, sơ đồ kỹ thuật/mạch điện, công thức cấu tạo hóa học phức tạp, hoặc ảnh nền bitmap có mũi tên/vùng đánh dấu vector đè lên — mọi trường hợp mà việc dựng HTML/CSS có nguy cơ sai tỷ lệ trục, mất chi tiết thị giác hoặc dễ vỡ bố cục. Dịch đầy đủ nhãn chú thích trong `<figcaption>` và chú giải liên quan trong văn bản.
 
 ### 4.4 Công thức Toán học (MathJax + LaTeX)
@@ -258,7 +258,7 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; line-heigh
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     ```
   - Dùng `\( ... \)` cho công thức cùng dòng (*inline math*) và `\[ ... \]` cho công thức đứng riêng (*block math*); dùng môi trường LaTeX (`\begin{bmatrix}...\end{bmatrix}`) cho ma trận — **TUYỆT ĐỐI KHÔNG** dùng `<sup>`/`<sub>` hay `<table>` giả lập công thức/ma trận, **KHÔNG** bọc LaTeX trong `<code>` hay `<pre>`.
-  - Dịch điều kiện chữ tiếng Anh bên trong công thức và bọc bằng `\text{...}` (vd: `\{n : n \text{ is a prime number}\}` $\rightarrow$ `\( \{n : n \text{ là số nguyên tố}\} \)`). **TUYỆT ĐỐI giữ dấu chấm (`.`)** cho số thập phân bên trong LaTeX.
+  - Dịch điều kiện chữ tiếng Anh bên trong công thức và bọc bằng `\text{...}` (vd: `\{n : n \text{ is a prime number}\}` → `\( \{n : n \text{ là số nguyên tố}\} \)`). **TUYỆT ĐỐI giữ dấu chấm (`.`)** cho số thập phân bên trong LaTeX.
 
 ### 4.5 Tài liệu Tham khảo (`References` / `Bibliography`)
 - Bảo toàn tuyệt đối tính nguyên vẹn và khả năng truy xuất: **KHÔNG DỊCH** tên tác giả, năm xuất bản, tiêu đề bài báo/sách/luận văn/báo cáo, tên tạp chí/hội nghị/NXB, tập/số/trang, DOI/ISBN/ISSN/PMID, URLs.

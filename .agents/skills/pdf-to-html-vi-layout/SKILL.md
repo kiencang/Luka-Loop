@@ -13,7 +13,7 @@ Quy trình 4 bước tự động hoàn toàn (người dùng **không cần gõ
 ---
 
 ## Bước 1: Tách ảnh & Nạp Chỉ dẫn Chuyên Dịch (`si_translation.md`)
-> **Tối ưu token theo Pha (*Lazy Phase Loading*):** Ngay trong lượt Bước 1, gọi **đồng thời** lệnh tách ảnh dưới đây và `read_file` **CHỈ đọc trọn 1 lần** [si_translation.md](./si_translation.md) (~102 dòng / ~13 KB — không truyền `StartLine`/`EndLine`). **TUYỆT ĐỐI CHƯA đọc `si_layout.md` ở Bước 1** để giữ ngữ cảnh gọn nhẹ và giúp Agent dồn 100% sự tập trung cho chất lượng dịch thuật ở Bước 2.
+> **Tối ưu token theo Pha (*Lazy Phase Loading*):** Ngay trong lượt Bước 1, gọi **đồng thời** lệnh tách ảnh dưới đây và `read_file` **CHỈ đọc trọn 1 lần** [si_translation.md](./si_translation.md) (~126 dòng / ~17 KB — không truyền `StartLine`/`EndLine`). **TUYỆT ĐỐI CHƯA đọc `si_layout.md` ở Bước 1** để giữ ngữ cảnh gọn nhẹ và giúp Agent dồn 100% sự tập trung cho chất lượng dịch thuật ở Bước 2.
 
 Chọn 1 trong 2 lệnh sau tùy cách người dùng cung cấp tệp PDF:
 
@@ -39,7 +39,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\extract_pdf_asset
 ## Bước 2: Đối chiếu Ảnh & Dịch thuần sang Markdown (`work\translated.md`)
 
 1. **Kiểm kê ảnh & Đọc đối chiếu (không tốn lượt thừa):**
-   - **PDF thuần văn bản (`0` hình):** Nếu Bước 1 báo `Extracted 0 figures` (`"figures": []` và `"scanned_pages": []`) và kiểm tra PDF xác nhận không sót hình minh họa $\rightarrow$ bỏ qua bước xem ảnh và fallback, dịch thẳng sang `work\translated.md`.
+   - **PDF thuần văn bản (`0` hình):** Nếu Bước 1 báo `Extracted 0 figures` (`"figures": []` và `"scanned_pages": []`) và kiểm tra PDF xác nhận không sót hình minh họa → bỏ qua bước xem ảnh và fallback, dịch thẳng sang `work\translated.md`.
    - **Dùng `manifest.json` trên stdout:** Nếu Bước 1 đã in khối `=== MANIFEST JSON START === ... === MANIFEST JSON END ===`, dùng ngay (không gọi `read_file` đọc lại `work\assets\manifest.json`; chỉ đọc theo đoạn khi stdout báo vượt ngưỡng 16 KB). **CẢNH BÁO:** chuỗi `caption`/`context` rút gọn 20 từ (`...`) trên stdout chỉ dùng định vị — khi dịch phải lấy toàn văn từ PDF gốc hoặc đọc đĩa.
    - **Đọc PDF:** Nếu kéo-thả PDF vào chat, nội dung và ảnh từng trang đã có sẵn trong tin nhắn đầu — **không gọi `read_file` đọc lại tệp PDF lần 2**; chỉ gọi `read_file` đọc `<input.pdf>` khi tệp nằm trong workspace.
    - **Sàng lọc trước khi cắt fallback (`Triage before Crop`):** Khi gặp trang scan hoặc hình bị tách sót, **KHÔNG dùng `CropFromJson` cho sơ đồ đơn giản (Nhóm A)** — giữ để dựng HTML/CSS ở Bước 3 *(chỉ chạy `RenderPages` trang đó nếu chữ bị mờ)*. Chỉ chạy `RenderPages` + `CropFromJson` cho hình/ảnh chụp phức tạp (**Nhóm B**).
@@ -73,7 +73,7 @@ Chạy **trực tiếp lệnh duy nhất** dưới đây (**KHÔNG mở đọc `
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1" -Action EmbedImages -HtmlPath "work\draft.html" -OutHtmlPath "output\<tên_file_gốc>_layout_vi.html" -PreserveLayout -AlsoPdf -CleanDir "work"
 ```
 
-- **Quy tắc đặt tên file đầu ra & Chống ghi đè:** Lưu trong `output\` với hậu tố **`_layout_vi`** và giữ nguyên chính xác tên gốc không đuôi của file PDF trong workspace (vd: `bao-cao-2026.pdf` $\rightarrow$ `output\bao-cao-2026_layout_vi.html` và `output\bao-cao-2026_layout_vi.pdf`). Riêng trường hợp kéo-thả PDF mang tên tạm `media_<id>.pdf`: đặt tên theo **tiêu đề chính ngắn gọn của tài liệu** dạng ASCII `snake_case`, không dấu kèm `_layout_vi.html` / `_layout_vi.pdf`.
+- **Quy tắc đặt tên file đầu ra & Chống ghi đè:** Lưu trong `output\` với hậu tố **`_layout_vi`** và giữ nguyên chính xác tên gốc không đuôi của file PDF trong workspace (vd: `bao-cao-2026.pdf` → `output\bao-cao-2026_layout_vi.html` và `output\bao-cao-2026_layout_vi.pdf`). Riêng trường hợp kéo-thả PDF mang tên tạm `media_<id>.pdf`: đặt tên theo **tiêu đề chính ngắn gọn của tài liệu** dạng ASCII `snake_case`, không dấu kèm `_layout_vi.html` / `_layout_vi.pdf`.
   - **Không tự đoán/gắn tên model AI** vào tên file (chỉ thêm nhãn phụ nếu người dùng chỉ định rõ trong câu lệnh).
   - **Tự động tăng số `_2`, `_3` khi trùng:** Nếu tệp `.html` hoặc `.pdf` đích đã tồn tại trong `output\`, `html_packager.ps1` luôn **tự động đánh số đồng bộ cả cặp** thành `<tên>_layout_vi_2.html` / `_layout_vi_2.pdf`, `_3`... để tránh ghi đè bản trước.
 
@@ -114,8 +114,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1
 Chỉ sử dụng khi Bước 1 phát hiện trang scan (`scanned_pages` khác rỗng) hoặc PDF chuẩn có hình/biểu đồ phức tạp bị tách sót (**không mở đọc `tools\pdf_fallback_tools.ps1`**):
 
 > **Quy tắc Sàng lọc trước khi Cắt (`Triage before Crop`):**
-> - **Sơ đồ/biểu đồ đơn giản (Nhóm A — tái tạo được bằng HTML/CSS):** **KHÔNG dùng `CropFromJson`**. Nếu ảnh trang có sẵn từ PDF đã đọc rõ chữ $\rightarrow$ bỏ qua cả `RenderPages` lẫn `CropFromJson`, dựng thẳng HTML/CSS ở Bước 3; chỉ gọi `RenderPages` trang đó nếu cần soi chữ mờ.
-> - **Ảnh chụp & biểu đồ phức tạp (Nhóm B — bắt buộc giữ PNG):** Mới chạy 2 bước `RenderPages` $\rightarrow$ `CropFromJson`.
+> - **Sơ đồ/biểu đồ đơn giản (Nhóm A — tái tạo được bằng HTML/CSS):** **KHÔNG dùng `CropFromJson`**. Nếu ảnh trang có sẵn từ PDF đã đọc rõ chữ → bỏ qua cả `RenderPages` lẫn `CropFromJson`, dựng thẳng HTML/CSS ở Bước 3; chỉ gọi `RenderPages` trang đó nếu cần soi chữ mờ.
+> - **Ảnh chụp & biểu đồ phức tạp (Nhóm B — bắt buộc giữ PNG):** Mới chạy 2 bước `RenderPages` → `CropFromJson`.
 
 1. **Render từng trang ra PNG (`RenderPages`):**
    ```powershell

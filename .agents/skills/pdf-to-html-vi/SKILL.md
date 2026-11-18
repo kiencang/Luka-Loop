@@ -62,7 +62,7 @@ Chạy **một lệnh duy nhất** để nhúng Base64, chạy Auto-QA, xuất s
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1" -Action EmbedImages -HtmlPath "work\draft.html" -OutHtmlPath "output\<tên_file_gốc>_vi.html" -AlsoPdf -CleanDir "work"
 ```
 
-- **Quy tắc đặt tên file đầu ra & Chống ghi đè:** Lưu trong thư mục `output\` và giữ nguyên chính xác phần tên gốc không đuôi của file PDF trong workspace (vd: `bao-cao-2026.pdf` $\rightarrow$ `output\bao-cao-2026_vi.html` và `output\bao-cao-2026_vi.pdf`, không tự dịch tên file hay tự đổi sang slug khác). Riêng trường hợp kéo-thả vào chat khiến tệp tải lên mang tên tạm `media_<id>.pdf` (hệ thống không lưu tên gốc ban đầu trên máy): **không lấy tên tạm `media_...` và không tìm ngược tên gốc trên máy**, hãy đặt tên theo **tiêu đề chính ngắn gọn của tài liệu** (dạng ASCII `snake_case`, không dấu, trừ khi người dùng chỉ định rõ tên đầu ra) kèm `_vi.html` / `_vi.pdf`. **Không tự đoán/gắn tên model AI** vào tên file (chỉ thêm nhãn nếu người dùng yêu cầu rõ). Khi tệp đích đã tồn tại trong `output\`, `html_packager.ps1` luôn tự động đánh số đồng bộ cả cặp thành `_vi_2`, `_vi_3`...
+- **Quy tắc đặt tên file đầu ra & Chống ghi đè:** Lưu trong thư mục `output\` và giữ nguyên chính xác phần tên gốc không đuôi của file PDF trong workspace (vd: `bao-cao-2026.pdf` → `output\bao-cao-2026_vi.html` và `output\bao-cao-2026_vi.pdf`, không tự dịch tên file hay tự đổi sang slug khác). Riêng trường hợp kéo-thả vào chat khiến tệp tải lên mang tên tạm `media_<id>.pdf` (hệ thống không lưu tên gốc ban đầu trên máy): **không lấy tên tạm `media_...` và không tìm ngược tên gốc trên máy**, hãy đặt tên theo **tiêu đề chính ngắn gọn của tài liệu** (dạng ASCII `snake_case`, không dấu, trừ khi người dùng chỉ định rõ tên đầu ra) kèm `_vi.html` / `_vi.pdf`. **Không tự đoán/gắn tên model AI** vào tên file (chỉ thêm nhãn nếu người dùng yêu cầu rõ). Khi tệp đích đã tồn tại trong `output\`, `html_packager.ps1` luôn tự động đánh số đồng bộ cả cặp thành `_vi_2`, `_vi_3`...
 
 - **Contract `tools\html_packager.ps1`:**
   - **Action `EmbedImages`:**
@@ -72,7 +72,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1
     - **Cổng Auto-QA (chạy trước khi ghi tệp ra `output\` — ném lỗi dừng chạy nếu vi phạm bất kỳ điều kiện nào sau đây; khi fail sẽ không tạo/ghi đè tệp đích và giữ nguyên `work\` để sửa):**
       1. `0` thẻ `<img>` trỏ tới tệp cục bộ chưa được nhúng (mọi `src` phải là `data:image/...` hoặc `http(s)://`).
       2. Mọi thẻ `<img>` đều phải có thuộc tính `alt`.
-      3. Số container `.table-wrapper` $\ge$ số `<table>` (ngoài `<script>`/`<style>`).
+      3. Số container `.table-wrapper` ≥ số `<table>` (ngoài `<script>`/`<style>`).
       4. Nếu ngoài `<script>`/`<style>` xuất hiện `\(` hoặc `\[`, HTML phải chứa `<script ... MathJax>`.
       5. `0` liên kết nội bộ `href="#..."` bị gãy (đều có `id="..."` tương ứng).
       - *Phục hồi khi QA fail:* Đọc thông báo lỗi từ stdout/stderr, mở sửa trực tiếp `work\draft.html` rồi chạy lại đúng lệnh Bước 4.
@@ -104,8 +104,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1
 Chỉ sử dụng khi Bước 1 phát hiện trang scan (`scanned_pages` khác rỗng / stdout có `[Note] Detected ... scanned/full-page image page(s)`) hoặc PDF chuẩn có hình/biểu đồ phức tạp bị tách sót:
 
 > **Quy tắc Sàng lọc trước khi Cắt (`Triage before Crop`):**
-> - **Sơ đồ/biểu đồ đơn giản (Nhóm A — tái tạo được bằng HTML/CSS):** **KHÔNG dùng `CropFromJson`** để cắt PNG trung gian. Nếu ảnh trang có sẵn khi kéo-thả PDF (hoặc trang PDF gốc) đã đủ nét để đọc hết chữ $\rightarrow$ bỏ qua cả `RenderPages` lẫn `CropFromJson`, dựng thẳng HTML/CSS; chỉ gọi `RenderPages` đúng trang đó nếu ảnh trang bị mờ cần soi chữ rõ hơn để vẽ HTML/CSS.
-> - **Ảnh chụp thực tế & biểu đồ khoa học phức tạp (Nhóm B — bắt buộc giữ PNG):** Mới thực hiện đầy đủ 2 bước `RenderPages` $\rightarrow$ `CropFromJson` bên dưới.
+> - **Sơ đồ/biểu đồ đơn giản (Nhóm A — tái tạo được bằng HTML/CSS):** **KHÔNG dùng `CropFromJson`** để cắt PNG trung gian. Nếu ảnh trang có sẵn khi kéo-thả PDF (hoặc trang PDF gốc) đã đủ nét để đọc hết chữ → bỏ qua cả `RenderPages` lẫn `CropFromJson`, dựng thẳng HTML/CSS; chỉ gọi `RenderPages` đúng trang đó nếu ảnh trang bị mờ cần soi chữ rõ hơn để vẽ HTML/CSS.
+> - **Ảnh chụp thực tế & biểu đồ khoa học phức tạp (Nhóm B — bắt buộc giữ PNG):** Mới thực hiện đầy đủ 2 bước `RenderPages` → `CropFromJson` bên dưới.
 
 1. **Render từng trang ra PNG (`RenderPages`):**
    ```powershell
