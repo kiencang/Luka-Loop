@@ -1,6 +1,6 @@
 # Bộ Quy tắc Chuẩn Dịch thuật Học thuật & Tái tạo HTML/CSS (Tích hợp Đầy đủ từ SI)
 
-> Tài liệu tham chiếu bắt buộc cho Bước 2, Bước 3 & Bước 4 của skill [`pdf-to-html-vi`](./SKILL.md).
+> Tài liệu chuyên trách **Dịch thuật Học thuật & Chuẩn HTML/CSS** cho Bước 2 & Bước 3 của skill [`pdf-to-html-vi`](./SKILL.md).
 
 ## 1. Vai trò & Thứ tự Ưu tiên Cốt lõi (Khi có Xung đột)
 
@@ -20,8 +20,8 @@ Trước khi dịch, phải phân tích toàn diện cấu trúc logic, nội du
 - Nếu việc áp định dạng làm câu dịch trở nên **thiếu tự nhiên, gượng gạo, hoặc sai lệch ý nghĩa** → **BẮT BUỘC BỎ QUA ĐỊNH DẠNG ĐÓ**. Chất lượng ngôn ngữ luôn thắng thế.
 
 **Phạm vi xử lý:**
-- **CHỈ DỊCH & TÁI TẠO:** Toàn bộ text hiển thị, đọc được trong PDF (văn bản trong đoạn, tiêu đề, list, table, chú thích, text trong ảnh/biểu đồ, header/footer nội dung...), cùng các thành phần hình ảnh (`<img>`) và bảng (`<table>`).
-- **KHÔNG DỊCH / BỎ QUA:** Metadata ẩn, tags PDF nội bộ, script, code snippets (giữ nguyên 100%), công thức toán học (giữ nguyên, trừ mô tả text), URL/email (giữ nguyên), placeholders (`{var}` - giữ nguyên), đồ họa thuần túy không có text (trừ khi trình bày dưới dạng `<img>` có ngữ cảnh rõ ràng).
+- **CHỈ DỊCH & TÁI TẠO:** Toàn bộ text hiển thị, đọc được trong PDF (văn bản trong đoạn, tiêu đề, list, table, chú thích, text trong sơ đồ/biểu đồ, header/footer nội dung...), cùng các thành phần hình ảnh (`<img>`) và bảng (`<table>`).
+- **KHÔNG DỊCH / BỎ QUA:** Metadata ẩn, tags PDF nội bộ, script, code snippets (giữ nguyên 100%), công thức toán học (giữ nguyên, trừ text mô tả bọc `\text{...}`), URL/email (giữ nguyên), placeholders (`{var}` - giữ nguyên), đồ họa thuần túy không mang thông tin, và **tạp âm vật lý của bản scan** (bóng tối gáy sách, vết ố, dấu mộc thư viện, chữ viết tay ngoài lề không thuộc nguyên tác, chữ hằn mờ từ mặt sau).
 
 ---
 
@@ -110,11 +110,11 @@ Trước khi dịch, phải phân tích toàn diện cấu trúc logic, nội du
 ## 4. Tiêu chuẩn HTML/CSS, Bảng biểu, Công thức & Tài liệu Tham khảo
 
 ### 4.1 Khung CSS Nội dung & Bảo vệ Layout Học thuật (Bắt buộc)
-- **Màn hình lớn & Font chữ:** Tập trung tối ưu cao nhất cho màn hình desktop/laptop; đặt kích thước font nội dung chính dễ đọc (`18px`, tối thiểu `14px`), ưu tiên font web hiển thị tiếng Việt sắc nét (**Sans-serif:** `Noto Sans`, `Roboto`, `Open Sans`, `Lato`, `Arial`, `Verdana`; **Serif cho tiêu đề trang trọng nếu cần:** `Noto Serif`, `Lora`). Hạn chế `font-size` inline cho từng thẻ `<p>`, chỉ dùng CSS tập trung trong `<style>`.
+- **Màn hình lớn & Font chữ:** Tập trung tối ưu cao nhất cho màn hình desktop/laptop; đặt kích thước font nội dung chính dễ đọc (`18px`, tối thiểu `14px`), dùng họ font `'Inter'` hiển thị tiếng Việt sắc nét kèm fallback hệ thống Windows `'Segoe UI'` (đọc nét ngay cả khi offline hoặc xuất PDF) rồi tới `Roboto, 'Noto Sans', Arial, sans-serif`. Hạn chế `font-size` inline cho từng thẻ `<p>`, chỉ dùng CSS tập trung trong `<style>`.
 - **Chèn đầy đủ bộ CSS nội dung dưới đây vào `<head>`:** Giữ nguyên các thuộc tính nền tảng của `body` (`max-width: 740px`, `font-size`, `line-height`), hệ biến màu (`--bg`, `--surface`, `--text`, `--muted`, `--accent`, `--border`, `--code-bg`) và `body[data-theme="sepia|dark"]`. Có thể bổ sung class phụ nếu cần, nhưng **BẮT BUỘC dùng hệ biến màu trên** thay cho màu cứng (`#000`, `#fff`...) để tương thích cả 3 giao diện Sáng / Dịu mắt / Tối, và **KHÔNG** dùng inline CSS ghi đè làm mất `max-width: 100%`, `overflow-x: auto`, `overflow-wrap: break-word`:
 
 ```css
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..800;1,14..32,400..700&display=swap');
 
 :root {
     --bg: #fafaf9;
@@ -146,7 +146,7 @@ body[data-theme="dark"] {
 
 *, *::before, *::after { box-sizing: border-box; }
 body {
-    font-family: 'Noto Sans', Roboto, Arial, sans-serif;
+    font-family: 'Inter', 'Segoe UI', Roboto, 'Noto Sans', Arial, sans-serif;
     font-size: 18px;
     line-height: 1.6;
     color: var(--text);
@@ -169,7 +169,7 @@ figcaption { font-size: 0.93rem; color: var(--muted); line-height: 1.5; }
 
 /* Bảo vệ Bảng */
 .table-wrapper { width: 100%; overflow-x: auto; margin-bottom: 1.5rem; -webkit-overflow-scrolling: touch; }
-table { width: 100%; border-collapse: collapse; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { border: 1px solid var(--border); padding: 10px; text-align: left; vertical-align: top; }
 th { background-color: var(--surface); font-weight: bold; }
 .ws-nowrap { white-space: nowrap; }
@@ -185,14 +185,15 @@ th { background-color: var(--surface); font-weight: bold; }
 /* Khối trích dẫn, ghi chú & tài liệu tham khảo */
 blockquote, .callout-box { margin: 1.5rem 0; padding: 0.9rem 1.2rem; background: var(--surface); border-left: 4px solid var(--accent); border-radius: 0 6px 6px 0; }
 .callout-box.is-warning { border-left-color: #d97706; }
-.table-note { font-size: 0.9rem; color: var(--muted); margin: -1rem 0 1.5rem; }
+.table-note { font-size: 0.9rem; color: var(--muted); margin: -1rem 0 1.5rem; break-before: avoid; page-break-before: avoid; }
+.cjk { font-family: 'Noto Serif SC', 'Yu Mincho', 'SimSun', 'Microsoft YaHei', sans-serif; }
 ul.ref-list { list-style: none; padding-left: 0; }
 ul.ref-list li { padding-left: 2em; text-indent: -2em; margin-bottom: 0.6em; }
 .ref-list li, .footnotes li { overflow-wrap: anywhere; }
 
 /* Bảo vệ Code Blocks & Text nguyên bản */
 pre { background-color: var(--code-bg); padding: 15px; overflow-x: auto; border-radius: 4px; border: 1px solid var(--border); }
-code { font-family: Consolas, Monaco, 'Courier New', monospace; font-size: 0.9em; background-color: var(--code-bg); padding: 2px 4px; border-radius: 3px; }
+code { font-family: 'JetBrains Mono', Consolas, Monaco, 'Courier New', monospace; font-size: 0.9em; background-color: var(--code-bg); padding: 2px 4px; border-radius: 3px; }
 pre code { background-color: transparent; padding: 0; border: none; }
 
 /* Tối ưu in ấn */
@@ -205,11 +206,12 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; line-heigh
     }
     body { background: #ffffff !important; color: #000000 !important; max-width: 100% !important; padding: 0; }
     body[data-theme="dark"] figure img { filter: none !important; }
+    figure img { max-height: 82vh; }
     figure, tr, .callout-box, blockquote, pre { break-inside: avoid; page-break-inside: avoid; }
 }
 ```
 
-- **Lớp vỏ tương tác bên ngoài (tự động gắn ở Bước 4):** Không cần tự viết thanh nút chuyển giao diện, mục lục tự động hay hộp phóng to ảnh trong `work\draft.html`. Công cụ `html_packager.ps1` sẽ tự động bơm CSS/HTML/JS của lớp vỏ (`tools\reader_shell.html`, dùng tiền tố `rsfv-*` tách biệt hoàn toàn) dựa trên bộ biến màu ở trên và các thẻ ngữ nghĩa chuẩn (`<header>`, `<h1>`–`<h3>`, `<figure><img><figcaption>`).
+- **Lớp vỏ tương tác bên ngoài (tự động gắn ở Bước 4):** Không cần tự viết thanh nút chuyển giao diện, mục lục tự động hay hộp phóng to ảnh trong `work\draft.html`. Công cụ `html_packager.ps1` sẽ tự động bơm CSS/HTML/JS của lớp vỏ (`tools\reader_shell.html`, dùng tiền tố `rsfv-*`) dựa trên bộ biến màu ở trên; hãy đặt phần đầu bài trong `<header>` và bọc thân bài trong `<article>` (hoặc `<main>`) kèm `<h1>`–`<h3>`, `<figure><img><figcaption>` để hộp Mục lục tự động chèn đúng vị trí.
 
 ### 4.2 Quy tắc Bố cục, Chất lượng Mã HTML/CSS & Truy cập (W3C & WCAG)
 - **Mã sạch, hợp chuẩn W3C & Ngữ nghĩa:** Viết mã tinh gọn, loại bỏ thẻ/CSS lặp thừa; đủ thẻ đóng/mở và lồng thẻ đúng chuẩn; dùng `<article>`, `<section>`, `<header>`, `<footer>`, `<aside>`, `<figure>`, `<figcaption>`, `<h1>`–`<h6>`.
@@ -218,38 +220,17 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; line-heigh
 - **Header/Footer lặp & Chú thích cuối trang (`Footnotes`):** Nhận diện và loại bỏ/gom nhóm hợp lý các header/footer chèn ngang làm đứt gãy đoạn văn gốc; tách chú thích cuối trang ra khỏi giữa đoạn văn đang dở để gom về cuối `<section>` hoặc cuối bài (`<aside class="footnotes">` / `<ol>`) nhằm bảo toàn tính liên tục, chỉ giữ header/footer mang nội dung thực.
 - **Bảng biểu (`<table>`):** Mọi `<table>` **BẮT BUỘC** bọc trong `<div class="table-wrapper">`, dùng đầy đủ `<thead>`, `<tbody>`, `<tr>`, `<th scope="col|row">`, `<td>`, áp dụng `class="ws-nowrap"` cho các ô chứa số liệu, mã số, ngày tháng ngắn để ép thanh cuộn ngang thay vì bóp rớt dòng. Nếu bảng có ghi chú ký hiệu (`*`, `†`, `a, b`), đặt gọn trong `<tfoot>` hoặc `<p class="table-note">` ngay bên dưới `.table-wrapper`. Có thể đơn giản hóa bảng quá rối, hoặc chuyển sang danh sách (`<ul>`, `<ol>`) / thẻ `<p>` có cấu trúc nếu bảng gộp ô chồng chéo gây nguy cơ vỡ HTML, miễn bảo toàn mối liên hệ logic dữ liệu.
 
-### 4.3 Hình ảnh, Bản đồ `manifest.json` & Sơ đồ
-- **Khai thác chi tiết thông tin từ `work/assets/manifest.json` (bắt buộc đối chiếu cùng PDF gốc và ảnh liên quan):**
-  1. **Kiểm kê đủ minh họa theo nội dung, không bỏ sót và không cắt thừa:**
-     - Mọi hình minh họa/sơ đồ trong PDF gốc đều phải xuất hiện đầy đủ trong HTML theo **1 trong 2 hình thức**: **(a)** giữ nguyên ảnh tách dạng `<img src="assets/<tên_file>.png" ...>` hoặc **(b)** tái tạo trọn vẹn thành khối HTML/CSS tương đương theo tiêu chí Nhóm A–B bên dưới (nếu đã tái tạo hoàn chỉnh bằng HTML/CSS thì chủ động bỏ tệp PNG tương ứng, không nhúng trùng).
-     - Khi gặp trang scan (`scanned_pages`) hoặc hình trên PDF chuẩn mà `extract_assets.exe` tách sót: lưu ý rằng `CropFromJson` **chỉ xuất tệp PNG vào `work/assets/` và KHÔNG tự ghi thêm vào `manifest.json`**. Do đó, mọi hình giữ nguyên PNG cần nhúng bằng `<img>` = **`figures[]` trong `manifest.json` (trừ các sơ đồ đã tái tạo HTML/CSS) + toàn bộ tệp `out_name` cắt từ `CropFromJson`**.
-     - Trong `work/draft.html`, luôn dùng đường dẫn tương đối `src="assets/<tên_file>.png"` và luôn viết thuộc tính `alt` tiếng Việt mô tả rõ nội dung/mục đích của hình (ảnh trang trí thuần túy dùng `alt=""`).
-  2. **Đọc đúng vị trí & thứ tự xuất hiện bằng `page` và `box`:**
-     - `page` là số trang đánh từ `1`. `box` là `[x0, y0, x1, y1]` đã **chuẩn hóa theo tỷ lệ `0.0–1.0`** trên vùng hiển thị của chính trang đó với gốc `(0, 0)` ở góc **trên–trái** *(đồng nhất 100% cùng hệ tọa độ với `box` trong `crop_spec.json` của `CropFromJson`, đúng cho mọi khổ trang dọc/ngang, slide và cả PDF có `CropBox` lệch gốc)*.
-     - **Thứ tự dọc (`y0`, `y1`):** `y0` tăng dần từ trên (`0.0`) xuống dưới (`1.0`); dùng `page` và `y0` để sắp đúng thứ tự nhiều hình trên cùng một trang và đặt hình đúng ngay sau đoạn văn bản liên quan.
-     - **Định vị cột ngang (`x0`, `x1`) trên tài liệu 2–3 cột:** Không cần đoán khổ trang bằng point — nhìn trực tiếp `box`: `x1 <= 0.50` nằm ở **cột trái**, `x0 >= 0.50` nằm ở **cột phải**, còn `x0 < 0.45` và `x1 > 0.55` là **trải rộng cả hai cột / toàn trang**. Khi gộp tài liệu nhiều cột về 1 cột duy nhất, phải đặt hình theo đúng mạch văn của cột chứa nó — tránh chèn hình ở cột phải chen ngang vào giữa đoạn văn của cột trái.
-  3. **Phân biệt ảnh độc lập vs. ảnh nằm trong ô bảng (`placement`, `caption`, `context`):**
-     - **Sử dụng trực tiếp trường `placement` (`"figure"` | `"table_cell"`):**
-       - *Khi `placement` là `"table_cell"`* *(hoặc `caption` là `null` và `context` chứa chữ cùng hàng bảng)*: **KHÔNG** tách ảnh ra thành `<figure>` riêng ở ngoài bảng. Hãy đối chiếu `context` để đặt `<img src="assets/..." alt="..." style="max-width: 140px;">` *(chỉnh `max-width` tương xứng độ rộng cột)* vào **đúng ô `<td>` của hàng bảng tương ứng** để bảo toàn cấu trúc hàng–cột của bảng.
-       - *Khi `placement` là `"figure"` và `caption` khác `null`*: Đặt trong `<figure><img src="assets/..." alt="..."><figcaption>...</figcaption></figure>` (hoặc thay `<img>` bằng khối sơ đồ HTML/CSS bên trong cùng `<figure>` nếu thuộc Nhóm A).
-         - **CẢNH BÁO:** Bản tóm tắt `manifest.json` in ra `stdout` ở Bước 1 mặc định cắt gọn `caption`/`context` còn tối đa `20` từ (kết thúc bằng `...`) **chỉ để định vị ảnh**. Khi dịch `<figcaption>`, **tuyệt đối không chép/dịch theo bản bị cắt `...`** — phải lấy toàn văn chú thích từ nội dung PDF gốc hoặc đọc trực tiếp tệp `work/assets/manifest.json` trên đĩa.
-       - *Khi `placement` là `"figure"` và `caption` là `null`*: Đây là hình độc lập thiếu chú thích số hình (`context` là văn bản lân cận); đặt `<figure>` vào đúng đoạn ngữ cảnh tương ứng; chỉ thêm `<figcaption>` nếu gốc thực sự có dòng mô tả ngay dưới ảnh, tuyệt đối không tự bịa số hình hay chú thích.
-  4. **Đánh giá nguồn hình, độ phức tạp vector & độ nét (`source`, `drawings`, `width_px`, `height_px`, `dpi`):**
-     - `source` (`"raster"` | `"vector"` | `"hybrid"`) và `drawings` (`int`) cho biết nguồn gốc hình:
-       - `"raster"` (`drawings: 0`): Ảnh bitmap thuần (ảnh chụp, screenshot, ảnh mẫu) → gần như luôn giữ nguyên PNG (**Nhóm B**).
-       - `"hybrid"`: Ảnh nền bitmap có mũi tên/vùng đánh dấu vector đè lên → giữ nguyên ảnh PNG đã gộp (**Nhóm B**).
-       - `"vector"` kèm `drawings` thấp/vừa (vd `<= 30–50`): thường là sơ đồ khối, lưu đồ, biểu đồ đơn giản → ứng viên hàng đầu để **tái tạo bằng HTML/CSS (Nhóm A)**. Ngược lại, `"vector"` có hàng trăm/nghìn `drawings` thường là biểu đồ khoa học/plot dày đặc → nên giữ nguyên PNG (**Nhóm B**).
-     - `width_px` và `height_px` là kích thước pixel thực tế của tệp PNG được tách ở độ phân giải `dpi` ghi ở đầu `manifest.json` (mặc định `180`). Dùng để phân biệt **ảnh nhỏ/thumbnail/icon** (`width_px` nhỏ — khống chế `max-width`) với **ảnh/sơ đồ chính** (`width_px` lớn). Nếu sơ đồ Nhóm B có nhiều chữ nhỏ mà `width_px` thấp khó đọc khi soi bằng `read_file`, có thể chạy lại Bước 1 với `-Dpi 250` hoặc `300`.
-- **Sàng lọc trước khi cắt fallback & Bắt buộc kiểm tra trực quan ảnh tách:**
-  - **Không dùng `CropFromJson` cho sơ đồ đơn giản (Nhóm A — `Triage before Crop`):** Khi gặp trang scan (`scanned_pages`) hoặc hình trên PDF chuẩn mà Bước 1 tách sót, phải **phân loại bằng mắt từ PDF gốc / ảnh trang đính kèm trước khi cắt**. Nếu hình thuộc **Nhóm A** (dựng được bằng HTML/CSS):
-    - Nếu PDF gốc (hoặc ảnh chụp từng trang có sẵn khi kéo-thả PDF) đã đọc rõ hết chữ và liên kết → **bỏ qua cả `RenderPages` lẫn `CropFromJson`**, dựng thẳng khối HTML/CSS vào `work\draft.html`.
-    - Chỉ gọi `RenderPages` đúng trang đó *(vẫn **KHÔNG** viết `crop_spec.json` hay chạy `CropFromJson`)* khi ảnh trang scan bị mờ chữ cần render nét (`Scale 2.5`) để nhìn rõ nội dung phục vụ dựng HTML/CSS.
-    - **CHỈ dùng `CropFromJson`** cho **Nhóm B** (ảnh chụp, biểu đồ khoa học phức tạp, minh họa đồ họa không thể dựng tương đương bằng HTML/CSS).
-  - **Bắt buộc đối chiếu trực quan từng ảnh đã tách (`read_file` song song — Không lắp "mù" theo `manifest.json`):** Với mọi tệp `fig_pX_Y.png` đã tách trong `figures[]` cũng như ảnh `out_name` vừa cắt từ `CropFromJson`, gọi **song song trong 1 lượt** `read_file` để quan sát trực tiếp từng ảnh kết hợp đối chiếu `page`, `box`, `placement`, `source`/`drawings`, `caption`/`context` trong `manifest.json` và trang PDF gốc. Tuyệt đối **không suy đoán ghép ảnh chỉ từ tên file hay `box`** — đặc biệt khi một trang có nhiều ảnh con tương tự nhau (như lưới mẫu tế bào, ảnh trong các hàng bảng): việc nhìn tận mắt từng PNG là bắt buộc để kiểm chứng chất lượng cắt (không lệch/cụt viền/mất chữ), gán đúng 1–1 vào vị trí tương ứng, viết đúng mô tả `alt`, và chốt chính xác hình nào giữ `<img>` vs. hình nào tái tạo HTML/CSS.
-- **Tiêu chí phân loại độc lập từng hình/sơ đồ (Nhóm A vs. Nhóm B):**
-  - Đánh giá độc lập cho từng hình cụ thể trên cùng một tài liệu (sơ đồ 1 tái tạo HTML/CSS còn biểu đồ 2 giữ nguyên PNG là hoàn toàn hợp lệ).
-  - **Nhóm A — Ưu tiên tái tạo tối đa bằng HTML/CSS:** Sơ đồ luồng/quy trình (*flowchart*), sơ đồ kiến trúc dạng khối + mũi tên quy mô vừa phải (khoảng ≤ 15 khối), cây phân cấp/tổ chức, ma trận so sánh (`2×2`, `3×3`), dòng thời gian (*timeline*), thẻ phân tầng, hoặc biểu đồ cột đơn giản có ít thanh và ghi sẵn số liệu rõ ràng. Khi tái tạo: bọc trong `<figure>` (kèm `<figcaption>` nếu gốc có chú thích), giữ khung chứa an toàn không tràn ngang (`max-width: 100%; overflow-x: auto;`), dịch toàn bộ text trong hình sang tiếng Việt, dùng CSS định vị khéo léo với hệ biến màu theo theme (`--bg`, `--surface`, `--text`, `--border`, `--accent`) để tương thích cả 3 giao diện Sáng/Dịu mắt/Tối, và tuyệt đối không tự bịa số liệu hay lược bớt nhãn chữ.
-  - **Nhóm B — Giữ nguyên ảnh PNG (`<img src="assets/...">`):** Ảnh chụp thực tế (mẫu vật, hiện trường, y khoa, thiết bị, giao diện UI), biểu đồ dữ liệu dày đặc/liên tục (*scatter plot*, *line/ROC curve* nhiều điểm, *box/violin plot*, *heatmap*, phổ kỹ thuật), bản đồ, sơ đồ kỹ thuật/mạch điện, công thức cấu tạo hóa học phức tạp, hoặc ảnh nền bitmap có mũi tên/vùng đánh dấu vector đè lên — mọi trường hợp mà việc dựng HTML/CSS có nguy cơ sai tỷ lệ trục, mất chi tiết thị giác hoặc dễ vỡ bố cục. Dịch đầy đủ nhãn chú thích trong `<figcaption>` và chú giải liên quan trong văn bản.
+### 4.3 Hình ảnh & Tái tạo Sơ đồ trong HTML
+*(Phần điều phối tách ảnh, `Triage before Crop` và `read_file` song song thực hiện theo contract ở `SKILL.md`; dưới đây là chuẩn bố trí HTML/CSS từ dữ liệu ảnh đã đối chiếu):*
+1. **Đủ minh họa & quy ước thẻ `<img>`:** Mọi hình/sơ đồ trong tài liệu gốc phải có mặt theo **1 trong 2 hình thức**: giữ tệp PNG (`<img src="assets/<tên_file>.png" ...>`) hoặc dựng khối HTML/CSS tương đương (nếu đã dựng HTML/CSS thì bỏ PNG gốc để tránh trùng). Luôn viết thuộc tính `alt` tiếng Việt mô tả nội dung/mục đích hình (ảnh trang trí thuần túy dùng `alt=""`).
+2. **Định vị bằng `page` và `box: [x0, y0, x1, y1]` (`0.0–1.0`, gốc trên-trái):** Dùng `page` và `y0` sắp đúng thứ tự từ trên xuống. Trên tài liệu 2–3 cột khi gộp về 1 cột, dựa vào `x0, x1` (`x1 <= 0.50`: cột trái; `x0 >= 0.50`: cột phải; `x0 < 0.45 && x1 > 0.55`: vắt ngang toàn trang) để chèn hình đúng mạch văn cột chứa nó, tránh chen ngang vào cột bên cạnh.
+3. **Phân biệt `placement` (`"figure"` vs. `"table_cell"`):**
+   - `placement = "table_cell"` *(hoặc ảnh nằm cùng hàng bảng trong `context`)*: **KHÔNG** tách ra thành `<figure>` ngoài bảng; đặt `<img src="assets/..." alt="..." style="max-width: 140px;">` *(chỉnh `max-width` theo cột)* vào **đúng ô `<td>`** của hàng bảng tương ứng.
+   - `placement = "figure"` và có chú thích: đặt trong `<figure><img><figcaption>...</figcaption></figure>` (hoặc khối HTML/CSS trong `<figure>` nếu thuộc Nhóm A). **Luôn lấy toàn văn chú thích từ PDF gốc** *(không chép đoạn cắt `20` từ `...` trên stdout)*. Nếu `caption` là `null`, đặt `<figure>` đúng ngữ cảnh và không tự bịa số hình/chú thích.
+4. **Phân loại độc lập Nhóm A vs. Nhóm B (qua `source`, `drawings`, `width_px` và ảnh đã xem):**
+   - Đánh giá độc lập cho từng hình trên cùng tài liệu (sơ đồ 1 dựng HTML/CSS, biểu đồ 2 giữ PNG là hợp lệ).
+   - **Nhóm A — Ưu tiên tái tạo bằng HTML/CSS:** Sơ đồ luồng/quy trình (*flowchart*), sơ đồ kiến trúc khối + mũi tên quy mô vừa (≤ ~15 khối), cây phân cấp/tổ chức, ma trận so sánh (`2×2`, `3×3`), timeline, hoặc biểu đồ cột ít thanh có sẵn số liệu (`"vector"` với `drawings` thấp/vừa `<= 30–50`). Bọc trong `<figure>` kèm `<figcaption>`, không tràn ngang (`max-width: 100%; overflow-x: auto;`), dịch trọn vẹn nhãn chữ, **BẮT BUỘC dùng biến màu CSS (`--bg`, `--surface`, `--text`, `--border`, `--accent`)** để tương thích cả 3 giao diện (Sáng/Dịu mắt/Tối), tuyệt đối không tự bịa số liệu.
+   - **Nhóm B — Giữ nguyên ảnh PNG (`<img src="assets/...">`):** Ảnh chụp thực tế (mẫu vật, hiện trường, y khoa, thiết bị, giao diện UI), `"raster"` / `"hybrid"` (bitmap có mũi tên vector đè lên), biểu đồ khoa học dày đặc (`"vector"` hàng trăm/nghìn `drawings` như scatter/ROC/violin/heatmap/phổ kỹ thuật), bản đồ, mạch điện, hoặc công thức cấu tạo hóa học phức tạp — mọi trường hợp dễ mất chi tiết hoặc sai tỷ lệ khi vẽ lại.
 
 ### 4.4 Công thức Toán học (MathJax + LaTeX)
 - **Khi tài liệu có biểu thức/công thức toán học:**
@@ -257,18 +238,19 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; line-heigh
     ```html
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     ```
-  - Dùng `\( ... \)` cho công thức cùng dòng (*inline math*) và `\[ ... \]` cho công thức đứng riêng (*block math*); dùng môi trường LaTeX (`\begin{bmatrix}...\end{bmatrix}`) cho ma trận — **TUYỆT ĐỐI KHÔNG** dùng `<sup>`/`<sub>` hay `<table>` giả lập công thức/ma trận, **KHÔNG** bọc LaTeX trong `<code>` hay `<pre>`.
-  - Dịch điều kiện chữ tiếng Anh bên trong công thức và bọc bằng `\text{...}` (vd: `\{n : n \text{ is a prime number}\}` → `\( \{n : n \text{ là số nguyên tố}\} \)`). **TUYỆT ĐỐI giữ dấu chấm (`.`)** cho số thập phân bên trong LaTeX.
+  - Dùng `\( ... \)` cho inline math và `\[ ... \]` cho block math; dùng môi trường LaTeX (`\begin{bmatrix}...\end{bmatrix}`) cho ma trận — **TUYỆT ĐỐI KHÔNG** dùng `<sup>`/`<sub>` hay `<table>` giả lập công thức/ma trận, **KHÔNG** bọc LaTeX trong `<code>` hay `<pre>`.
+  - **Chừa khoảng trắng quanh `<` và `>` trong LaTeX (`\( x < y \)`)** để trình phân tích HTML không nhận nhầm thành thẻ HTML làm mất biến toán. Dịch điều kiện chữ tiếng Anh bên trong công thức và bọc bằng `\text{...}` (`\( \{n : n \text{ là số nguyên tố}\} \)`), và **giữ nguyên dấu chấm (`.`)** cho số thập phân trong LaTeX.
 
 ### 4.5 Tài liệu Tham khảo (`References` / `Bibliography`)
 - Bảo toàn tuyệt đối tính nguyên vẹn và khả năng truy xuất: **KHÔNG DỊCH** tên tác giả, năm xuất bản, tiêu đề bài báo/sách/luận văn/báo cáo, tên tạp chí/hội nghị/NXB, tập/số/trang, DOI/ISBN/ISSN/PMID, URLs.
 - Chỉ dịch phần **ghi chú/mô tả bình luận thêm** do *chính tác giả tài liệu gốc* viết (nếu có).
-- Giữ nguyên danh sách (`<ul>`/`<ol>` + `<li>`), tái tạo chính xác định dạng `<strong>`/`<em>` như gốc, chuyển mọi **URL / DOI** thành liên kết `<a href="..." target="_blank" rel="noopener">` nhấp được, và cố gắng giữ trình bày trực quan (dùng `ul.ref-list` nếu cần thụt lề dòng thứ hai kiểu *hanging indent*) nếu không ảnh hưởng khả năng đọc.
+- Giữ nguyên danh sách (`<ul>`/`<ol>` + `<li>`), **bảo toàn định dạng in đậm/in nghiêng gốc** (`<strong>`/`<em>`), chuyển mọi **URL / DOI** thành `<a href="..." target="_blank" rel="noopener">` nhấp được, và dùng `ul.ref-list` khi cần thụt lề dòng thứ hai (*hanging indent*).
 
 ---
 
-## 5. Tự Kiểm định Nội bộ (Internal QA) trước khi Đóng gói
-Trước khi chạy `EmbedImages ... -AlsoPdf`, rà lại `work\draft.html`:
-1. Văn phong tiếng Việt có trôi chảy, thoát ly trật tự từ tiếng Anh nhưng bảo toàn nguyên vẹn khẳng định/nhân quả/hedging/ngôi xưng/thuật ngữ nhất quán, đã khử gạch nối ngắt dòng PDF (`esti- mation`) và giữ đúng chữ Hy Lạp/chỉ số khoa học chưa?
-2. Đã gom đúng vị trí cho chú thích cuối trang (`Footnotes`) và ghi chú bảng (`Table Notes`), không làm đứt đoạn văn; đã đối chiếu đủ hình từ tài liệu gốc và `manifest.json` (tổng hợp cả ảnh giữ nguyên `<img src="assets/...">` — gồm `figures[]` giữ lại và mọi `out_name` đã cắt từ `CropFromJson` — lẫn các sơ đồ đơn giản đã tái tạo trọn vẹn bằng HTML/CSS), đặt ảnh hàng bảng vào đúng ô `<td>` thay vì tách rời, và dịch toàn văn `<figcaption>` (không dùng bản rút gọn `...`)?
-3. Mã HTML sạch, hợp chuẩn W3C (`<!DOCTYPE html>` ... `</html>`), giữ nguyên thuộc tính nền tảng của `body` và hệ biến màu tương thích cả 3 giao diện (`light`/`sepia`/`dark` — không gán màu cứng làm hỏng chế độ Tối), có đủ `<head>...</head>` và `<body>...</body>` kèm thẻ ngữ nghĩa chuẩn (`<header>`, `<h1>`–`<h3>`, `<figure><img><figcaption>`), mọi `<table>` nằm trong `<div class="table-wrapper">` kèm `scope`, không thiếu `alt` cho `<img>`, có MathJax `<script>` nếu bài dùng LaTeX, và không bị tràn ngang?
+## 5. Chốt Chặn Kiểm Định Nội dung & Thẩm mỹ (Trước khi Đóng gói)
+*(Các lỗi kỹ thuật cơ học như ảnh chưa nhúng, thiếu `alt`, quên `.table-wrapper`, quên MathJax `<script>` hay link `#id` gãy sẽ được `html_packager.ps1` kiểm tra tự động; trước khi chạy Bước 4, rà nhanh 4 lỗi mà máy không tự bắt được sau:)*
+1. **Đầy đủ 100% & Văn phong Học thuật:** Không bỏ sót/tóm tắt đoạn văn, phụ lục, bảng dài hay `References`; văn phong tiếng Việt thoát ly trật tự tiếng Anh nhưng giữ trọn khẳng định/`hedging`/nhân quả/ngôi xưng, đã khử gạch nối ngắt dòng PDF, giữ đúng chữ Hy Lạp/chỉ số hóa học và lọc sạch tạp âm bản scan.
+2. **Đặt đúng ảnh & Chú thích đầy đủ:** Mọi ảnh Nhóm B nằm đúng mạch văn/ô `<td>` (đã nhìn trực tiếp ảnh để gán 1–1, không lắp mù), toàn văn `<figcaption>` khớp PDF gốc (không dính `...`), không trùng lặp PNG + sơ đồ HTML/CSS.
+3. **Tương thích `reader_shell.html` & Chế độ Tối:** Đủ khung CSS biến màu từ Mục 4.1, đầu bài đặt trong `<header>` và thân bài bọc trong `<article>` (`<h1>`–`<h3>`); sơ đồ Nhóm A dùng `var(--...)` (không hardcode `#000`/`#fff`).
+4. **An toàn LaTeX & Ký tự đặc biệt:** Đã chừa khoảng trắng quanh `<` và `>` (`\( x < y \)`); không bọc LaTeX trong `<code>`/`<pre>`; gắn `.cjk` cho đoạn trích chữ Hoa/Nhật nếu có.

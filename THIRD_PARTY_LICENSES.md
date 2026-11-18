@@ -52,4 +52,4 @@ OpenSSL 3.0.15 (libcrypto-3.dll) is licensed under the Apache License, Version 2
 ## Tài nguyên tải qua CDN khi xem HTML (tùy chọn phía trình duyệt)
 Các tệp HTML đầu ra có thể tham chiếu tới tài nguyên công cộng qua Internet (không đóng gói nhị phân trong repo):
 - **MathJax 3** (tải từ `cdn.jsdelivr.net` khi tài liệu có công thức toán học): **Apache License 2.0**.
-- **Google Fonts — Noto Sans & Roboto** (tải từ `fonts.googleapis.com`): **SIL Open Font License 1.1** (`Noto Sans`) và **Apache License 2.0** (`Roboto`).
+- **Google Fonts — Inter** (tải từ `fonts.googleapis.com`): **SIL Open Font License 1.1**.

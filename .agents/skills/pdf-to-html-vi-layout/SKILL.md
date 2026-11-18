@@ -49,20 +49,20 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\extract_pdf_asset
    - Chỉ viết **nội dung tiếng Việt đã dịch đầy đủ**, bọc từng trang bằng thẻ ngắn:
      `<!-- p:1 --> ... <!-- /p:1 -->`
    - Đánh dấu vị trí các thành phần bằng tag siêu gọn (`[FIG: fig_pX_Y.png]`, `[TBL-IMG: fig_pX_Y.png]`, `[DIAGRAM-A]`, `[CALLOUT]`, `[HEADER]`, `[FOOTER]`, `[FN]`, bảng Markdown). **TUYỆT ĐỐI KHÔNG viết mô tả CSS, màu sắc hay pixel vào `work\translated.md`** (tránh đốt token vô ích vì Bước 3 nhìn thẳng PDF gốc + `box` `0..1`).
-   - Áp dụng nghiêm ngặt quy tắc **câu vắt qua ranh giới hai trang** (hoàn thiện trọn câu ở một trang hoặc gắn `<!-- cont -->` nối tự nhiên, không chém cụt câu) và **dịch súc tích cho các hộp/ô hẹp**.
+   - Áp dụng nghiêm ngặt quy tắc **dịch đầy đủ 100% nội dung** (mọi đoạn văn, phụ lục, bảng biểu và trọn vẹn `References` kèm DOI/URL — **tuyệt đối không tóm tắt hay rút gọn `...`**), xử lý **câu vắt qua ranh giới hai trang** (`<!-- cont -->`, không chém cụt câu) và **dịch súc tích cho các hộp/ô hẹp**.
    - **Độ dài tài liệu:** Nếu `<= 6 trang`, ghi trọn 1 lần vào `work\translated.md`. Nếu `> 6 trang`, chia từng cụm `5–6` trang nối dần (`Append` / `edit_file`) vào `work\translated.md`.
 
 ---
 
 ## Bước 3: Nạp `si_layout.md` & Tái tạo Từng Trang vào `work\draft.html`
-1. **Nạp chỉ dẫn thiết kế:** Gọi `read_file` đọc **trọn 1 lần** [si_layout.md](./si_layout.md) (~236 dòng / ~18 KB — không truyền `StartLine`/`EndLine`).
+1. **Nạp chỉ dẫn thiết kế:** Gọi `read_file` đọc **trọn 1 lần** [si_layout.md](./si_layout.md) (~241 dòng / ~20 KB — không truyền `StartLine`/`EndLine`).
    - *Tiết kiệm token đọc lại:* Nếu tài liệu `<= 6 trang` và `work\translated.md` vừa được tạo ngay ở lượt trước (đã nằm đầy đủ trong ngữ cảnh), dùng trực tiếp để dựng HTML — **không gọi `read_file` đọc lại `work\translated.md`**; chỉ đọc phân trang theo `StartLine`/`EndLine` khi tài liệu dài đã chia nhiều lô hoặc ngữ cảnh đã cũ.
 2. **Dựng `work\draft.html` (`<!DOCTYPE html> ... </html>`) chuẩn [si_layout.md](./si_layout.md):**
-   - **Chế độ thuần HTML/CSS:** **TUYỆT ĐỐI KHÔNG** viết thanh công cụ đọc, hộp Mục lục tự động, lightbox phóng to ảnh hay bất kỳ `<script>` nào (ngoại trừ đúng 1 thẻ `<script id="MathJax-script" ...>` nếu bài có LaTeX `\( \)` / `\[ \]`).
+   - **Chế độ thuần HTML/CSS:** **TUYỆT ĐỐI KHÔNG** viết thanh công cụ đọc, hộp Mục lục tự động, lightbox phóng to ảnh hay bất kỳ `<script>` nào (ngoại trừ đúng 1 thẻ `<script id="MathJax-script" ...>` nếu bài có LaTeX `\( \)` / `\[ \]` — và nhớ **chừa khoảng trắng quanh `<` và `>`**: `\( x < y \)`). Chuyển hóa sạch toàn bộ tag trung gian từ `work\translated.md` (`[FIG:]`, `[CALLOUT]`, `<!-- p:N -->`, `<!-- cont -->`...) và gắn `<a href="..." target="_blank" rel="noopener">` cho mọi URL/DOI trong `References`.
    - **Global CSS + Cô lập Từng Trang:** Định nghĩa **Global CSS** ở `<head>` (font `'Inter'` + fallback `'Segoe UI'`, cỡ thân bài `18px`, `--page-width` linh hoạt trong `740px–1000px`, bảng màu trích từ PDF gốc, `.pdf-page` khung tờ giấy chiều cao `height: auto`, `.multi-column-flow` cho văn bản chảy liên tục, bảng biểu, callout, `@media print`). Bên trong `<body>`, bọc mỗi trang bằng `<section id="pdf-page-N" class="pdf-page" data-page="N">...</section>`, dùng `id` scoped `#pdf-page-N ...`, `class` và `style="..."` nội tuyến cho các khác biệt cục bộ từng trang.
    - **Ảnh & Sơ đồ:** `html_packager.ps1` phân giải đường dẫn `src` tương đối **theo thư mục cha của `-HtmlPath`** (tức `work\`). Vì vậy, trong `work\draft.html` **BẮT BUỘC viết `src="assets/<tên_file>.png"`** *(tuyệt đối không viết `work/assets/...`)*, chỉ dùng `.png`/`.jpg`/`.jpeg`, đủ `alt` tiếng Việt, toàn văn `<figcaption>`. Đối chiếu `manifest.json` (`box` `0.0–1.0`, `placement`, `source`/`drawings`) + ảnh cắt `CropFromJson` để đặt đúng ảnh Nhóm B / ảnh ô `<td>`, và tái tạo trọn vẹn sơ đồ Nhóm A bằng HTML/CSS.
    - **Độ dài tài liệu:** Nếu `<= 6 trang`, ghi trọn 1 lần vào `work\draft.html`. Nếu `> 6 trang`, ghi `<head>` + Global CSS trước rồi nối dần từng cụm `3–4 trang` (`<section id="pdf-page-...">`) vào `work\draft.html` (đóng `</body></html>` ở lô cuối).
-   - Thực hiện rà soát 5 điểm **Internal QA** ở Mục 5 của `si_layout.md` trước khi đóng gói.
+   - Thực hiện rà soát 5 điểm ở **Mục 5** của [si_layout.md](./si_layout.md) trước khi đóng gói.
 
 ---
 
@@ -75,7 +75,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1
 
 - **Quy tắc đặt tên file đầu ra & Chống ghi đè:** Lưu trong `output\` với hậu tố **`_layout_vi`** và giữ nguyên chính xác tên gốc không đuôi của file PDF trong workspace (vd: `bao-cao-2026.pdf` → `output\bao-cao-2026_layout_vi.html` và `output\bao-cao-2026_layout_vi.pdf`). Riêng trường hợp kéo-thả PDF mang tên tạm `media_<id>.pdf`: đặt tên theo **tiêu đề chính ngắn gọn của tài liệu** dạng ASCII `snake_case`, không dấu kèm `_layout_vi.html` / `_layout_vi.pdf`.
   - **Không tự đoán/gắn tên model AI** vào tên file (chỉ thêm nhãn phụ nếu người dùng chỉ định rõ trong câu lệnh).
-  - **Tự động tăng số `_2`, `_3` khi trùng:** Nếu tệp `.html` hoặc `.pdf` đích đã tồn tại trong `output\`, `html_packager.ps1` luôn **tự động đánh số đồng bộ cả cặp** thành `<tên>_layout_vi_2.html` / `_layout_vi_2.pdf`, `_3`... để tránh ghi đè bản trước.
+  - **Tự động tăng số `_2`, `_3` khi trùng:** Nếu tệp `.html` hoặc `.pdf` đích đã tồn tại trong `output\`, `html_packager.ps1` luôn tự tạo thư mục (nếu chưa có) và **tự động đánh số đồng bộ cả cặp** thành `<tên>_layout_vi_2.html` / `_layout_vi_2.pdf`, `_3`... để tránh ghi đè bản trước — **KHÔNG** chạy thêm lệnh kiểm tra/liệt kê `output\` trước hoặc sau Bước 4.
 
 - **Contract `tools\html_packager.ps1`:**
   - **Action `EmbedImages`:**
@@ -96,7 +96,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1
     - `PreserveLayout mode: skipped reader shell injection`
     - `Embedded images into HTML -> <đường_dẫn>.html (<bytes> bytes)`
     - `Exported PDF -> <đường_dẫn>.pdf (<bytes> bytes)`
-    - `Cleaned temp directory -> <đường_dẫn>\work` *(khi dùng `-CleanDir`)*
+    - `Cleaned temp directory -> <đường_dẫn>\work` *(khi dùng `-CleanDir` — đủ căn cứ xác nhận từ stdout, không cần gọi thêm lệnh kiểm tra `output\` hay xóa `work\` riêng)*
 - **Quy tắc phản hồi sau khi hoàn tất:** Lấy **đúng tên tệp thực tế** in ở `Embedded images into HTML -> ...` và `Exported PDF -> ...` trên stdout (kể cả khi đã tự tăng số `_2`, `_3`...), rồi trả về liên kết tới các tệp đầu ra theo đúng mẫu thân thiện với người dùng cuối bên dưới (**tránh dùng các cụm từ kỹ thuật** như `"tự chứa"`, `"Self-contained"`, `"Base64"`, `"QA PASS"`, hay nhắc thư mục tạm `work/`; **tuyệt đối không tự ý viết bản tóm tắt hay lặp lại nội dung tài liệu đã dịch** trừ khi người dùng yêu cầu rõ):
 
   ```markdown

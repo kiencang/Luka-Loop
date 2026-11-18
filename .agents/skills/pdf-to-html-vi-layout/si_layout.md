@@ -18,10 +18,7 @@ Bạn là **Kỹ sư Dàn trang & Typographer Cao cấp**. Với bản dịch đ
 ## 2. Quy chuẩn Font chữ & Global CSS (Đặt trong `<head>` của `work\draft.html`)
 
 ### 2.1 Quy tắc Font chữ Không chân Thống nhất
-- **Font chính (`--font-sans`):** Bắt buộc ưu tiên **`'Inter'`** (hỗ trợ dấu tiếng Việt sắc nét, gọn bề ngang giúp văn bản tiếng Việt dễ nằm gọn trong các cột/hộp hẹp của thiết kế gốc, đủ trọng số `400–800` và `tabular-nums` căn thẳng số liệu) kèm fallback hệ thống Windows/offline **`'Segoe UI', Roboto, 'Noto Sans', Arial, sans-serif`**:
-  ```css
-  @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..800;1,14..32,400..700&display=swap');
-  ```
+- **Font chính (`--font-sans`):** Bắt buộc ưu tiên **`'Inter'`** (hỗ trợ dấu tiếng Việt sắc nét, gọn bề ngang giúp văn bản tiếng Việt dễ nằm gọn trong các cột/hộp hẹp của thiết kế gốc, đủ trọng số `400–800` và `tabular-nums` căn thẳng số liệu; nạp qua `@import` duy nhất ở Mục 2.4) kèm fallback hệ thống Windows/offline **`'Segoe UI', Roboto, 'Noto Sans', Arial, sans-serif`**.
 - **Font monospace (cho code/mã số):** `'JetBrains Mono', Consolas, 'Courier New', monospace`.
 - **Cỡ chữ thân bài mặc định:** **`18px`**, `line-height: 1.6`.
   - *Linh hoạt cục bộ theo thiết kế gốc:* Cho phép hạ nhẹ cỡ chữ có kiểm soát (`14px–16.5px`) tại các ô bảng nhiều cột, thẻ thông số hẹp, `running-header`, `figcaption` hoặc `footnotes` để giữ nguyên tỷ lệ khung trang PDF gốc mà không bị tràn vỡ.
@@ -122,8 +119,9 @@ td img, th img { margin: 0.2rem auto; }
 
 /* Bảng biểu học thuật & bảng lưới */
 .table-wrapper { width: 100%; overflow-x: auto; margin: 1rem 0; -webkit-overflow-scrolling: touch; }
-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; break-inside: avoid; font-variant-numeric: tabular-nums; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 1rem 0; font-variant-numeric: tabular-nums; }
 .table-wrapper > table { margin: 0; }
+tr { break-inside: avoid; page-break-inside: avoid; }
 th, td { border: 1px solid var(--doc-border); padding: 7px 10px; text-align: left; vertical-align: top; }
 th { background-color: #f1f5f9; font-weight: 600; color: var(--doc-heading); }
 table.academic-table th, table.academic-table td { border-left: none; border-right: none; }
@@ -132,7 +130,7 @@ table.academic-table tbody tr:last-child td { border-bottom: 2px solid var(--doc
 tr.summary-row td { font-weight: 700; background-color: var(--doc-surface); border-top: 1.5px solid var(--doc-heading); }
 .ws-nowrap { white-space: nowrap; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
-.table-note { font-size: 0.85rem; color: var(--doc-muted); margin-top: 0.35rem; }
+.table-note { font-size: 0.85rem; color: var(--doc-muted); margin-top: 0.35rem; break-before: avoid; page-break-before: avoid; }
 
 /* Hộp Callout / Định lý */
 .callout {
@@ -156,6 +154,8 @@ tr.summary-row td { font-weight: 700; background-color: var(--doc-surface); bord
     line-height: 1.45;
 }
 .footnotes p { margin: 3px 0; }
+ul.ref-list { list-style: none; padding-left: 0; }
+ul.ref-list li { padding-left: 2em; text-indent: -2em; margin-bottom: 0.55em; overflow-wrap: anywhere; }
 .cjk { font-family: 'Noto Serif SC', 'Yu Mincho', 'SimSun', 'Microsoft YaHei', sans-serif; }
 pre { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; overflow-x: auto; font-size: 0.88rem; }
 code { font-family: var(--font-mono); font-size: 0.88em; background: #f1f5f9; padding: 1px 4px; border-radius: 3px; }
@@ -165,6 +165,7 @@ pre code { background: transparent; padding: 0; }
 @media print {
     @page { margin: 10mm 12mm; }
     body { background: #ffffff !important; padding: 0 !important; font-size: 10.5pt; }
+    figure img { max-height: 82vh; }
     .pdf-page {
         width: 100% !important;
         max-width: 100% !important;
@@ -206,6 +207,9 @@ pre code { background: transparent; padding: 0; }
      <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
      ```
    - Block math đặt trong `<div style="text-align: center; margin: 12px 0; break-inside: avoid;">\[ ... \]</div>`; chừa khoảng trắng quanh `<` và `>` trong LaTeX (`\( x < y \)`); **không** bọc LaTeX trong `<code>` hay `<pre>`.
+7. **Chuyển hóa sạch Tag trung gian & Liên kết `References`:**
+   - Thay thế trọn vẹn mọi tag tạm từ `work\translated.md` (`<!-- p:N -->`, `<!-- cont -->`, `[HEADER]`, `[FOOTER]`, `[FIG:]`, `[TBL-IMG:]`, `[DIAGRAM-A]`, `[CALLOUT]`, `[FN]`) bằng cấu trúc HTML/CSS tương ứng — **tuyệt đối không để sót tag thô trong `work\draft.html`**.
+   - Với `References` / `Bibliography`: giữ nguyên phần nhận diện không dịch kèm định dạng in đậm/nghiêng gốc, dùng `ul.ref-list` nếu bản gốc thụt lề ngược (*hanging indent*), và chuyển mọi **URL / DOI** thành liên kết `<a href="..." target="_blank" rel="noopener">` nhấp được.
 
 ---
 
@@ -224,13 +228,14 @@ pre code { background: transparent; padding: 0; }
 
 ---
 
-## 5. Giới hạn Mã nguồn & Tự Kiểm định Nội bộ (Internal QA)
+## 5. Chốt Chặn Mã nguồn & Kiểm định Nội bộ (Trước khi Đóng gói)
+*(Các lỗi kỹ thuật cơ học như ảnh chưa nhúng, thiếu `alt`, quên MathJax `<script>` hay link `#id` gãy sẽ được `html_packager.ps1` kiểm tra tự động; trước khi chạy Bước 4, rà lại 5 điểm mà máy không tự bắt được dưới đây:)*
 
 - **Thuần HTML + CSS (ZERO Script ngoài MathJax):**
   - **TUYỆT ĐỐI KHÔNG** chèn thanh công cụ đọc, lightbox JS, nút chuyển Dark/Light hay bất kỳ `<script>` tự viết nào (chỉ duy nhất thẻ `<script id="MathJax-script" ...>` nếu bài có LaTeX). Không dùng `<iframe>`, `<form>`, `onclick`, `onload`.
 - **Rà lại `work\draft.html` trước khi chạy `tools\html_packager.ps1 ... -PreserveLayout -AlsoPdf -CleanDir "work"`:**
   1. Đã hoàn chỉnh cấu trúc `<!DOCTYPE html><html><head>...</head><body>...</body></html>`, dùng font `'Inter'` (cỡ thân bài `18px`), mỗi trang nằm gọn trong `<section id="pdf-page-N" class="pdf-page">` có chiều cao `auto` (không bị `overflow: hidden` cắt chữ) và chiều rộng `--page-width` trong `740px–1000px`?
   2. Luồng chữ 2–3 cột liên tục đã dùng `.multi-column-flow` (không chặt đôi khiến cột 1 hụt chân)? Không dùng `<table>` để chia cột trang?
-  3. Đã đưa **đủ 100%** nội dung từ `work\translated.md` (không sót câu/trang, không cắt đứt câu vắt trang, chú thích chân trang đặt đúng trang, không lọt tạp âm scan)?
-  4. Mọi minh họa trong PDF gốc đều có mặt (ảnh Nhóm B dùng `src="assets/..."` + đủ `alt` + toàn văn `<figcaption>`, ảnh ô bảng nằm đúng `<td>`, sơ đồ Nhóm A dựng đẹp trong `<figure>`)?
-  5. Bật MathJax đúng chuẩn nếu bài dùng `\(` / `\[`, và không có liên kết nội bộ `href="#..."` nào bị gãy?
+  3. Đã chuyển **đủ 100%** nội dung từ `work\translated.md` (không sót câu/trang, nối mượt `<!-- cont -->`, chú thích chân trang đặt đúng trang, không lọt tạp âm scan) và **không còn sót tag trung gian thô** (`[FIG:]`, `[CALLOUT]`, `[DIAGRAM-A]`, `<!-- p:... -->`...)?
+  4. Mọi minh họa trong PDF gốc đều có mặt đúng vùng `box` (ảnh Nhóm B dùng `src="assets/..."` + toàn văn `<figcaption>`, ảnh ô bảng nằm đúng `<td>`, sơ đồ Nhóm A dựng đẹp bằng HTML/CSS, link DOI/URL trong `References` bấm được)?
+  5. Đã chừa khoảng trắng quanh `<` / `>` trong LaTeX (`\( x < y \)`) và không bọc LaTeX trong `<code>`/`<pre>`?

@@ -2,6 +2,12 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **luka-loop** sẽ được ghi lại trong file này.
 
+## [1.1.1] - 2026-11-18
+### Changed
+- Đồng bộ chuẩn typography SKILL 1 (`pdf-to-html-vi\si_academic_html.md`) sang họ font `Inter` (fallback Windows `'Segoe UI'`), bật `tabular-nums` cho `table`, `'JetBrains Mono'` cho code và cập nhật thông báo font trong `THIRD_PARTY_LICENSES.md`;
+- Bổ sung quy tắc trong `AGENTS.md` và cả 2 `SKILL.md` cấm chạy lệnh liệt kê/kiểm tra `output\` trước hoặc sau Bước 4 (tận dụng cơ chế tự tạo thư mục và tự đánh số `_2`, `_3` của `html_packager.ps1` để giảm lượt gọi thừa của Agent);
+- Tinh gọn và đồng bộ 2 cặp tài liệu `SKILL` / `SI`: tỉa trùng lặp điều phối CLI khỏi `si_academic_html.md`, gỡ `@import` lặp ở `si_layout.md`, nối khít bước chuyển hóa tag trung gian + liên kết DOI/URL `References` giữa `si_translation.md` và `si_layout.md`, đồng thời bổ sung chốt chặn thực chiến (lọc tạp âm bản scan, chừa khoảng trắng quanh `<`/`>` trong LaTeX, lớp `.cjk`, `<header>` + `<article>` khớp `reader_shell.html`, `tr` + `.table-note` + `figure img { max-height: 82vh; }` an toàn in PDF).
+
 ## [1.1.0] - 2026-11-18
 ### Changed
 - Tái cấu trúc `extract_assets.exe` tiếp nhận toàn bộ nghiệp vụ xử lý chính qua mô-đun `tools\src\path_guards.py` và `tools\src\html_packager_core.py`: kiểm tra an toàn đường dẫn/UNC/junction, phân giải PDF từ `transcript.jsonl`, tối ưu & nhúng Base64 trực tiếp trong bộ nhớ (không tạo ảnh tạm trên đĩa), Auto-QA HTML, bơm `reader_shell.html`, đánh số chống ghi đè, xuất PDF qua Edge/Chrome headless và dọn `work\`;
