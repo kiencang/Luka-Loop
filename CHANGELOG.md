@@ -2,6 +2,20 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **luka-loop** sẽ được ghi lại trong file này.
 
+## [1.0.7] - 2026-11-18
+### Added
+- Bổ sung 3 chế độ thuần PyMuPDF cho `extract_assets.py` / `extract_assets.exe` (`--mode render-pages`, `--mode crop-json`, `--mode optimize-images`) và gom hàm dùng chung `Resolve-SafeOutDirectory`, `Invoke-ExtractAssetsExe` vào `tools\_path_guards.ps1`;
+- Mở rộng bộ kiểm thử `tests\test_extract_assets.py` (11 ca) và `tests\test_powershell.ps1` (13 ca): kiểm tra AST cấm API phụ thuộc GDI+/C# động/WinRT, hỗ trợ tự chạy theo `pwsh.exe` hoặc `powershell.exe`.
+
+### Changed
+- Hỗ trợ chạy song song trên cả **Windows PowerShell 5.1** lẫn **PowerShell 7+** (`pwsh.exe`): chuyển `tools\pdf_fallback_tools.ps1` và `tools\html_packager.ps1` sang gọi `extract_assets.exe`, loại bỏ hoàn toàn WinRT `Windows.Data.Pdf`, `System.Drawing` và `Add-Type` (kể cả trong `tests\test_powershell.ps1`);
+- Tối ưu `html_packager.ps1`: khử trùng lặp ảnh cục bộ, xử lý theo lô 1 tiến trình duy nhất (bỏ qua nếu HTML có 0 ảnh), cập nhật build `extract_assets.exe` giữ nguyên quy mô 58 tệp (~56,5 MB) không thêm thư viện ngoài, và cập nhật `README.md`.
+- Điều chỉnh SI dịch cho luồng bảo vệ định dạng;
+
+### Fixed
+- Bổ sung `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` vào `pdf_fallback_tools.ps1` và `html_packager.ps1` để không lỗi dấu đường dẫn tiếng Việt trên console `cp437`/`cp1252`;
+- Sửa lỗi truyền `ConvertTo-Json` cho PowerShell 5.1 (`[pscustomobject]`), chuẩn hóa `--scale` theo `InvariantCulture`, và xử lý ngắt dòng `ConciseView` của PowerShell 7 trong `Invoke-CliPs1`.
+
 ## [1.0.6] - 2026-11-18
 ### Added
 - Thêm skill `pdf-to-html-vi-layout` (chế độ bảo toàn thiết kế/layout): tách pha dịch `work\translated.md` (`si_translation.md`) trước khi dựng HTML/CSS cô lập từng trang (`si_layout.md`, font `Inter` `18px`, `--page-width` `740px–1000px`, CSS Multi-Columns/Grid);

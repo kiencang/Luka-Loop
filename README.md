@@ -5,7 +5,7 @@ Quy trình AI Agent tự động dịch tài liệu PDF tiếng Anh sang tiếng
 
 ## Yêu cầu hệ thống
 - **Hệ điều hành:** Windows 10 hoặc Windows 11 **64-bit (x64)** *(bộ công cụ `extract_assets.exe` hiện biên dịch ở kiến trúc x64, chưa hỗ trợ Windows 32-bit), hầu hết các máy tính hiện nay trên thị trường đều là bản 64-bit*.
-- **PowerShell:** Windows PowerShell 5.1 (có sẵn mặc định trên Windows 10/11, bạn không cần phải điều chỉnh, cài cắm gì thêm).
+- **PowerShell:** Hỗ trợ cả **Windows PowerShell 5.1** (có sẵn mặc định trên Windows 10/11) lẫn **PowerShell 7+** (`pwsh.exe`), không yêu cầu cấu hình thêm.
 - **Trình duyệt (tùy chọn để tự động xuất PDF):** Công cụ dùng Microsoft Edge (ưu tiên) hoặc Google Chrome để xuất tệp PDF. Nếu không có, quy trình vẫn xuất hoàn chỉnh tệp `*_vi.html`.
 
 ## Lý do tồn tại
@@ -33,7 +33,7 @@ Giờ thì bạn chỉ việc tải file PDF rồi gõ câu lệnh kiểu như `
 - [`tools/`](./tools/) — Bộ công cụ PowerShell & portable:
   - [`_path_guards.ps1`](./tools/_path_guards.ps1) — Tiện ích dùng chung kiểm tra và bảo vệ đường dẫn cục bộ (`Test-IsReparsePoint`, `Assert-SafeOutputPath`, `Assert-LocalNoUncPath`).
   - [`extract_pdf_assets.ps1`](./tools/extract_pdf_assets.ps1) gọi [`extract_assets/extract_assets.exe`](./tools/extract_assets/extract_assets.exe) để tự động tách ảnh/sơ đồ và xuất `manifest.json`.
-  - [`pdf_fallback_tools.ps1`](./tools/pdf_fallback_tools.ps1) render trang PDF scan qua WinRT `Windows.Data.Pdf` và cắt khung ảnh theo JSON.
+  - [`pdf_fallback_tools.ps1`](./tools/pdf_fallback_tools.ps1) gọi [`extract_assets/extract_assets.exe`](./tools/extract_assets/extract_assets.exe) (PyMuPDF) để render trang PDF scan và cắt khung ảnh theo JSON kèm auto-trim.
   - [`html_packager.ps1`](./tools/html_packager.ps1) nhúng ảnh Base64 tối ưu, bơm lớp vỏ đọc [`reader_shell.html`](./tools/reader_shell.html) (hoặc giữ nguyên HTML thuần khi bật `-PreserveLayout`), kiểm định Auto-QA, tự động đánh số chống ghi đè (`_2`, `_3`...) khi trùng tên trong `output/` và xuất PDF.
   - [`src/extract_assets.py`](./tools/src/extract_assets.py) — Mã nguồn Python gốc dùng để biên dịch ra `extract_assets.exe` *(chỉ dùng tham khảo/build lại; khi chạy dịch thuật tuyệt đối không gọi Python hệ thống)*.
 - `output/` — Thư mục chứa tệp đầu ra (`*_vi.html`/`*_vi.pdf` cho bản đọc mượt mặc định; `*_layout_vi.html`/`*_layout_vi.pdf` cho bản bảo toàn thiết kế; tự động thêm `_2`, `_3`... nếu dịch lại nhiều lần cùng một file), tự động được tạo khi đóng gói và được bỏ qua bởi [`.gitignore`](./.gitignore).
@@ -46,7 +46,7 @@ Công cụ kết hợp tách ảnh tự động bằng PyMuPDF ([`extract_assets
 flowchart TD
     IN["PDF đầu vào (Workspace -PdfPath hoặc kéo-thả -TranscriptPath)"] --> S1
 
-    subgraph B1["Bước 1: Tách tự động (extract_pdf_assets.ps1 -> extract_assets.exe)"]
+    subgraph B1["Bước 1: Tách tự động (extract_pdf_assets.ps1 → extract_assets.exe)"]
         S1["Quét bitmap get_image_info() + vector get_drawings() & cluster_drawings()"]
         S1 --> S1O["Xuất work/assets/fig_pX_Y.png (180 DPI) + manifest.json + scanned_pages"]
     end
@@ -70,7 +70,7 @@ flowchart TD
     RENDONLY --> GA
 
     TRI -->|"Nhóm B: Ảnh chụp, tế bào, biểu đồ phức tạp"| SCANB["1. RenderPages -Pages (tạo page_p.png)"]
-    SCANB --> SPEC["2. read_file trang -> ghi work/crop_spec.json -> CropFromJson"]
+    SCANB --> SPEC["2. read_file trang → ghi work/crop_spec.json → CropFromJson"]
     SPEC --> VER["3. Bắt buộc read_file kiểm tra PNG cắt (tự nhớ out_name vì không ghi vào manifest.json)"]
     VER --> GB
 
@@ -81,8 +81,8 @@ flowchart TD
 
     subgraph B34["Bước 3 & 4: Lắp ghép HTML & Đóng gói (html_packager.ps1)"]
         S3["Bước 3: Viết work/draft.html (đủ minh họa Nhóm B PNG + Nhóm A HTML/CSS + full chú thích)"]
-        S3 --> S4["Bước 4: Nén tối ưu ảnh -> nhúng Base64 -> bơm reader_shell.html -> Auto-QA"]
-        S4 --> OUT["Xuất song song output/*_vi.html & output/*_vi.pdf -> tự dọn sạch work/"]
+        S3 --> S4["Bước 4: Nén tối ưu ảnh → nhúng Base64 → bơm reader_shell.html → Auto-QA"]
+        S4 --> OUT["Xuất song song output/*_vi.html & output/*_vi.pdf → tự dọn sạch work/"]
     end
 ```
 

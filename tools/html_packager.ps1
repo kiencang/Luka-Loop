@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    Pure Windows PowerShell 5.1 HTML Image Embedder, Reader Shell Injector, Auto-QA Gate & Headless PDF Exporter.
+    PowerShell 5.1 & 7+ HTML Image Embedder, Reader Shell Injector, Auto-QA Gate & Headless PDF Exporter.
 .DESCRIPTION
-    Packages translated HTML documents into self-contained files and printable PDFs:
+    Packages translated HTML documents into self-contained files and printable PDFs (delegates image optimization to extract_assets.exe / PyMuPDF; zero System.Drawing / Add-Type):
       -Action EmbedImages : Embed local PNG/JPG images as optimized Base64, inject outer reader shell (tools\reader_shell.html) idempotently (unless -PreserveLayout), run HTML Auto-QA, optionally export PDF (-AlsoPdf), always auto-number colliding output names (_2, _3, ...), and optionally clean a temp directory (-CleanDir) on success
       -Action HtmlToPdf   : Convert a self-contained HTML file to clean PDF using built-in Microsoft Edge or Chrome headless (always auto-numbers colliding output names)
 #>
@@ -26,6 +26,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 $pathGuardsScript = Join-Path $PSScriptRoot '_path_guards.ps1'
 $pathGuardsItem = Get-Item -LiteralPath $pathGuardsScript -Force -ErrorAction SilentlyContinue
@@ -37,141 +38,69 @@ if ((($pathGuardsItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)
 }
 . $pathGuardsScript
 
-function Ensure-ImageAnalysisHelper {
-    if ('HtmlPackagerImageHelper' -as [type]) { return }
-    Add-Type -AssemblyName System.Drawing
-    Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
-
-public static class HtmlPackagerImageHelper {
-    public static int[] AnalyzeSampleGrid(Bitmap bmp) {
-        int w = bmp.Width;
-        int h = bmp.Height;
-        int stepX = Math.Max(1, (int)Math.Round(w / 60.0));
-        int stepY = Math.Max(1, (int)Math.Round(h / 60.0));
-        Rectangle rect = new Rectangle(0, 0, w, h);
-        BitmapData data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-        try {
-            int stride = data.Stride;
-            int absStride = Math.Abs(stride);
-            byte[] buf = new byte[absStride * h];
-            if (stride > 0) {
-                Marshal.Copy(data.Scan0, buf, 0, buf.Length);
-            } else {
-                for (int y = 0; y < h; y++) {
-                    IntPtr rowPtr = IntPtr.Add(data.Scan0, y * stride);
-                    Marshal.Copy(rowPtr, buf, y * absStride, w * 4);
-                }
-            }
-
-            var colors = new HashSet<int>();
-            bool hasAlpha = false;
-            for (int y = 0; y < h; y += stepY) {
-                int rowOff = y * absStride;
-                for (int x = 0; x < w; x += stepX) {
-                    int idx = rowOff + (x * 4);
-                    byte b = buf[idx];
-                    byte g = buf[idx + 1];
-                    byte r = buf[idx + 2];
-                    byte a = buf[idx + 3];
-                    if (a < 250) hasAlpha = true;
-                    int q = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-                    colors.Add(q);
-                }
-            }
-            return new int[] { colors.Count, hasAlpha ? 1 : 0 };
-        } finally {
-            bmp.UnlockBits(data);
-        }
-    }
-}
-'@
-}
-
-function Get-OptimizedImagePayload {
+function Invoke-BatchOptimizeImages {
+    <# Validates optimization params, runs extract_assets.exe (--mode optimize-images) once for unique image paths, and returns a Data URI cache. #>
     param(
-        [string]$ImgPath,
+        [string[]]$ImagePaths,
         [int]$Quality = 90,
         [int]$MaxWidth = 1400
     )
     if ($Quality -lt 1 -or $Quality -gt 100) { throw "JpegQuality out of valid range (1..100): $Quality" }
     if ($MaxWidth -lt 0 -or $MaxWidth -gt 10000) { throw "MaxImageWidth out of valid range (0..10000): $MaxWidth" }
-    Ensure-ImageAnalysisHelper
-    $origBytes = [System.IO.File]::ReadAllBytes($ImgPath)
-    $origLen = $origBytes.Length
-    $ext = [System.IO.Path]::GetExtension($ImgPath).ToLowerInvariant()
-    $origMime = if ($ext -eq '.jpg' -or $ext -eq '.jpeg') { 'image/jpeg' } else { 'image/png' }
 
-    $inMs = New-Object System.IO.MemoryStream(, $origBytes)
-    $bmp = [System.Drawing.Bitmap]::FromStream($inMs)
-    $workBmp = $bmp
-    try {
-        # Sample ~60x60 grid via LockBits to detect transparency and color richness
-        $statsGrid = [HtmlPackagerImageHelper]::AnalyzeSampleGrid($bmp)
-        $isRichPhoto = ($statsGrid[0] -ge 200)
-        $hasAlpha = ($statsGrid[1] -ne 0)
-
-        $wasResized = $false
-        if ($MaxWidth -gt 0 -and $bmp.Width -gt $MaxWidth) {
-            $newW = $MaxWidth
-            $newH = [Math]::Max(1, [int][Math]::Round($bmp.Height * ($MaxWidth / [double]$bmp.Width)))
-            $scaled = New-Object System.Drawing.Bitmap($newW, $newH)
-            $g = [System.Drawing.Graphics]::FromImage($scaled)
-            try {
-                $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-                $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
-                $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-                $g.DrawImage($bmp, 0, 0, $newW, $newH)
-            } finally {
-                $g.Dispose()
-            }
-            $workBmp = $scaled
-            $wasResized = $true
-        }
-
-        # Encode candidate JPEG at requested quality (default 90%) only for rich-color opaque photos
-        if ($isRichPhoto -and -not $hasAlpha) {
-            $jpgCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
-            $ep = New-Object System.Drawing.Imaging.EncoderParameters(1)
-            $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, [long]$Quality)
-            $outMs = New-Object System.IO.MemoryStream
-            try {
-                $workBmp.Save($outMs, $jpgCodec, $ep)
-                $jpgBytes = $outMs.ToArray()
-                # Strict size check: never keep compressed version if larger or not meaningfully smaller than original
-                if ($jpgBytes.Length -lt $origLen -and ($wasResized -or $jpgBytes.Length -le [int]($origLen * 0.85))) {
-                    return @{ Bytes = $jpgBytes; Mime = 'image/jpeg'; OrigLen = $origLen }
-                }
-            } finally {
-                $ep.Dispose()
-                $outMs.Dispose()
-            }
-        }
-
-        # If resized low-color diagram, keep lossless PNG only if smaller than original file
-        if ($wasResized -and $origMime -eq 'image/png') {
-            $outMs = New-Object System.IO.MemoryStream
-            try {
-                $workBmp.Save($outMs, [System.Drawing.Imaging.ImageFormat]::Png)
-                $pngBytes = $outMs.ToArray()
-                if ($pngBytes.Length -lt $origLen) {
-                    return @{ Bytes = $pngBytes; Mime = 'image/png'; OrigLen = $origLen }
-                }
-            } finally {
-                $outMs.Dispose()
-            }
-        }
-
-        return @{ Bytes = $origBytes; Mime = $origMime; OrigLen = $origLen }
-    } finally {
-        if (-not [object]::ReferenceEquals($workBmp, $bmp)) { $workBmp.Dispose() }
-        $bmp.Dispose()
-        $inMs.Dispose()
+    $cache = @{}
+    if (-not $ImagePaths -or $ImagePaths.Count -eq 0) {
+        return $cache
     }
+
+    $tempBase = if ($env:TEMP -and $env:TEMP.Trim()) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+    $tmpRoot = Join-Path $tempBase ("luka_opt_" + [Guid]::NewGuid().ToString("N"))
+    Assert-SafeOutputPath -TargetPath $tmpRoot -Label 'TempOptimizeDir' -IsDirectory
+    [void][System.IO.Directory]::CreateDirectory($tmpRoot)
+    try {
+        $specItems = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($p in $ImagePaths) {
+            [void]$specItems.Add(@{ path = $p })
+        }
+        $specPath = Join-Path $tmpRoot 'optimize_spec.json'
+        $outDir = Join-Path $tmpRoot 'out'
+        $outJsonPath = Join-Path $tmpRoot 'optimize_result.json'
+        $specJson = ConvertTo-Json -InputObject ([pscustomobject]@{ items = $specItems.ToArray() }) -Depth 4 -Compress
+        [System.IO.File]::WriteAllText($specPath, $specJson, (New-Object System.Text.UTF8Encoding($false)))
+
+        Invoke-ExtractAssetsExe -Arguments @(
+            '--mode', 'optimize-images',
+            '--spec', $specPath,
+            '--out-dir', $outDir,
+            '--out-json', $outJsonPath,
+            '--quality', [string]$Quality,
+            '--max-width', [string]$MaxWidth
+        )
+
+        if (-not (Test-Path -LiteralPath $outJsonPath -PathType Leaf)) {
+            throw "Image optimizer did not produce output metadata: $outJsonPath"
+        }
+        $meta = [System.IO.File]::ReadAllText($outJsonPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+        $results = @($meta.results)
+        if ($results.Count -ne $ImagePaths.Count) {
+            throw "Image optimizer result count mismatch (expected $($ImagePaths.Count), got $($results.Count))."
+        }
+        for ($i = 0; $i -lt $results.Count; $i++) {
+            $res = $results[$i]
+            $origPath = $ImagePaths[$i]
+            $bytesPath = if ($res.out_file -and ([string]$res.out_file).Trim()) { [string]$res.out_file } else { $origPath }
+            $payloadBytes = [System.IO.File]::ReadAllBytes($bytesPath)
+            $b64 = [Convert]::ToBase64String($payloadBytes)
+            $cache[$origPath] = @{
+                DataUri  = ('data:{0};base64,{1}' -f [string]$res.mime, $b64)
+                OrigLen  = [long]$res.orig_len
+                FinalLen = [long]$payloadBytes.Length
+            }
+        }
+    } finally {
+        Remove-Item -LiteralPath $tmpRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    return $cache
 }
 
 $script:ImgTagRx = New-Object regex('(?is)<img\b((?:[^>"'']|"[^"]*"|''[^'']*'')*)>')
@@ -665,6 +594,27 @@ function Invoke-EmbedImages {
     $baseDir = Split-Path $absHtml -Parent
     $content = [System.IO.File]::ReadAllText($absHtml, [System.Text.Encoding]::UTF8)
 
+    if ($Quality -lt 1 -or $Quality -gt 100) { throw "JpegQuality out of valid range (1..100): $Quality" }
+    if ($MaxWidth -lt 0 -or $MaxWidth -gt 10000) { throw "MaxImageWidth out of valid range (0..10000): $MaxWidth" }
+
+    $uniqueImgPaths = New-Object 'System.Collections.Generic.List[string]'
+    $seenImgPaths = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($imgMatch in $script:ImgTagRx.Matches($content)) {
+        $attrs = $imgMatch.Groups[1].Value
+        foreach ($srcMatch in $script:ImgSrcRx.Matches($attrs)) {
+            $rel = (Get-ImgSrcValue -SrcMatch $srcMatch).Trim()
+            if (-not $rel -or $rel -match '^(?i)(?:data:|https?://)') { continue }
+            if ($rel -match '(?i)\.(?:png|jpe?g)$') {
+                $imgPath = Resolve-SafeSubImagePath -BaseDir $baseDir -RelativeSrc $rel
+                if ($imgPath -and $seenImgPaths.Add($imgPath)) {
+                    [void]$uniqueImgPaths.Add($imgPath)
+                }
+            }
+        }
+    }
+
+    $optCache = Invoke-BatchOptimizeImages -ImagePaths @($uniqueImgPaths) -Quality $Quality -MaxWidth $MaxWidth
+
     $stats = @{ Total = 0; Compressed = 0; OrigBytes = [long]0; FinalBytes = [long]0 }
     $updated = $script:ImgTagRx.Replace($content, [System.Text.RegularExpressions.MatchEvaluator]{
         param($imgMatch)
@@ -676,14 +626,13 @@ function Invoke-EmbedImages {
             if (-not $rel -or $rel -match '^(?i)(?:data:|https?://)') { return $srcMatch.Value }
             if ($rel -match '(?i)\.(?:png|jpe?g)$') {
                 $imgPath = Resolve-SafeSubImagePath -BaseDir $baseDir -RelativeSrc $rel
-                if ($imgPath) {
-                    $res = Get-OptimizedImagePayload -ImgPath $imgPath -Quality $Quality -MaxWidth $MaxWidth
+                if ($imgPath -and $optCache.ContainsKey($imgPath)) {
+                    $entry = $optCache[$imgPath]
                     $stats.Total++
-                    $stats.OrigBytes += $res.OrigLen
-                    $stats.FinalBytes += $res.Bytes.Length
-                    if ($res.Bytes.Length -lt $res.OrigLen) { $stats.Compressed++ }
-                    $b64 = [Convert]::ToBase64String($res.Bytes)
-                    return ('{0}"data:{1};base64,{2}"' -f $prefix, $res.Mime, $b64)
+                    $stats.OrigBytes += $entry.OrigLen
+                    $stats.FinalBytes += $entry.FinalLen
+                    if ($entry.FinalLen -lt $entry.OrigLen) { $stats.Compressed++ }
+                    return ('{0}"{1}"' -f $prefix, $entry.DataUri)
                 }
             }
             return $srcMatch.Value

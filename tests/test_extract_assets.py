@@ -286,5 +286,273 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
         self.assertTrue(meta["figures"][1]["caption"].startswith("Figure 2:"))
 
 
+class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp_dir = Path(tempfile.mkdtemp(prefix="luka_py_img_"))
+
+    def tearDown(self) -> None:
+        import shutil
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    @staticmethod
+    def _make_noisy_rgb_pixmap(w: int, h: int, seed: int = 42) -> pymupdf.Pixmap:
+        import random
+        rng = random.Random(seed)
+        raw = rng.randbytes(w * h * 3)
+        return pymupdf.Pixmap(pymupdf.csRGB, w, h, raw, False)
+
+    @staticmethod
+    def _make_alpha_pixmap(w: int, h: int) -> pymupdf.Pixmap:
+        # Premultiplied RGBA bytes: transparent background + one visible semi-transparent block
+        buf = bytearray(w * h * 4)
+        for y in range(10, min(h, 30)):
+            for x in range(10, min(w, 30)):
+                idx = (y * w + x) * 4
+                buf[idx : idx + 4] = bytes((5, 9, 14, 120))
+        return pymupdf.Pixmap(pymupdf.csRGB, w, h, bytes(buf), True)
+
+    def test_render_pages_filtering_validation_and_cli(self) -> None:
+        pdf_path = self.tmp_dir / "multi.pdf"
+        with pymupdf.open() as doc:
+            for pno in range(1, 5):
+                p = doc.new_page(width=400, height=600)
+                p.insert_text((60, 120), f"Page {pno}", fontsize=20)
+            doc.save(pdf_path)
+
+        out_pages = self.tmp_dir / "pages"
+        saved = ea.render_pages(pdf_path, out_pages, scale=1.5, pages="[1, 3-4]")
+        self.assertEqual([p.name for p in saved], ["page_1.png", "page_3.png", "page_4.png"])
+        self.assertFalse((out_pages / "page_2.png").exists())
+        # Page width 400 * 1.5 = 600 -> clamped to minimum 800px
+        rendered_p1 = pymupdf.Pixmap(str(out_pages / "page_1.png"))
+        self.assertEqual(rendered_p1.width, 800)
+
+        for bad in ("0", "99", "3-1", "abc"):
+            with self.assertRaises(ValueError):
+                ea.render_pages(pdf_path, out_pages, scale=1.5, pages=bad)
+
+        enc_pdf = self.tmp_dir / "locked_render.pdf"
+        with pymupdf.open() as doc:
+            doc.new_page().insert_text((72, 72), "Locked")
+            doc.save(enc_pdf, encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw="pw", owner_pw="opw")
+        with self.assertRaisesRegex(RuntimeError, "password-protected"):
+            ea.render_pages(enc_pdf, out_pages)
+
+        cli_pages = self.tmp_dir / "cli_pages"
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SRC_DIR / "extract_assets.py"),
+                "--mode",
+                "render-pages",
+                str(pdf_path),
+                "--out-dir",
+                str(cli_pages),
+                "--scale",
+                "1.2",
+                "--pages",
+                "2",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue((cli_pages / "page_2.png").is_file())
+        self.assertFalse((cli_pages / "page_1.png").exists())
+
+    def test_crop_from_json_trim_overwrite_and_validation(self) -> None:
+        # 200x200 white canvas with a dark square inside [60..120, 70..130]
+        raw = bytearray([255] * (200 * 200 * 3))
+        for y in range(70, 130):
+            for x in range(60, 120):
+                idx = (y * 200 + x) * 3
+                raw[idx : idx + 3] = bytes((20, 40, 60))
+        src_png = self.tmp_dir / "canvas.png"
+        src_png.write_bytes(pymupdf.Pixmap(pymupdf.csRGB, 200, 200, bytes(raw), False).tobytes("png"))
+
+        # Transparent canvas with ink square at [20..50, 20..50]
+        a_raw = bytearray(120 * 120 * 4)
+        for y in range(20, 50):
+            for x in range(20, 50):
+                idx = (y * 120 + x) * 4
+                a_raw[idx : idx + 4] = bytes((10, 20, 30, 200))
+        alpha_png = self.tmp_dir / "alpha_canvas.png"
+        alpha_png.write_bytes(pymupdf.Pixmap(pymupdf.csRGB, 120, 120, bytes(a_raw), True).tobytes("png"))
+
+        crops_dir = self.tmp_dir / "crops"
+        spec = self.tmp_dir / "crop_spec.json"
+        spec.write_text(
+            json.dumps(
+                [
+                    {"page_png": str(src_png), "box": [0.1, 0.1, 0.9, 0.9], "out_name": "trimmed.png", "auto_trim": True},
+                    {"page_png": str(src_png), "box": [0.1, 0.1, 0.9, 0.9], "out_name": "raw.png", "auto_trim": False},
+                    {"page_png": str(alpha_png), "box": [0.0, 0.0, 1.0, 1.0], "out_name": "alpha_trim.png", "auto_trim": True},
+                ]
+            ),
+            encoding="utf-8",
+        )
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SRC_DIR / "extract_assets.py"),
+                "--mode",
+                "crop-json",
+                "--spec",
+                str(spec),
+                "--out-dir",
+                str(crops_dir),
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        p_raw = pymupdf.Pixmap(str(crops_dir / "raw.png"))
+        p_trim = pymupdf.Pixmap(str(crops_dir / "trimmed.png"))
+        p_alpha = pymupdf.Pixmap(str(crops_dir / "alpha_trim.png"))
+        self.assertEqual((p_raw.width, p_raw.height), (160, 160))
+        self.assertLess(p_trim.width, 100)
+        self.assertLess(p_trim.height, 100)
+        self.assertLess(p_alpha.width, 60)
+        self.assertTrue(p_alpha.alpha)
+
+        # In-place overwrite without file lock
+        ov_spec = self.tmp_dir / "ov.json"
+        ov_spec.write_text(
+            json.dumps([{"page_png": str(crops_dir / "raw.png"), "box": [0.1, 0.1, 0.9, 0.9], "out_name": "raw.png", "auto_trim": False}]),
+            encoding="utf-8",
+        )
+        ea.crop_from_json(ov_spec, crops_dir)
+        self.assertEqual(pymupdf.Pixmap(str(crops_dir / "raw.png")).width, 128)
+
+        # Bad path / box rejections
+        bad_name = self.tmp_dir / "bad_name.json"
+        bad_name.write_text(json.dumps([{"page_png": str(src_png), "box": [0.1, 0.1, 0.9, 0.9], "out_name": "../x.png"}]), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Path traversal blocked"):
+            ea.crop_from_json(bad_name, crops_dir)
+
+        bad_box = self.tmp_dir / "bad_box.json"
+        bad_box.write_text(json.dumps([{"page_png": str(src_png), "box": [0.6, 0.1, 0.5, 0.9], "out_name": "x.png"}]), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Invalid crop box"):
+            ea.crop_from_json(bad_box, crops_dir)
+
+    def test_optimize_images_batch_modes_and_cli(self) -> None:
+        # 1. Rich noisy photo PNG (300x200) -> resized to 200 & compressed to JPEG
+        photo_png = self.tmp_dir / "photo.png"
+        photo_png.write_bytes(self._make_noisy_rgb_pixmap(300, 200).tobytes("png"))
+
+        # 2. Transparent RGBA diagram (260x80) -> resized to 200 & kept as PNG with alpha
+        alpha_png = self.tmp_dir / "alpha.png"
+        alpha_png.write_bytes(self._make_alpha_pixmap(260, 80).tobytes("png"))
+
+        # 3. Simple solid low-color grayscale PNG (60x60) -> kept untouched (out_file=None)
+        gray_png = self.tmp_dir / "gray.png"
+        gp = pymupdf.Pixmap(pymupdf.csGRAY, pymupdf.IRect(0, 0, 60, 60), False)
+        gp.clear_with(220)
+        gray_png.write_bytes(gp.tobytes("png"))
+
+        # 4. Opaque CMYK JPEG (260x100) -> converted to RGB safely
+        cmyk_jpg = self.tmp_dir / "cmyk.jpg"
+        cmyk_buf = bytes([40, 120, 200, 10] * (260 * 100))
+        cmyk_pix = pymupdf.Pixmap(pymupdf.csCMYK, 260, 100, cmyk_buf, False)
+        cmyk_jpg.write_bytes(pymupdf.Pixmap(pymupdf.csRGB, cmyk_pix).tobytes("jpeg", jpg_quality=95))
+
+        # 5. Opaque noisy RGBA PNG (240x160, alpha=255) -> alpha ignored, compressed to JPEG
+        import random
+        rng = random.Random(7)
+        rgba_raw = bytearray(240 * 160 * 4)
+        for i in range(0, len(rgba_raw), 4):
+            rgba_raw[i] = rng.randrange(256)
+            rgba_raw[i + 1] = rng.randrange(256)
+            rgba_raw[i + 2] = rng.randrange(256)
+            rgba_raw[i + 3] = 255
+        opaque_rgba = self.tmp_dir / "opaque_rgba.png"
+        opaque_rgba.write_bytes(pymupdf.Pixmap(pymupdf.csRGB, 240, 160, bytes(rgba_raw), True).tobytes("png"))
+
+        # 6. Wide low-color diagram PNG (600x400 with alternating 2-color vertical stripes) -> resized PNG
+        diag_raw = bytearray(600 * 400 * 3)
+        for y in range(400):
+            row_off = y * 600 * 3
+            for x in range(600):
+                c = 20 if ((x + y) % 2 == 0) else 235
+                diag_raw[row_off + x * 3 : row_off + x * 3 + 3] = bytes((c, c, 240))
+        wide_diag = self.tmp_dir / "wide_diag.png"
+        wide_diag.write_bytes(pymupdf.Pixmap(pymupdf.csRGB, 600, 400, bytes(diag_raw), False).tobytes("png"))
+
+        spec_path = self.tmp_dir / "opt_spec.json"
+        spec_path.write_text(
+            json.dumps(
+                {
+                    "items": [
+                        {"path": str(photo_png)},
+                        {"path": str(alpha_png)},
+                        {"path": str(gray_png)},
+                        {"path": str(cmyk_jpg)},
+                        {"path": str(opaque_rgba)},
+                        {"path": str(wide_diag)},
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        out_dir = self.tmp_dir / "opt_out"
+        out_json = self.tmp_dir / "opt_res.json"
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(SRC_DIR / "extract_assets.py"),
+                "--mode",
+                "optimize-images",
+                "--spec",
+                str(spec_path),
+                "--out-dir",
+                str(out_dir),
+                "--out-json",
+                str(out_json),
+                "--quality",
+                "90",
+                "--max-width",
+                "200",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        res = json.loads(out_json.read_text(encoding="utf-8"))["results"]
+        self.assertEqual(len(res), 6)
+
+        # Photo PNG -> JPEG resized to 200px
+        self.assertEqual(res[0]["mime"], "image/jpeg")
+        self.assertIsNotNone(res[0]["out_file"])
+        self.assertEqual(pymupdf.Pixmap(res[0]["out_file"]).width, 200)
+        self.assertLess(res[0]["final_len"], res[0]["orig_len"])
+
+        # Transparent PNG -> kept PNG (cannot convert transparent to JPEG)
+        self.assertEqual(res[1]["mime"], "image/png")
+
+        # Tiny grayscale PNG -> untouched (out_file is None)
+        self.assertEqual(res[2]["mime"], "image/png")
+        self.assertIsNone(res[2]["out_file"])
+
+        # CMYK JPEG -> processed safely as JPEG without error
+        self.assertEqual(res[3]["mime"], "image/jpeg")
+
+        # Opaque RGBA rich photo -> stripped alpha & compressed to JPEG
+        self.assertEqual(res[4]["mime"], "image/jpeg")
+        self.assertLess(res[4]["final_len"], res[4]["orig_len"])
+
+        # Wide 2-color diagram PNG -> resized down to 200px & kept lossless PNG
+        self.assertEqual(res[5]["mime"], "image/png")
+        self.assertIsNotNone(res[5]["out_file"])
+        self.assertEqual(pymupdf.Pixmap(res[5]["out_file"]).width, 200)
+        self.assertLess(res[5]["final_len"], res[5]["orig_len"])
+
+
 if __name__ == "__main__":
     unittest.main()

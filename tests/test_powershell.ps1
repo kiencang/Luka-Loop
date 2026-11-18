@@ -1,12 +1,18 @@
 <#
 .SYNOPSIS
-    Zero-dependency Windows PowerShell 5.1 unit & integration test suite for luka-loop tools\.
+    Zero-dependency PowerShell 5.1 & 7+ unit & integration test suite for luka-loop tools\.
 .DESCRIPTION
-    Tests tools\_path_guards.ps1, tools\extract_pdf_assets.ps1 (plus extract_assets.exe),
-    tools\pdf_fallback_tools.ps1, and tools\html_packager.ps1 without requiring system Python or Pester.
+    Tests tools\_path_guards.ps1, tools\extract_pdf_assets.ps1, tools\pdf_fallback_tools.ps1,
+    tools\html_packager.ps1, and bundled extract_assets.exe without requiring system Python,
+    System.Drawing, WinRT, or Pester.
 #>
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+$script:CurrentPsExe = (Get-Process -Id $PID).Path
+if (-not $script:CurrentPsExe) {
+    $script:CurrentPsExe = if ($PSVersionTable.PSEdition -eq 'Core') { 'pwsh.exe' } else { 'powershell.exe' }
+}
 
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $toolsDir = Join-Path $repoRoot 'tools'
@@ -87,13 +93,119 @@ function New-MinimalVectorPdf {
     [System.IO.File]::WriteAllText($OutPath, $sb.ToString(), [System.Text.Encoding]::ASCII)
 }
 
+function Write-PngChunk {
+    param(
+        [System.IO.Stream]$Stream,
+        [string]$Type,
+        [byte[]]$Data
+    )
+    $lenBytes = [BitConverter]::GetBytes([uint32]$Data.Length)
+    if ([BitConverter]::IsLittleEndian) { [Array]::Reverse($lenBytes) }
+    $Stream.Write($lenBytes, 0, 4)
+
+    $typeBytes = [System.Text.Encoding]::ASCII.GetBytes($Type)
+    $Stream.Write($typeBytes, 0, 4)
+    if ($Data.Length -gt 0) { $Stream.Write($Data, 0, $Data.Length) }
+
+    if (-not $script:PngCrcTable) {
+        $tbl = New-Object int64[] 256
+        for ($n = 0; $n -lt 256; $n++) {
+            [int64]$c = $n
+            for ($k = 0; $k -lt 8; $k++) {
+                if (($c -band 1) -ne 0) {
+                    $c = [int64]3988292384 -bxor ($c -shr 1)
+                } else {
+                    $c = $c -shr 1
+                }
+            }
+            $tbl[$n] = $c
+        }
+        $script:PngCrcTable = $tbl
+    }
+    [int64]$crc = 4294967295
+    foreach ($b in $typeBytes) {
+        $crc = $script:PngCrcTable[($crc -bxor $b) -band 255] -bxor ($crc -shr 8)
+    }
+    foreach ($b in $Data) {
+        $crc = $script:PngCrcTable[($crc -bxor $b) -band 255] -bxor ($crc -shr 8)
+    }
+    $crc = $crc -bxor [int64]4294967295
+    $crcBytes = [BitConverter]::GetBytes([uint32]$crc)
+    if ([BitConverter]::IsLittleEndian) { [Array]::Reverse($crcBytes) }
+    $Stream.Write($crcBytes, 0, 4)
+}
+
+function New-TestPng {
+    <# Creates a valid RGB (ColorType=2) or RGBA (ColorType=6) PNG using pure .NET streams (PS 5.1 & PS 7 compatible). #>
+    param(
+        [string]$OutPath,
+        [int]$Width,
+        [int]$Height,
+        [byte]$ColorType,
+        [byte[]]$RawPixels
+    )
+    $bpp = if ($ColorType -eq 6) { 4 } else { 3 }
+    $rowBytes = $Width * $bpp
+    $scanlines = New-Object byte[] (($rowBytes + 1) * $Height)
+    for ($y = 0; $y -lt $Height; $y++) {
+        $dstOff = $y * ($rowBytes + 1)
+        $scanlines[$dstOff] = 0
+        [Array]::Copy($RawPixels, $y * $rowBytes, $scanlines, $dstOff + 1, $rowBytes)
+    }
+
+    [int64]$s1 = 1
+    [int64]$s2 = 0
+    for ($i = 0; $i -lt $scanlines.Length; $i++) {
+        $s1 = ($s1 + [int64]$scanlines[$i]) % 65521
+        $s2 = ($s2 + $s1) % 65521
+    }
+    [uint32]$adler = ($s2 -shl 16) -bor $s1
+
+    $zlibMs = New-Object System.IO.MemoryStream
+    try {
+        $zlibMs.WriteByte(0x78)
+        $zlibMs.WriteByte(0x9C)
+        $ds = New-Object System.IO.Compression.DeflateStream($zlibMs, [System.IO.Compression.CompressionMode]::Compress, $true)
+        try { $ds.Write($scanlines, 0, $scanlines.Length) } finally { $ds.Dispose() }
+        $adlerBytes = [BitConverter]::GetBytes($adler)
+        if ([BitConverter]::IsLittleEndian) { [Array]::Reverse($adlerBytes) }
+        $zlibMs.Write($adlerBytes, 0, 4)
+        $idatPayload = $zlibMs.ToArray()
+    } finally {
+        $zlibMs.Dispose()
+    }
+
+    $pngMs = New-Object System.IO.MemoryStream
+    try {
+        [byte[]]$sig = 137, 80, 78, 71, 13, 10, 26, 10
+        $pngMs.Write($sig, 0, 8)
+
+        $ihdr = New-Object byte[] 13
+        $wBytes = [BitConverter]::GetBytes([uint32]$Width)
+        $hBytes = [BitConverter]::GetBytes([uint32]$Height)
+        if ([BitConverter]::IsLittleEndian) { [Array]::Reverse($wBytes); [Array]::Reverse($hBytes) }
+        [Array]::Copy($wBytes, 0, $ihdr, 0, 4)
+        [Array]::Copy($hBytes, 0, $ihdr, 4, 4)
+        $ihdr[8] = 8
+        $ihdr[9] = $ColorType
+        $ihdr[10] = 0; $ihdr[11] = 0; $ihdr[12] = 0
+        Write-PngChunk -Stream $pngMs -Type 'IHDR' -Data $ihdr
+        Write-PngChunk -Stream $pngMs -Type 'IDAT' -Data $idatPayload
+        Write-PngChunk -Stream $pngMs -Type 'IEND' -Data ([byte[]]@())
+        [System.IO.File]::WriteAllBytes($OutPath, $pngMs.ToArray())
+    } finally {
+        $pngMs.Dispose()
+    }
+}
+
 function Invoke-CliPs1 {
     param([string]$ScriptPath, [string[]]$CliArgs)
     $allArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ScriptPath) + $CliArgs
     $prevEap = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $out = (& powershell.exe @allArgs 2>&1 | Out-String)
+        $out = (& $script:CurrentPsExe @allArgs 2>&1 | Out-String -Width 4096)
+        $out = ($out -replace '\r?\n\s*\|\s+', ' ')
         $code = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $prevEap
@@ -123,6 +235,24 @@ $tmpRoot = Join-Path $env:TEMP ('luka_ps_suite_' + [guid]::NewGuid().ToString('N
 [void][System.IO.Directory]::CreateDirectory($tmpRoot)
 
 try {
+    Invoke-TestCase 'All tools\ and tests\ PowerShell scripts avoid legacy GDI+, dynamic C#, and WinRT dependencies' {
+        $psFiles = @(Get-ChildItem -LiteralPath $toolsDir -Filter '*.ps1' -File) + @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File)
+        $forbidden = @(
+            ('System' + '.Drawing'),
+            ('Add-' + 'Type'),
+            ('System.Runtime.' + 'WindowsRuntime'),
+            ('Windows.Data.' + 'Pdf')
+        )
+        foreach ($f in $psFiles) {
+            $tokens = $null; $errs = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$tokens, [ref]$errs)
+            $codeText = (($tokens | Where-Object { $_.Kind -ne 'Comment' } | ForEach-Object { $_.Text }) -join "`n")
+            foreach ($pat in $forbidden) {
+                Assert-True ($codeText -notmatch [regex]::Escape($pat)) "$($f.Name) still references PS7-incompatible API '$pat'"
+            }
+        }
+    }
+
     Invoke-TestCase 'AST syntax check for all tools\ and tests\ PowerShell scripts' {
         $psFiles = @(Get-ChildItem -LiteralPath $toolsDir -Filter '*.ps1' -File) + @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File)
         foreach ($f in $psFiles) {
@@ -235,8 +365,11 @@ try {
         [System.IO.File]::WriteAllText($specOk, $specData, (New-Object System.Text.UTF8Encoding($false)))
         $rCrop = Invoke-CliPs1 $fbPs1 @('-Action', 'CropFromJson', '-SpecJson', $specOk, '-OutDir', $cropsDir)
         Assert-Equal 0 $rCrop.ExitCode "CropFromJson failed: $($rCrop.Output)"
-        Assert-True (Test-Path -LiteralPath (Join-Path $cropsDir 'fig_trim.png')) 'fig_trim.png missing'
-        Assert-True (Test-Path -LiteralPath (Join-Path $cropsDir 'fig_raw.png')) 'fig_raw.png missing'
+        $trimFile = Join-Path $cropsDir 'fig_trim.png'
+        $rawFile = Join-Path $cropsDir 'fig_raw.png'
+        Assert-True (Test-Path -LiteralPath $trimFile -PathType Leaf) 'fig_trim.png missing'
+        Assert-True (Test-Path -LiteralPath $rawFile -PathType Leaf) 'fig_raw.png missing'
+        Assert-True ((Get-Item -LiteralPath $trimFile).Length -lt (Get-Item -LiteralPath $rawFile).Length) 'Auto-trim should produce tighter output than raw crop'
 
         # Non-locking overwrite of source image inside cropsDir
         $specOverwrite = Join-Path $fbDir 'crop_overwrite.json'
@@ -263,30 +396,19 @@ try {
         $qaDir = Join-Path $tmpRoot 'qa_cases'
         [void][System.IO.Directory]::CreateDirectory($qaDir)
 
-        # Create an opaque 240x160 noisy photo PNG (large lossless PNG -> compresses smaller as JPEG) & a 60x60 transparent PNG
-        Add-Type -AssemblyName System.Drawing
+        # Create an opaque 240x160 noisy photo PNG (compresses smaller as JPEG) & a 60x60 transparent PNG without System.Drawing
         $photoPng = Join-Path $qaDir 'photo.png'
-        $bmp = New-Object System.Drawing.Bitmap(240, 160, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
-        $bRect = New-Object System.Drawing.Rectangle(0, 0, 240, 160)
-        $bData = $bmp.LockBits($bRect, [System.Drawing.Imaging.ImageLockMode]::WriteOnly, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
-        try {
-            $byteCount = [Math]::Abs($bData.Stride) * 160
-            $pxBytes = New-Object byte[] $byteCount
-            (New-Object System.Random(42)).NextBytes($pxBytes)
-            [System.Runtime.InteropServices.Marshal]::Copy($pxBytes, 0, $bData.Scan0, $byteCount)
-        } finally {
-            $bmp.UnlockBits($bData)
-        }
-        $bmp.Save($photoPng, [System.Drawing.Imaging.ImageFormat]::Png)
-        $bmp.Dispose()
+        $photoRaw = New-Object byte[] (240 * 160 * 3)
+        (New-Object System.Random(42)).NextBytes($photoRaw)
+        New-TestPng -OutPath $photoPng -Width 240 -Height 160 -ColorType 2 -RawPixels $photoRaw
 
         $alphaPng = Join-Path $qaDir 'alpha.png'
-        $abmp = New-Object System.Drawing.Bitmap(60, 60)
-        $abmp.SetPixel(10, 10, [System.Drawing.Color]::FromArgb(120, 10, 20, 30))
-        $abmp.Save($alphaPng, [System.Drawing.Imaging.ImageFormat]::Png)
-        $abmp.Dispose()
+        $alphaRaw = New-Object byte[] (60 * 60 * 4)
+        $pxOff = (10 * 60 + 10) * 4
+        $alphaRaw[$pxOff] = 10; $alphaRaw[$pxOff + 1] = 20; $alphaRaw[$pxOff + 2] = 30; $alphaRaw[$pxOff + 3] = 120
+        New-TestPng -OutPath $alphaPng -Width 60 -Height 60 -ColorType 6 -RawPixels $alphaRaw
 
-        # Passing HTML with single quotes, <pre><code> LaTeX-like text, table-wrapper, and both images
+        # Passing HTML with single quotes, duplicate local image path, <pre><code> LaTeX-like text, table-wrapper, and both images
         $goodIn = Join-Path $qaDir 'good.html'
         $goodOut = Join-Path $qaDir 'good_out.html'
         $goodHtml = @'
@@ -299,13 +421,14 @@ try {
 <p>Inline code <code>\[0-9\]</code></p>
 <div class='table-wrapper'><table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div>
 <figure><img src='photo.png' alt='Anh mau'><figcaption>Hinh 1</figcaption></figure>
+<figure><img src='photo.png' alt='Anh mau lap'><figcaption>Hinh 1 lap</figcaption></figure>
 <figure><img src='alpha.png' alt='Anh trong suot'><figcaption>Hinh 2</figcaption></figure>
 </body></html>
 '@
         [System.IO.File]::WriteAllText($goodIn, $goodHtml, (New-Object System.Text.UTF8Encoding($false)))
         $rGood = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $goodIn, '-OutHtmlPath', $goodOut, '-MaxImageWidth', '200')
         Assert-Equal 0 $rGood.ExitCode "Good HTML failed: $($rGood.Output)"
-        Assert-True ($rGood.Output -match '\[QA PASS\] Base64 images: 2 \| Tables wrapped: 1/1') "Unexpected QA pass output: $($rGood.Output)"
+        Assert-True ($rGood.Output -match '\[QA PASS\] Base64 images: 3 \| Tables wrapped: 1/1') "Unexpected QA pass output: $($rGood.Output)"
         Assert-True ($rGood.Output -match 'Injected reader shell -> CSS, Toolbar, Script') 'Expected shell injection'
         $outText = [System.IO.File]::ReadAllText($goodOut, [System.Text.Encoding]::UTF8)
         Assert-True ($outText -match 'data:image/jpeg;base64,') 'Expected rich photo resized/compressed to JPEG'

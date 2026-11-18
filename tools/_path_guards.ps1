@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Shared path safety and reparse-point guards for Windows PowerShell 5.1 scripts in tools\.
+    Shared path safety, reparse-point guards, and extract_assets.exe runner for PowerShell 5.1 & 7+ scripts in tools\.
 .DESCRIPTION
     Dot-sourced by extract_pdf_assets.ps1, pdf_fallback_tools.ps1, and html_packager.ps1.
-    Kept in tools\ so $PSScriptRoot-based workspace root detection resolves identically.
+    Kept in tools\ so $PSScriptRoot-based workspace root and tool binary resolution remain consistent.
 #>
 
 function Test-IsReparsePoint {
@@ -121,5 +121,77 @@ function Assert-LocalNoUncPath {
                 throw "Refusing UNC/network path for ${ParamName}: $PathValue"
             }
         } catch [System.UriFormatException] {}
+    }
+}
+
+function Resolve-SafeOutDirectory {
+    <# Validates output directory path against UNC/reparse points, optionally creating it. #>
+    param(
+        [string]$OutDir,
+        [string]$ParamName = '-OutDir',
+        [switch]$Create
+    )
+    if (-not $OutDir -or -not $OutDir.Trim()) {
+        throw "$ParamName cannot be empty."
+    }
+    Assert-LocalNoUncPath -PathValue $OutDir -ParamName $ParamName
+    $outDirFull = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutDir)).TrimEnd('\', '/')
+    Assert-LocalNoUncPath -PathValue $outDirFull -ParamName $ParamName
+    Assert-SafeOutputPath -TargetPath $outDirFull -Label $ParamName -IsDirectory
+    if (Test-Path -LiteralPath $outDirFull -PathType Container) {
+        foreach ($entry in (New-Object System.IO.DirectoryInfo($outDirFull)).GetFileSystemInfos()) {
+            if (Test-IsReparsePoint -Item $entry) {
+                throw "Refusing to write into $ParamName containing symlink/junction: $($entry.FullName)"
+            }
+        }
+    } elseif ($Create) {
+        [void][System.IO.Directory]::CreateDirectory($outDirFull)
+    }
+    if (Test-Path -LiteralPath $outDirFull -PathType Container) {
+        return (Resolve-Path -LiteralPath $outDirFull).Path
+    }
+    return $outDirFull
+}
+
+function Invoke-ExtractAssetsExe {
+    <# Resolves tools\extract_assets\extract_assets.exe safely, sets UTF-8 stdio env vars, executes it, and verifies exit code. #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+    $exeDir = Join-Path $PSScriptRoot 'extract_assets'
+    $exePath = Join-Path $exeDir 'extract_assets.exe'
+    if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
+        throw "Extractor executable not found: $exePath"
+    }
+    $dirItem = Get-Item -LiteralPath $exeDir -Force -ErrorAction SilentlyContinue
+    if ($dirItem -and (Test-IsReparsePoint -Item $dirItem)) {
+        throw "Refusing to execute through symlink/junction: $exeDir"
+    }
+    $exeItem = Get-Item -LiteralPath $exePath -Force -ErrorAction SilentlyContinue
+    if ($exeItem -and (Test-IsReparsePoint -Item $exeItem)) {
+        throw "Refusing to execute symlink/junction: $exePath"
+    }
+
+    $hasCloudPlaceholders = Test-HasCloudPlaceholderFiles -DirectoryPath $exeDir
+    if ($hasCloudPlaceholders) {
+        Write-Warning "One or more files in tools\extract_assets\ are cloud placeholders (not yet downloaded offline). If execution fails, enable 'Always keep on this device' / 'Available offline' for this folder."
+    }
+
+    $prevPythonUtf8 = $env:PYTHONUTF8
+    $prevPythonIoEnc = $env:PYTHONIOENCODING
+    $exeExit = 0
+    try {
+        $env:PYTHONUTF8 = '1'
+        $env:PYTHONIOENCODING = 'utf-8'
+        & $exePath @Arguments
+        $exeExit = $LASTEXITCODE
+    } finally {
+        if ($null -eq $prevPythonUtf8) { Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue } else { $env:PYTHONUTF8 = $prevPythonUtf8 }
+        if ($null -eq $prevPythonIoEnc) { Remove-Item Env:PYTHONIOENCODING -ErrorAction SilentlyContinue } else { $env:PYTHONIOENCODING = $prevPythonIoEnc }
+    }
+    if ($exeExit -ne 0) {
+        $hint = if ($hasCloudPlaceholders) { " (Cloud placeholder files detected in tools\extract_assets\; enable 'Always keep on this device' / 'Available offline'.)" } else { "" }
+        throw "extract_assets.exe failed with exit code $exeExit$hint"
     }
 }

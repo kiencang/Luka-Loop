@@ -103,27 +103,7 @@ $absPdf = (Resolve-Path -LiteralPath $targetPdf).Path
 Assert-LocalNoUncPath -PathValue $absPdf -ParamName 'ResolvedPdf'
 Write-Output ("Resolved PDF -> {0}" -f $absPdf)
 
-if (-not $OutDir -or -not $OutDir.Trim()) {
-    throw "-OutDir cannot be empty."
-}
-$outDirFull = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutDir)).TrimEnd('\', '/')
-Assert-SafeOutputPath -TargetPath $outDirFull -Label '-OutDir' -IsDirectory
-if (Test-Path -LiteralPath $outDirFull -PathType Container) {
-    foreach ($entry in (New-Object System.IO.DirectoryInfo($outDirFull)).GetFileSystemInfos()) {
-        if (Test-IsReparsePoint -Item $entry) {
-            throw "Refusing to write into OutDir containing symlink/junction: $($entry.FullName)"
-        }
-    }
-}
-
-$exePath = Join-Path $PSScriptRoot 'extract_assets\extract_assets.exe'
-if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) {
-    throw "Extractor executable not found: $exePath"
-}
-$hasCloudPlaceholders = Test-HasCloudPlaceholderFiles -DirectoryPath (Split-Path $exePath -Parent)
-if ($hasCloudPlaceholders) {
-    Write-Warning "One or more files in tools\extract_assets\ are cloud placeholders (not yet downloaded offline). If extraction fails, enable 'Always keep on this device' / 'Available offline' for this folder."
-}
+$outDirFull = Resolve-SafeOutDirectory -OutDir $OutDir -ParamName '-OutDir'
 
 # Avoid Python argparse misinterpreting an OutDir starting with '-' as an option flag
 $cliOutDir = if ($OutDir.TrimStart().StartsWith('-')) { $outDirFull } else { $OutDir }
@@ -132,22 +112,7 @@ if ($Meta) {
     $exeArgs += '--meta'
 }
 
-$prevPythonUtf8 = $env:PYTHONUTF8
-$prevPythonIoEnc = $env:PYTHONIOENCODING
-$exeExit = 0
-try {
-    $env:PYTHONUTF8 = '1'
-    $env:PYTHONIOENCODING = 'utf-8'
-    & $exePath @exeArgs
-    $exeExit = $LASTEXITCODE
-} finally {
-    if ($null -eq $prevPythonUtf8) { Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue } else { $env:PYTHONUTF8 = $prevPythonUtf8 }
-    if ($null -eq $prevPythonIoEnc) { Remove-Item Env:PYTHONIOENCODING -ErrorAction SilentlyContinue } else { $env:PYTHONIOENCODING = $prevPythonIoEnc }
-}
-if ($exeExit -ne 0) {
-    $hint = if ($hasCloudPlaceholders) { " (Cloud placeholder files detected in tools\extract_assets\; enable 'Always keep on this device' / 'Available offline'.)" } else { "" }
-    throw "extract_assets.exe failed with exit code $exeExit$hint"
-}
+Invoke-ExtractAssetsExe -Arguments $exeArgs
 
 function Limit-ManifestWords {
     param(

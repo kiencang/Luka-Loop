@@ -17,8 +17,13 @@ if (-not (Test-Path -LiteralPath $psSuite -PathType Leaf)) {
     throw "Missing PowerShell test suite: $psSuite"
 }
 
-Write-Output '>>> Running PowerShell unit & integration suite (Zero Python)...'
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $psSuite
+$psExe = (Get-Process -Id $PID).Path
+if (-not $psExe) {
+    $psExe = if ($PSVersionTable.PSEdition -eq 'Core') { 'pwsh.exe' } else { 'powershell.exe' }
+}
+
+Write-Output ">>> Running PowerShell unit & integration suite ($psExe, Zero system Python)..."
+& $psExe -NoProfile -ExecutionPolicy Bypass -File $psSuite
 if ($LASTEXITCODE -ne 0) {
     throw "PowerShell test suite failed with exit code $LASTEXITCODE"
 }

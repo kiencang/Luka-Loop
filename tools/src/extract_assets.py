@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from dataclasses import dataclass
@@ -707,11 +708,454 @@ def _configure_utf8_stdio() -> None:
             stream.reconfigure(encoding="utf-8", errors="replace")
 
 
+_PAGE_TOKEN_SPLIT_RE = re.compile(r"[,;\s]+")
+_PAGE_RANGE_RE = re.compile(r"^(\d+)-(\d+)$")
+_INVALID_FILENAME_CHARS = set('<>:"/\\|?*')
+
+
 def _validate_dpi(value: str) -> int:
     dpi = int(value)
     if dpi < 36 or dpi > 1200:
         raise argparse.ArgumentTypeError(f"--dpi must be between 36 and 1200 (got {dpi})")
     return dpi
+
+
+def _validate_scale(value: str) -> float:
+    scale = float(value)
+    if not math.isfinite(scale) or scale < 0.5 or scale > 10.0:
+        raise argparse.ArgumentTypeError(f"--scale must be between 0.5 and 10.0 (got {value})")
+    return scale
+
+
+def _validate_quality(value: str) -> int:
+    quality = int(value)
+    if quality < 1 or quality > 100:
+        raise argparse.ArgumentTypeError(f"--quality must be between 1 and 100 (got {quality})")
+    return quality
+
+
+def _validate_max_width(value: str) -> int:
+    max_width = int(value)
+    if max_width < 0 or max_width > 10000:
+        raise argparse.ArgumentTypeError(
+            f"--max-width must be between 0 and 10000 (got {max_width})"
+        )
+    return max_width
+
+
+def _read_json_utf8(path: Path) -> object:
+    """Load a UTF-8 JSON file (accepting optional BOM)."""
+    if not path.is_file():
+        raise FileNotFoundError(f"JSON file not found: {path}")
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def _ensure_rgb_or_gray(pix: pymupdf.Pixmap) -> pymupdf.Pixmap:
+    """Convert non-gray/non-RGB pixmaps (e.g., CMYK or None colorspace) into RGB."""
+    if pix.colorspace is None or (pix.n - pix.alpha) not in (1, 3):
+        return pymupdf.Pixmap(pymupdf.csRGB, pix)
+    return pix
+
+
+def _crop_pixmap(pix: pymupdf.Pixmap, x0: int, y0: int, x1: int, y1: int) -> pymupdf.Pixmap:
+    """Copy rectangular region [x0, y0, x1, y1) from `pix` into a zero-origin Pixmap."""
+    rect = pymupdf.IRect(x0, y0, x1, y1)
+    out = pymupdf.Pixmap(pix.colorspace, rect, bool(pix.alpha))
+    out.copy(pix, rect)
+    out.set_origin(0, 0)
+    return out
+
+
+def _decode_pixel_rgb_alpha(
+    mv: memoryview, idx: int, color_n: int, has_alpha_chan: bool
+) -> tuple[int, int, int, int]:
+    """Read pixel at byte offset `idx`, un-premultiplying alpha into straight (r, g, b, a)."""
+    a = mv[idx + color_n] if has_alpha_chan else 255
+    if color_n == 1:
+        r = g = b = mv[idx]
+    else:
+        r, g, b = mv[idx], mv[idx + 1], mv[idx + 2]
+    if has_alpha_chan and 0 < a < 255:
+        half = a >> 1
+        r = min(255, (r * 255 + half) // a)
+        g = min(255, (g * 255 + half) // a)
+        b = min(255, (b * 255 + half) // a)
+    return r, g, b, a
+
+
+def _parse_page_list(raw_pages: str, total_pages: int) -> list[int]:
+    """Parse optional page filter (e.g. '2', '2,5', '[1, 3]', '2-4') into sorted 1-based pages."""
+    if total_pages < 1:
+        return []
+    cleaned = (raw_pages or "").strip().strip("[]").strip()
+    if not cleaned:
+        return list(range(1, total_pages + 1))
+
+    tokens = [tok for tok in _PAGE_TOKEN_SPLIT_RE.split(cleaned) if tok]
+    if not tokens:
+        return list(range(1, total_pages + 1))
+
+    seen: set[int] = set()
+    for tok in tokens:
+        m = _PAGE_RANGE_RE.match(tok)
+        if m:
+            start_p = int(m.group(1))
+            end_p = int(m.group(2))
+            if start_p < 1 or end_p < start_p or end_p > total_pages:
+                raise ValueError(f"Page range '{tok}' out of valid range (1..{total_pages}).")
+            seen.update(range(start_p, end_p + 1))
+        elif tok.isdigit():
+            p = int(tok)
+            if p < 1 or p > total_pages:
+                raise ValueError(f"Page number {p} out of valid range (1..{total_pages}).")
+            seen.add(p)
+        else:
+            raise ValueError(
+                f"Invalid -Pages token '{tok}'. Expected positive integers or ranges like '2,5' or '2-4'."
+            )
+    return sorted(seen)
+
+
+def render_pages(
+    pdf_path: Path, out_dir: Path, scale: float = 2.5, pages: str = ""
+) -> list[Path]:
+    """Render selected PDF pages to opaque white-background PNGs (`page_1.png`, ...)."""
+    if not pdf_path.is_file():
+        raise FileNotFoundError(f"PDF not found: {pdf_path}")
+    if not math.isfinite(scale) or scale < 0.5 or scale > 10.0:
+        raise ValueError(f"RenderScale out of safe range (0.5..10.0): {scale}")
+
+    saved: list[Path] = []
+    with pymupdf.open(pdf_path) as doc:
+        if doc.needs_pass:
+            raise RuntimeError(f"PDF is password-protected/encrypted and cannot be rendered: {pdf_path}")
+        total_pages = len(doc)
+        target_pages = _parse_page_list(pages, total_pages)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        for pno in target_pages:
+            page = doc[pno - 1]
+            target_w = max(800, int(round(page.rect.width * scale)))
+            zoom = target_w / max(1e-6, page.rect.width)
+            pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+            out_png = out_dir / f"page_{pno}.png"
+            out_png.write_bytes(pix.tobytes("png"))
+            saved.append(out_png)
+            print(f"Rendered page {pno}/{total_pages} -> {out_png} ({pix.width}px wide)")
+    return saved
+
+
+def _scan_ink_range(
+    mv: memoryview,
+    start_idx: int,
+    stop_idx: int,
+    idx_step: int,
+    color_n: int,
+    has_alpha: bool,
+    threshold: int,
+) -> bool:
+    """Return True if any sampled pixel offset in range has visible non-white ink."""
+    for idx in range(start_idx, stop_idx, idx_step):
+        if has_alpha:
+            a = mv[idx + color_n]
+            if a <= 10:
+                continue
+            if a < 255:
+                half = a >> 1
+                if color_n == 1:
+                    if min(255, (mv[idx] * 255 + half) // a) < threshold:
+                        return True
+                elif (
+                    min(255, (mv[idx] * 255 + half) // a) < threshold
+                    or min(255, (mv[idx + 1] * 255 + half) // a) < threshold
+                    or min(255, (mv[idx + 2] * 255 + half) // a) < threshold
+                ):
+                    return True
+                continue
+        if color_n == 1:
+            if mv[idx] < threshold:
+                return True
+        elif mv[idx] < threshold or mv[idx + 1] < threshold or mv[idx + 2] < threshold:
+            return True
+    return False
+
+
+def _find_ink_bounds(
+    pix: pymupdf.Pixmap, threshold: int = 247, step: int = 2
+) -> tuple[int, int, int, int] | None:
+    """Return inclusive grid bounds (min_x, min_y, max_x, max_y) of non-white visible ink."""
+    w, h = pix.width, pix.height
+    if w <= 0 or h <= 0:
+        return None
+    inc = max(1, step)
+    color_n = pix.n - pix.alpha
+    has_alpha = bool(pix.alpha)
+    n = pix.n
+    stride = w * n
+    mv = pix.samples_mv
+
+    ys = list(range(0, h, inc))
+    xs = list(range(0, w, inc))
+
+    min_y: int | None = None
+    for y in ys:
+        row_off = y * stride
+        if _scan_ink_range(mv, row_off, row_off + stride, inc * n, color_n, has_alpha, threshold):
+            min_y = y
+            break
+    if min_y is None:
+        return None
+
+    max_y = min_y
+    for y in reversed(ys):
+        if y <= min_y:
+            break
+        row_off = y * stride
+        if _scan_ink_range(mv, row_off, row_off + stride, inc * n, color_n, has_alpha, threshold):
+            max_y = y
+            break
+
+    col_step = inc * stride
+    min_x = xs[0]
+    for x in xs:
+        col_off = x * n
+        if _scan_ink_range(
+            mv, min_y * stride + col_off, max_y * stride + col_off + 1, col_step, color_n, has_alpha, threshold
+        ):
+            min_x = x
+            break
+
+    max_x = min_x
+    for x in reversed(xs):
+        if x <= min_x:
+            break
+        col_off = x * n
+        if _scan_ink_range(
+            mv, min_y * stride + col_off, max_y * stride + col_off + 1, col_step, color_n, has_alpha, threshold
+        ):
+            max_x = x
+            break
+
+    return min_x, min_y, max_x, max_y
+
+
+def _trim_white_margins(
+    pix: pymupdf.Pixmap, threshold: int = 247, pad: int = 6
+) -> pymupdf.Pixmap:
+    """Crop excess white/transparent borders around visible ink with padding."""
+    bounds = _find_ink_bounds(pix, threshold=threshold, step=2)
+    if bounds is None:
+        return pix
+    min_x, min_y, max_x, max_y = bounds
+    x0 = max(0, min_x - pad)
+    y0 = max(0, min_y - pad)
+    x1 = min(pix.width - 1, max_x + pad)
+    y1 = min(pix.height - 1, max_y + pad)
+    if x0 == 0 and y0 == 0 and x1 == pix.width - 1 and y1 == pix.height - 1:
+        return pix
+    return _crop_pixmap(pix, x0, y0, x1 + 1, y1 + 1)
+
+
+def _validate_bare_filename(name: str, label: str = "out_name") -> str:
+    """Ensure `name` is a single safe filename with no directory separators or traversal."""
+    trimmed = (name or "").strip()
+    if (
+        not trimmed
+        or trimmed in (".", "..")
+        or Path(trimmed).name != trimmed
+        or any(ord(ch) < 32 or ch in _INVALID_FILENAME_CHARS for ch in trimmed)
+    ):
+        raise ValueError(
+            f"Path traversal blocked: invalid {label} '{name}' (must be a plain filename inside OutDir)"
+        )
+    return trimmed
+
+
+def _validate_crop_box(box: object, out_name: str) -> tuple[float, float, float, float]:
+    """Validate normalized [x0, y0, x1, y1] box coordinates in [0.0, 1.0] with x1 > x0, y1 > y0."""
+    if not isinstance(box, list) or len(box) != 4:
+        raise ValueError(f"Invalid crop box for '{out_name}': expected 4 numeric elements [x0, y0, x1, y1].")
+    vals: list[float] = []
+    for idx, raw in enumerate(box):
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            raise ValueError(f"Invalid crop box coordinate at index {idx} for '{out_name}'.")
+        val = float(raw)
+        if not math.isfinite(val) or val < 0.0 or val > 1.0:
+            raise ValueError(
+                f"Crop box coordinate {raw} at index {idx} out of normalized range [0.0, 1.0] for '{out_name}'."
+            )
+        vals.append(val)
+    if vals[2] <= vals[0] or vals[3] <= vals[1]:
+        raise ValueError(f"Invalid crop box {vals} for '{out_name}': require x1 > x0 and y1 > y0.")
+    return vals[0], vals[1], vals[2], vals[3]
+
+
+def crop_from_json(spec_path: Path, out_dir: Path) -> list[Path]:
+    """Crop normalized [x0, y0, x1, y1] regions defined in JSON spec with optional white-border auto-trim."""
+    raw = _read_json_utf8(spec_path)
+    if isinstance(raw, dict) and "items" in raw:
+        items = raw["items"]
+    elif isinstance(raw, list):
+        items = raw
+    elif isinstance(raw, dict):
+        items = [raw]
+    else:
+        raise ValueError(f"Crop spec JSON must be an array or object with 'items': {spec_path}")
+    if not isinstance(items, list):
+        raise ValueError(f"Invalid crop spec items list in {spec_path}")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    saved: list[Path] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("Each crop spec item must be a JSON object.")
+        out_name = _validate_bare_filename(str(item.get("out_name", "")))
+        src_raw = str(item.get("src_path") or item.get("page_png") or "").strip()
+        if not src_raw:
+            raise ValueError(f"Missing page_png/src_path in crop spec for '{out_name}'.")
+        src_path = Path(src_raw)
+        if not src_path.is_file():
+            raise FileNotFoundError(f"Source crop image not found: {src_path}")
+
+        bx0, by0, bx1, by1 = _validate_crop_box(item.get("box"), out_name)
+        pix = _ensure_rgb_or_gray(pymupdf.Pixmap(str(src_path)))
+        bw, bh = pix.width, pix.height
+        x0 = max(0, int(round(bx0 * bw)))
+        y0 = max(0, int(round(by0 * bh)))
+        x1 = min(bw, int(round(bx1 * bw)))
+        y1 = min(bh, int(round(by1 * bh)))
+        if x1 <= x0 or y1 <= y0:
+            raise ValueError(f"Invalid crop box [{bx0},{by0},{bx1},{by1}] for {out_name}")
+
+        cropped = _crop_pixmap(pix, x0, y0, x1, y1)
+        if item.get("auto_trim", True) is not False:
+            cropped = _trim_white_margins(cropped)
+
+        out_file = out_dir / out_name
+        out_file.write_bytes(cropped.tobytes("png"))
+        saved.append(out_file)
+        print(f"Cropped {out_name} -> {out_file} ({cropped.width}x{cropped.height})")
+    return saved
+
+
+def _analyze_sample_grid(pix: pymupdf.Pixmap) -> tuple[int, bool]:
+    """Sample a ~60x60 pixel grid to count distinct 15-bit quantized colors and alpha presence."""
+    w, h = pix.width, pix.height
+    if w <= 0 or h <= 0:
+        return 0, False
+    step_x = max(1, int(round(w / 60.0)))
+    step_y = max(1, int(round(h / 60.0)))
+    color_n = pix.n - pix.alpha
+    has_alpha_chan = bool(pix.alpha)
+    n = pix.n
+    mv = pix.samples_mv
+
+    colors: set[int] = set()
+    has_alpha = False
+    for y in range(0, h, step_y):
+        row_off = y * w
+        for x in range(0, w, step_x):
+            idx = (row_off + x) * n
+            r, g, b, a = _decode_pixel_rgb_alpha(mv, idx, color_n, has_alpha_chan)
+            if a < 250:
+                has_alpha = True
+            q = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3)
+            colors.add(q)
+    return len(colors), has_alpha
+
+
+def _optimize_single_image(
+    img_path: Path, out_dir: Path, index: int, quality: int, max_width: int
+) -> dict:
+    """Analyze, resize if wider than `max_width`, and selectively JPEG/PNG compress one image."""
+    if not img_path.is_file():
+        raise FileNotFoundError(f"Image file not found: {img_path}")
+
+    orig_bytes = img_path.read_bytes()
+    orig_len = len(orig_bytes)
+    orig_mime = "image/jpeg" if img_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
+
+    pix = _ensure_rgb_or_gray(pymupdf.Pixmap(str(img_path)))
+    distinct_colors, has_alpha = _analyze_sample_grid(pix)
+    is_rich_photo = distinct_colors >= 200
+
+    work_pix = pix
+    was_resized = False
+    if max_width > 0 and pix.width > max_width:
+        new_w = max_width
+        new_h = max(1, int(round(pix.height * (max_width / float(pix.width)))))
+        work_pix = pymupdf.Pixmap(pix, new_w, new_h, None)
+        was_resized = True
+
+    if is_rich_photo and not has_alpha:
+        jpg_pix = pymupdf.Pixmap(work_pix, 0) if work_pix.alpha else work_pix
+        jpg_bytes = jpg_pix.tobytes("jpeg", jpg_quality=quality)
+        if len(jpg_bytes) < orig_len and (was_resized or len(jpg_bytes) <= int(orig_len * 0.85)):
+            out_file = out_dir / f"opt_{index}.jpg"
+            out_file.write_bytes(jpg_bytes)
+            return {
+                "path": str(img_path),
+                "out_file": str(out_file),
+                "mime": "image/jpeg",
+                "orig_len": orig_len,
+                "final_len": len(jpg_bytes),
+            }
+
+    if was_resized and orig_mime == "image/png":
+        png_bytes = work_pix.tobytes("png")
+        if len(png_bytes) < orig_len:
+            out_file = out_dir / f"opt_{index}.png"
+            out_file.write_bytes(png_bytes)
+            return {
+                "path": str(img_path),
+                "out_file": str(out_file),
+                "mime": "image/png",
+                "orig_len": orig_len,
+                "final_len": len(png_bytes),
+            }
+
+    return {
+        "path": str(img_path),
+        "out_file": None,
+        "mime": orig_mime,
+        "orig_len": orig_len,
+        "final_len": orig_len,
+    }
+
+
+def optimize_images_batch(
+    spec_path: Path,
+    out_dir: Path,
+    out_json_path: Path,
+    quality: int = 90,
+    max_width: int = 1400,
+) -> dict:
+    """Optimize a batch of local PNG/JPEG files referenced by `spec_path` and write metadata to `out_json_path`."""
+    if quality < 1 or quality > 100:
+        raise ValueError(f"JpegQuality out of valid range (1..100): {quality}")
+    if max_width < 0 or max_width > 10000:
+        raise ValueError(f"MaxImageWidth out of valid range (0..10000): {max_width}")
+
+    raw = _read_json_utf8(spec_path)
+    items = raw["items"] if isinstance(raw, dict) and "items" in raw else raw
+    if not isinstance(items, list):
+        raise ValueError(f"Optimize spec JSON must be an array or object with 'items': {spec_path}")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_json_path.parent.mkdir(parents=True, exist_ok=True)
+
+    results: list[dict] = []
+    for idx, entry in enumerate(items):
+        raw_path = entry["path"] if isinstance(entry, dict) else entry
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise ValueError(f"Missing image path at spec index {idx}")
+        results.append(
+            _optimize_single_image(Path(raw_path), out_dir, idx, quality, max_width)
+        )
+
+    payload = {"results": results}
+    out_json_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return payload
 
 
 def extract_images(
@@ -800,19 +1244,68 @@ def extract_images(
     return saved
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     _configure_utf8_stdio()
-    ap = argparse.ArgumentParser(description="Layout-aware figure image extractor from PDF")
-    ap.add_argument("pdf", type=Path)
-    ap.add_argument("--out-dir", type=Path, required=True)
-    ap.add_argument("--dpi", type=_validate_dpi, default=180)
-    ap.add_argument(
-        "--meta",
-        action="store_true",
-        help="Write manifest.json mapping extracted images to captions and context",
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument(
+        "--mode",
+        choices=("extract", "render-pages", "crop-json", "optimize-images"),
+        default=None,
     )
-    args = ap.parse_args()
-    extract_images(args.pdf, args.out_dir, args.dpi, write_meta=args.meta)
+    known, rest = pre.parse_known_args(raw_argv)
+    mode = known.mode or "extract"
+
+    if mode == "extract":
+        ap = argparse.ArgumentParser(
+            description="Layout-aware figure image extractor & PDF/image utility (PyMuPDF)"
+        )
+        ap.add_argument(
+            "--mode",
+            choices=("extract", "render-pages", "crop-json", "optimize-images"),
+            default="extract",
+            help="Operation mode (default: extract)",
+        )
+        ap.add_argument("pdf", type=Path)
+        ap.add_argument("--out-dir", type=Path, required=True)
+        ap.add_argument("--dpi", type=_validate_dpi, default=180)
+        ap.add_argument(
+            "--meta",
+            action="store_true",
+            help="Write manifest.json mapping extracted images to captions and context",
+        )
+        args = ap.parse_args(rest)
+        extract_images(args.pdf, args.out_dir, args.dpi, write_meta=args.meta)
+    elif mode == "render-pages":
+        ap = argparse.ArgumentParser(description="Render PDF pages to PNG images")
+        ap.add_argument("pdf", type=Path)
+        ap.add_argument("--out-dir", type=Path, required=True)
+        ap.add_argument("--scale", type=_validate_scale, default=2.5)
+        ap.add_argument("--pages", type=str, default="")
+        args = ap.parse_args(rest)
+        render_pages(args.pdf, args.out_dir, scale=args.scale, pages=args.pages)
+    elif mode == "crop-json":
+        ap = argparse.ArgumentParser(description="Crop PNG regions from JSON spec with optional auto-trim")
+        ap.add_argument("--spec", type=Path, required=True)
+        ap.add_argument("--out-dir", type=Path, required=True)
+        args = ap.parse_args(rest)
+        crop_from_json(args.spec, args.out_dir)
+    else:
+        ap = argparse.ArgumentParser(description="Batch-analyze, resize, and optimize PNG/JPEG images")
+        ap.add_argument("--spec", type=Path, required=True)
+        ap.add_argument("--out-dir", type=Path, required=True)
+        ap.add_argument("--out-json", type=Path, required=True)
+        ap.add_argument("--quality", type=_validate_quality, default=90)
+        ap.add_argument("--max-width", type=_validate_max_width, default=1400)
+        args = ap.parse_args(rest)
+        optimize_images_batch(
+            args.spec,
+            args.out_dir,
+            args.out_json,
+            quality=args.quality,
+            max_width=args.max_width,
+        )
 
 
 if __name__ == "__main__":

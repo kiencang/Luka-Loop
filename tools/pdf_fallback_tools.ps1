@@ -1,8 +1,8 @@
 <#
 .SYNOPSIS
-    Pure Windows PowerShell 5.1 PDF Fallback Renderer & Auto-Trim Image Cropper (Zero Python / Zero External Tools).
+    PowerShell 5.1 & 7+ PDF Fallback Renderer & Auto-Trim Image Cropper (delegates imaging to extract_assets.exe / PyMuPDF).
 .DESCRIPTION
-    Uses built-in WinRT Windows.Data.Pdf.PdfDocument + System.Drawing for scanned PDFs or manual figure cropping:
+    Uses bundled extract_assets.exe (PyMuPDF) for scanned PDFs or manual figure cropping (zero System.Drawing / WinRT):
       -Action RenderPages  : Render PDF pages to high-DPI PNGs (page_1.png, page_2.png, ...)
       -Action CropFromJson : Crop figure regions specified as normalized [x0,y0,x1,y1] boxes in JSON, with optional white-border auto-trim
 #>
@@ -20,6 +20,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 $pathGuardsScript = Join-Path $PSScriptRoot '_path_guards.ps1'
 $pathGuardsItem = Get-Item -LiteralPath $pathGuardsScript -Force -ErrorAction SilentlyContinue
@@ -31,221 +32,23 @@ if ((($pathGuardsItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint)
 }
 . $pathGuardsScript
 
-$script:WinRtLoaded = $false
-$script:AsTaskOpMethod = $null
-$script:AsTaskActionMethod = $null
-
-function Ensure-WinRtPdf {
-    if ($script:WinRtLoaded) { return }
-    Add-Type -AssemblyName System.Runtime.WindowsRuntime
-    [void][Windows.Data.Pdf.PdfDocument, Windows.Data.Pdf, ContentType = WindowsRuntime]
-    [void][Windows.Data.Pdf.PdfPageRenderOptions, Windows.Data.Pdf, ContentType = WindowsRuntime]
-    [void][Windows.Storage.Streams.IRandomAccessStream, Windows.Storage.Streams, ContentType = WindowsRuntime]
-    [void][Windows.Storage.Streams.InMemoryRandomAccessStream, Windows.Storage.Streams, ContentType = WindowsRuntime]
-
-    $methods = [System.WindowsRuntimeSystemExtensions].GetMethods()
-    $script:AsTaskOpMethod = ($methods | Where-Object {
-        $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
-    })[0]
-    $script:AsTaskActionMethod = ($methods | Where-Object {
-        $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncAction'
-    })[0]
-    $script:WinRtLoaded = $true
-}
-
-function Await-WinRtOp {
-    param($WinRtOp, [Type]$ResultType)
-    $netTask = $script:AsTaskOpMethod.MakeGenericMethod($ResultType).Invoke($null, @($WinRtOp))
-    $netTask.Wait() | Out-Null
-    return $netTask.Result
-}
-
-function Await-WinRtAction {
-    param($WinRtAction)
-    $netTask = $script:AsTaskActionMethod.Invoke($null, @($WinRtAction))
-    $netTask.Wait() | Out-Null
-}
-
-function Resolve-RenderPageList {
-    <# Parses optional -Pages spec (e.g. "2", "2,5", "[2, 5]", "2-4") into sorted unique 1-based page numbers. #>
-    param(
-        [string]$RawPages,
-        [int]$TotalPages
-    )
-    if ($TotalPages -lt 1) { return @() }
-    if (-not $RawPages -or -not $RawPages.Trim()) {
-        return @(1..$TotalPages)
-    }
-
-    $cleaned = $RawPages.Trim().Trim('[', ']').Trim()
-    if (-not $cleaned) {
-        return @(1..$TotalPages)
-    }
-
-    $seen = New-Object 'System.Collections.Generic.HashSet[int]'
-    $tokens = @($cleaned -split '[,\s;]+' | Where-Object { $_ -ne '' })
-    if ($tokens.Count -eq 0) {
-        return @(1..$TotalPages)
-    }
-
-    foreach ($tok in $tokens) {
-        if ($tok -match '^(\d+)-(\d+)$') {
-            $startP = [int]$Matches[1]
-            $endP = [int]$Matches[2]
-            if ($startP -lt 1 -or $endP -lt $startP -or $endP -gt $TotalPages) {
-                throw "Page range '$tok' out of valid range (1..$TotalPages)."
-            }
-            for ($p = $startP; $p -le $endP; $p++) {
-                [void]$seen.Add($p)
-            }
-        } elseif ($tok -match '^\d+$') {
-            $p = [int]$tok
-            if ($p -lt 1 -or $p -gt $TotalPages) {
-                throw "Page number $p out of valid range (1..$TotalPages)."
-            }
-            [void]$seen.Add($p)
-        } else {
-            throw "Invalid -Pages token '$tok'. Expected positive integers or ranges like '2,5' or '2-4'."
-        }
-    }
-
-    $sorted = New-Object 'System.Collections.Generic.List[int]' ($seen)
-    $sorted.Sort()
-    return @($sorted)
-}
-
 function Invoke-RenderPages {
     param([string]$Pdf, [string]$DestDir, [double]$RenderScale, [string]$PageFilter = '')
     if ($RenderScale -lt 0.5 -or $RenderScale -gt 10.0) {
         throw "RenderScale out of safe range (0.5..10.0): $RenderScale"
     }
     Assert-LocalNoUncPath -PathValue $Pdf -ParamName '-PdfPath'
-    Assert-LocalNoUncPath -PathValue $DestDir -ParamName '-OutDir'
     if (-not $Pdf -or -not (Test-Path -LiteralPath $Pdf -PathType Leaf)) { throw "PDF not found: $Pdf" }
     $absPdf = (Resolve-Path -LiteralPath $Pdf).Path
     Assert-LocalNoUncPath -PathValue $absPdf -ParamName '-PdfPath'
-    $destFull = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($DestDir))
-    Assert-LocalNoUncPath -PathValue $destFull -ParamName '-OutDir'
-    Assert-SafeOutputPath -TargetPath $destFull -Label '-OutDir' -IsDirectory
-    if (-not (Test-Path -LiteralPath $destFull -PathType Container)) { [void][System.IO.Directory]::CreateDirectory($destFull) }
-    $absDest = (Resolve-Path -LiteralPath $destFull).Path
+    $absDest = Resolve-SafeOutDirectory -OutDir $DestDir -ParamName '-OutDir' -Create
 
-    Ensure-WinRtPdf
-    $pdfFs = $null
-    $ras = $null
-    $pdfDoc = $null
-    try {
-        $pdfFs = [System.IO.File]::OpenRead($absPdf)
-        $ras = [System.IO.WindowsRuntimeStreamExtensions]::AsRandomAccessStream($pdfFs)
-        $pdfDoc = Await-WinRtOp ([Windows.Data.Pdf.PdfDocument]::LoadFromStreamAsync($ras)) ([Windows.Data.Pdf.PdfDocument])
-        $count = [int]$pdfDoc.PageCount
-        $targetPages = Resolve-RenderPageList -RawPages $PageFilter -TotalPages $count
-
-        foreach ($p in $targetPages) {
-            $page = $pdfDoc.GetPage([uint32]($p - 1))
-            $mem = New-Object Windows.Storage.Streams.InMemoryRandomAccessStream
-            $inStream = $null
-            try {
-                $opts = New-Object Windows.Data.Pdf.PdfPageRenderOptions
-                $opts.DestinationWidth = [uint32][Math]::Max(800, [Math]::Round($page.Size.Width * $RenderScale))
-                Await-WinRtAction ($page.RenderToStreamAsync($mem, $opts))
-                $mem.Seek(0)
-                $inStream = [System.IO.WindowsRuntimeStreamExtensions]::AsStreamForRead($mem)
-                $outPng = Join-Path $absDest ("page_{0}.png" -f $p)
-                Assert-SafeOutputPath -TargetPath $outPng -Label 'RenderPageOutput'
-                $fs = [System.IO.File]::Create($outPng)
-                try { $inStream.CopyTo($fs) } finally { $fs.Dispose() }
-                Write-Output ("Rendered page {0}/{1} -> {2} ({3}px wide)" -f $p, $count, $outPng, $opts.DestinationWidth)
-            } finally {
-                if ($inStream) { $inStream.Dispose() }
-                $mem.Dispose()
-                if ($page -is [System.IDisposable]) { $page.Dispose() }
-            }
-        }
-    } finally {
-        if ($pdfDoc -is [System.IDisposable]) { $pdfDoc.Dispose() }
-        $pdfDoc = $null
-        if ($ras) { $ras.Dispose() }
-        if ($pdfFs) { $pdfFs.Dispose() }
+    $scaleStr = $RenderScale.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    $exeArgs = @('--mode', 'render-pages', $absPdf, '--out-dir', $absDest, '--scale', $scaleStr)
+    if ($PageFilter -and $PageFilter.Trim()) {
+        $exeArgs += @('--pages', $PageFilter)
     }
-}
-
-function Ensure-TrimHelper {
-    if ('PdfFallbackTrimHelper' -as [type]) { return }
-    Add-Type -AssemblyName System.Drawing
-    Add-Type -ReferencedAssemblies System.Drawing -TypeDefinition @'
-using System;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
-
-public static class PdfFallbackTrimHelper {
-    public static int[] FindInkBounds(Bitmap bmp, int threshold, int step) {
-        int w = bmp.Width;
-        int h = bmp.Height;
-        Rectangle rect = new Rectangle(0, 0, w, h);
-        BitmapData data = bmp.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-        try {
-            int stride = data.Stride;
-            int absStride = Math.Abs(stride);
-            byte[] buf = new byte[absStride * h];
-            if (stride > 0) {
-                Marshal.Copy(data.Scan0, buf, 0, buf.Length);
-            } else {
-                for (int y = 0; y < h; y++) {
-                    IntPtr rowPtr = IntPtr.Add(data.Scan0, y * stride);
-                    Marshal.Copy(rowPtr, buf, y * absStride, w * 4);
-                }
-            }
-
-            int minX = w, minY = h, maxX = -1, maxY = -1;
-            int inc = step > 0 ? step : 2;
-            for (int y = 0; y < h; y += inc) {
-                int rowOff = y * absStride;
-                for (int x = 0; x < w; x += inc) {
-                    int idx = rowOff + (x * 4);
-                    byte b = buf[idx];
-                    byte g = buf[idx + 1];
-                    byte r = buf[idx + 2];
-                    byte a = buf[idx + 3];
-                    if (a > 10 && (r < threshold || g < threshold || b < threshold)) {
-                        if (x < minX) minX = x;
-                        if (x > maxX) maxX = x;
-                        if (y < minY) minY = y;
-                        if (y > maxY) maxY = y;
-                    }
-                }
-            }
-            return new int[] { minX, minY, maxX, maxY };
-        } finally {
-            bmp.UnlockBits(data);
-        }
-    }
-}
-'@
-}
-
-function Trim-WhiteMargins {
-    param([System.Drawing.Bitmap]$Bmp, [int]$Threshold = 247, [int]$Pad = 6)
-    Ensure-TrimHelper
-    $w = $Bmp.Width
-    $h = $Bmp.Height
-    $bounds = [PdfFallbackTrimHelper]::FindInkBounds($Bmp, $Threshold, 2)
-    $minX = $bounds[0]; $minY = $bounds[1]; $maxX = $bounds[2]; $maxY = $bounds[3]
-    if ($maxX -lt $minX -or $maxY -lt $minY) {
-        return $Bmp
-    }
-    $x0 = [Math]::Max(0, $minX - $Pad)
-    $y0 = [Math]::Max(0, $minY - $Pad)
-    $x1 = [Math]::Min($w - 1, $maxX + $Pad)
-    $y1 = [Math]::Min($h - 1, $maxY + $Pad)
-    if ($x0 -eq 0 -and $y0 -eq 0 -and $x1 -eq ($w - 1) -and $y1 -eq ($h - 1)) {
-        return $Bmp
-    }
-    $rect = New-Object System.Drawing.Rectangle($x0, $y0, ($x1 - $x0 + 1), ($y1 - $y0 + 1))
-    $trimmed = $Bmp.Clone($rect, $Bmp.PixelFormat)
-    $Bmp.Dispose()
-    return $trimmed
+    Invoke-ExtractAssetsExe -Arguments $exeArgs
 }
 
 function Get-AllowedCropInputRoots {
@@ -421,50 +224,42 @@ function Resolve-CropBoxCoords {
 function Invoke-CropFromJson {
     param([string]$JsonFile, [string]$DestDir)
     Assert-LocalNoUncPath -PathValue $JsonFile -ParamName '-SpecJson'
-    Assert-LocalNoUncPath -PathValue $DestDir -ParamName '-OutDir'
     if (-not $JsonFile -or -not (Test-Path -LiteralPath $JsonFile -PathType Leaf)) { throw "Spec JSON not found: $JsonFile" }
-    Add-Type -AssemblyName System.Drawing
-    $destFull = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($DestDir))
-    Assert-LocalNoUncPath -PathValue $destFull -ParamName '-OutDir'
-    Assert-SafeOutputPath -TargetPath $destFull -Label '-OutDir' -IsDirectory
-    if (-not (Test-Path -LiteralPath $destFull -PathType Container)) { [void][System.IO.Directory]::CreateDirectory($destFull) }
-    $absDest = (Resolve-Path -LiteralPath $destFull).Path
+    $absDest = Resolve-SafeOutDirectory -OutDir $DestDir -ParamName '-OutDir' -Create
     $absJson = (Resolve-Path -LiteralPath $JsonFile).Path
     Assert-LocalNoUncPath -PathValue $absJson -ParamName '-SpecJson'
     $absJsonDir = Split-Path $absJson -Parent
     $allowedInputRoots = Get-AllowedCropInputRoots -JsonDir $absJsonDir -DestDir $absDest
     $spec = Get-Content -LiteralPath $absJson -Raw -Encoding UTF8 | ConvertFrom-Json
 
+    $resolvedItems = New-Object 'System.Collections.Generic.List[object]'
     foreach ($item in @($spec)) {
         $srcPng = Resolve-SafeCropInputFile -RawPagePath ([string]$item.page_png) -AllowedRoots $allowedInputRoots
-        $outFile = Resolve-SafeCropOutFile -DestDir $absDest -OutName ([string]$item.out_name)
+        $null = Resolve-SafeCropOutFile -DestDir $absDest -OutName ([string]$item.out_name)
         $box = Resolve-CropBoxCoords -Box $item.box -OutName ([string]$item.out_name)
-        $srcBytes = [System.IO.File]::ReadAllBytes($srcPng)
-        $srcMs = New-Object System.IO.MemoryStream(, $srcBytes)
-        $bmp = [System.Drawing.Bitmap]::FromStream($srcMs)
-        $cropped = $null
-        try {
-            $bw = $bmp.Width
-            $bh = $bmp.Height
-            $x0 = [int][Math]::Max(0, [Math]::Round($box[0] * $bw))
-            $y0 = [int][Math]::Max(0, [Math]::Round($box[1] * $bh))
-            $x1 = [int][Math]::Min($bw, [Math]::Round($box[2] * $bw))
-            $y1 = [int][Math]::Min($bh, [Math]::Round($box[3] * $bh))
-            if ($x1 -le $x0 -or $y1 -le $y0) {
-                throw "Invalid crop box [$($box -join ',')] for $($item.out_name)"
-            }
-            $rect = New-Object System.Drawing.Rectangle($x0, $y0, ($x1 - $x0), ($y1 - $y0))
-            $cropped = $bmp.Clone($rect, $bmp.PixelFormat)
-            if ($item.auto_trim -ne $false) {
-                $cropped = Trim-WhiteMargins -Bmp $cropped
-            }
-            $cropped.Save($outFile, [System.Drawing.Imaging.ImageFormat]::Png)
-            Write-Output ("Cropped {0} -> {1} ({2}x{3})" -f $item.out_name, $outFile, $cropped.Width, $cropped.Height)
-        } finally {
-            if ($cropped) { $cropped.Dispose() }
-            $bmp.Dispose()
-            $srcMs.Dispose()
-        }
+        [void]$resolvedItems.Add(@{
+            src_path  = $srcPng
+            out_name  = ([string]$item.out_name).Trim()
+            box       = @($box[0], $box[1], $box[2], $box[3])
+            auto_trim = ($item.auto_trim -ne $false)
+        })
+    }
+
+    if ($resolvedItems.Count -eq 0) {
+        return
+    }
+
+    $tempBase = if ($env:TEMP -and $env:TEMP.Trim()) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+    $tmpDir = Join-Path $tempBase ("luka_crop_" + [Guid]::NewGuid().ToString("N"))
+    Assert-SafeOutputPath -TargetPath $tmpDir -Label 'TempCropDir' -IsDirectory
+    [void][System.IO.Directory]::CreateDirectory($tmpDir)
+    try {
+        $resolvedSpecPath = Join-Path $tmpDir 'crop_resolved.json'
+        $payloadJson = ConvertTo-Json -InputObject ([pscustomobject]@{ items = $resolvedItems.ToArray() }) -Depth 6 -Compress
+        [System.IO.File]::WriteAllText($resolvedSpecPath, $payloadJson, (New-Object System.Text.UTF8Encoding($false)))
+        Invoke-ExtractAssetsExe -Arguments @('--mode', 'crop-json', '--spec', $resolvedSpecPath, '--out-dir', $absDest)
+    } finally {
+        Remove-Item -LiteralPath $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
