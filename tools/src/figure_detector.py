@@ -74,6 +74,7 @@ class DetectorConfig:
     max_page_drawings: int = 200000
     dense_drawing_downsample_threshold: int = 2500
     dense_drawing_grid_pt: float = 6.0
+    max_clustered_drawings: int = 12000
     # Phase 4: Caption linking & sibling propagation
     caption_below_max_gap: float = 64.0
     caption_below_bridge_gap: float = 96.0
@@ -803,6 +804,13 @@ def _filter_drawings(
         # Keep axis-aligned straight lines (width == 0 or height == 0) for flowchart connectors & plot axes.
         if r.is_infinite or r.x1 < r.x0 or r.y1 < r.y0 or (r.width <= 0.0 and r.height <= 0.0):
             continue
+        if (
+            r.x1 < ctx.page_rect.x0
+            or r.x0 > ctx.page_rect.x1
+            or r.y1 < ctx.page_rect.y0
+            or r.y0 > ctx.page_rect.y1
+        ):
+            continue
         if _is_page_background(r, ctx.pw, ctx.ph, cfg) or _is_full_bleed_edge_strip(r, ctx.page_rect, cfg):
             continue
         if r.height <= 4.0 and r.width >= 0.62 * ctx.pw:
@@ -1192,6 +1200,19 @@ def detect_vector_regions(
         orig_len = len(filtered)
         filtered = _downsample_dense_drawings(filtered, grid_pt=cfg.dense_drawing_grid_pt)
         ctx.log(f"vector:downsample_dense {orig_len}->{len(filtered)}")
+
+    if len(filtered) > cfg.max_clustered_drawings:
+        ctx.log(
+            f"vector:skip excessive_clustered_drawings count={len(filtered)} limit={cfg.max_clustered_drawings}"
+        )
+        pno = getattr(ctx.page, "number", 0) + 1
+        print(
+            f"WARNING: Page {pno} still has {len(filtered):,} vector drawings after downsampling "
+            f"(> {cfg.max_clustered_drawings:,} limit); skipped vector clustering on this page to prevent DoS "
+            f"(use RenderPages fallback if needed).",
+            file=sys.stderr,
+        )
+        return [], [], 0
 
     raw_clusters = ctx.page.cluster_drawings(
         drawings=filtered, x_tolerance=cfg.cluster_tol_x, y_tolerance=cfg.cluster_tol_y

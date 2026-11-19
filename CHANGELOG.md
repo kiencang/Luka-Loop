@@ -2,6 +2,11 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.10] - 2026-11-20
+### Fixed
+- Chỉnh sửa SI dịch, ở nhánh bảo toàn layout, thuộc phần đặt dấu ngắt tại vị trí vắt trang;
+- Vá sơ hở xử lý vector (v1.1.7): Thêm trần an toàn `max_clustered_drawings = 12000` sau khi "ép ô ly" chống DoS và loại bỏ nét vẽ ngoài mép trang trong `figure_detector.py`.
+
 ## [1.1.9] - 2026-11-20
 ### Fixed
 - Thêm thư mục `input` cho người dùng;
