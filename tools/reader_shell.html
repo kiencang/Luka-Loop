@@ -36,13 +36,13 @@ body[data-theme="dark"] figure img { filter: brightness(0.9) contrast(1.04); }
     <button type="button" class="rsfv-btn active" data-set-theme="light">Sáng</button>
     <button type="button" class="rsfv-btn" data-set-theme="sepia">Dịu mắt</button>
     <button type="button" class="rsfv-btn" data-set-theme="dark">Tối</button>
-    <button type="button" class="rsfv-btn" onclick="window.print()">In / PDF</button>
+    <button type="button" class="rsfv-btn" id="rsfv-print-btn">In / PDF</button>
 </div>
 <!-- SHELL_TOOLBAR_END -->
 
 <!-- SHELL_SCRIPT_START -->
 <div id="rsfv-img-lightbox" class="rsfv-lightbox" data-reader-shell="lightbox" aria-hidden="true">
-    <img src="" alt="">
+    <img alt="">
     <div class="rsfv-lightbox-cap"></div>
 </div>
 <script data-reader-shell="script">
@@ -123,10 +123,14 @@ body[data-theme="dark"] figure img { filter: brightness(0.9) contrast(1.04); }
         }
     }
 
+    var printBtn = document.getElementById('rsfv-print-btn');
+    if (printBtn) { printBtn.addEventListener('click', function () { window.print(); }); }
+
     var lb = document.getElementById('rsfv-img-lightbox'), lbImg = lb.querySelector('img'), lbCap = lb.querySelector('.rsfv-lightbox-cap');
     function closeLightbox() {
         lb.classList.remove('open');
         lb.setAttribute('aria-hidden', 'true');
+        lbImg.removeAttribute('src');
     }
     document.querySelectorAll('figure img').forEach(function (img) {
         img.title = 'Nhấp để phóng to';

@@ -409,6 +409,8 @@ try {
         # Security/validation rejections
         foreach ($badSpec in @(
             @{ label = 'traversal out_name'; obj = @(@{ page_png = $page1; box = @(0.1, 0.1, 0.5, 0.5); out_name = '..\bad.png' }); pattern = 'Path traversal blocked' },
+            @{ label = 'reserved Windows device out_name'; obj = @(@{ page_png = $page1; box = @(0.1, 0.1, 0.5, 0.5); out_name = 'CON.png' }); pattern = 'reserved/invalid Windows filename' },
+            @{ label = 'trailing dot out_name'; obj = @(@{ page_png = $page1; box = @(0.1, 0.1, 0.5, 0.5); out_name = 'fig1.png.' }); pattern = 'reserved/invalid Windows filename' },
             @{ label = 'outside page_png'; obj = @(@{ page_png = 'C:\Windows\System32\calc.exe'; box = @(0.1, 0.1, 0.5, 0.5); out_name = 'ok.png' }); pattern = 'Path traversal blocked' },
             @{ label = 'invalid box coords'; obj = @(@{ page_png = $page1; box = @(0.6, 0.1, 0.5, 0.5); out_name = 'ok.png' }); pattern = 'Invalid crop box' }
         )) {
@@ -501,18 +503,23 @@ try {
         }
         New-TestPng -OutPath $wideDiagPng -Width $wdW -Height $wdH -ColorType 2 -RawPixels $wdRaw
 
-        $optSpec = Join-Path $qaDir 'opt_spec_ps.json'
-        $optOutDir = Join-Path $qaDir 'opt_out_ps'
-        $optOutJson = Join-Path $qaDir 'opt_res_ps.json'
-        [System.IO.File]::WriteAllText($optSpec, (@{ items = @(@{ path = $grayPhotoPng }, @{ path = $wideDiagPng }) } | ConvertTo-Json -Depth 3), (New-Object System.Text.UTF8Encoding($false)))
-        $exePath = Join-Path $toolsDir 'extract_assets\extract_assets.exe'
-        $optOutLog = (& $exePath --mode optimize-images "--spec=$optSpec" "--out-dir=$optOutDir" "--out-json=$optOutJson" --quality=85 --max-width=200 2>&1 | Out-String)
-        Assert-Equal 0 $LASTEXITCODE "optimize-images grayscale/wide failed: $optOutLog"
-        $optRes = (Get-Content -LiteralPath $optOutJson -Raw -Encoding UTF8 | ConvertFrom-Json).results
-        Assert-Equal 'image/jpeg' $optRes[0].mime 'Grayscale continuous-tone photo PNG should compress to JPEG'
-        Assert-True ($optRes[0].final_len -lt $optRes[0].orig_len) 'Grayscale photo JPEG should shrink file size'
-        Assert-Equal 'image/png' $optRes[1].mime 'Wide low-color diagram PNG should stay PNG'
-        Assert-True ($null -ne $optRes[1].out_file -and $optRes[1].final_len -lt $optRes[1].orig_len) 'Wide diagram PNG should be resized and smaller'
+        $optInHtml = Join-Path $qaDir 'opt_embed_in.html'
+        $optOutHtml = Join-Path $qaDir 'opt_embed_out.html'
+        [System.IO.File]::WriteAllText(
+            $optInHtml,
+            '<!DOCTYPE html><html><head><title>Opt</title></head><body><figure><img src="gray_photo.png" alt="Grayscale photo"></figure><figure><img src="wide_diag.png" alt="Wide diagram"></figure></body></html>',
+            (New-Object System.Text.UTF8Encoding($false))
+        )
+        $rOptEmbed = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $optInHtml, '-OutHtmlPath', $optOutHtml, '-PreserveLayout', '-JpegQuality', '85', '-MaxImageWidth', '200')
+        Assert-Equal 0 $rOptEmbed.ExitCode "EmbedImages grayscale/wide failed: $($rOptEmbed.Output)"
+        Assert-True ($rOptEmbed.Output -match 'Optimized 2/2 images') "Expected both images optimized: $($rOptEmbed.Output)"
+        $optHtmlText = [System.IO.File]::ReadAllText($optOutHtml, [System.Text.Encoding]::UTF8)
+        $mGray = [regex]::Match($optHtmlText, 'src="data:image/jpeg;base64,([^"]+)" alt="Grayscale photo"')
+        Assert-True $mGray.Success 'Grayscale continuous-tone photo PNG should embed as compressed JPEG'
+        Assert-True (([Convert]::FromBase64String($mGray.Groups[1].Value)).Length -lt (Get-Item -LiteralPath $grayPhotoPng).Length) 'Grayscale photo JPEG should shrink file size'
+        $mWide = [regex]::Match($optHtmlText, 'src="data:image/png;base64,([^"]+)" alt="Wide diagram"')
+        Assert-True $mWide.Success 'Wide low-color diagram PNG should stay PNG'
+        Assert-True (([Convert]::FromBase64String($mWide.Groups[1].Value)).Length -lt (Get-Item -LiteralPath $wideDiagPng).Length) 'Wide diagram PNG should be resized and smaller'
 
         # Real LaTeX with MathJax <script> passes
         $mathOk = Join-Path $qaDir 'math_ok.html'
@@ -538,16 +545,22 @@ try {
         Assert-Equal 0 $rComment.ExitCode "Comment-safe QA HTML failed: $($rComment.Output)"
         Assert-True ($rComment.Output -match '\[QA PASS\] Base64 images: 0 \| Tables wrapped: 2/2') "Unexpected comment-safe QA output: $($rComment.Output)"
 
-        # Negative QA cases
+        # Negative QA cases (structure + security policy)
         foreach ($neg in @(
             @{ name = 'missing alt'; html = '<!DOCTYPE html><html><head></head><body><img src="photo.png"></body></html>'; pat = 'missing alt attribute' },
-            @{ name = 'unembedded img'; html = '<!DOCTYPE html><html><head></head><body><img src="missing.png" alt="x"></body></html>'; pat = 'un-embedded local' },
+            @{ name = 'unembedded img'; html = '<!DOCTYPE html><html><head></head><body><img src="missing.png" alt="x"></body></html>'; pat = 'un-embedded local.*missing\.png' },
             @{ name = 'unwrapped table'; html = '<!DOCTYPE html><html><head></head><body><table><tr><td>1</td></tr></table></body></html>'; pat = 'table-wrapper container' },
             @{ name = 'empty wrapper sibling table'; html = '<!DOCTYPE html><html><head></head><body><div class="table-wrapper"></div><table><tr><td>1</td></tr></table></body></html>'; pat = 'table-wrapper container' },
             @{ name = 'broken anchor'; html = '<!DOCTYPE html><html><head></head><body><a href="#nope">Link</a></body></html>'; pat = 'Broken internal anchor' },
             @{ name = 'commented anchor target'; html = '<!DOCTYPE html><html><head></head><body><a href="#ghost">Link</a><!-- <h2 id="ghost">Ghost</h2> --></body></html>'; pat = 'Broken internal anchor' },
             @{ name = 'latex no mathjax'; html = '<!DOCTYPE html><html><head></head><body><p>Value \(x\)</p></body></html>'; pat = 'Detected LaTeX math delimiters' },
-            @{ name = 'commented mathjax'; html = '<!DOCTYPE html><html><head><!-- <script id="MathJax-script"></script> --></head><body><p>Value \(x\)</p></body></html>'; pat = 'Detected LaTeX math delimiters' }
+            @{ name = 'commented mathjax'; html = '<!DOCTYPE html><html><head><!-- <script id="MathJax-script"></script> --></head><body><p>Value \(x\)</p></body></html>'; pat = 'Detected LaTeX math delimiters' },
+            @{ name = 'spoofed reader shell script'; html = '<!DOCTYPE html><html><head></head><body><script data-reader-shell="script">alert(1)</script></body></html>'; pat = 'Disallowed <script>' },
+            @{ name = 'iframe blocked'; html = '<!DOCTYPE html><html><head></head><body><iframe src="https://evil.example"></iframe></body></html>'; pat = 'Disallowed HTML tag' },
+            @{ name = 'inline onclick blocked'; html = '<!DOCTYPE html><html><head></head><body><button onclick="alert(1)">X</button></body></html>'; pat = 'Disallowed inline event handler' },
+            @{ name = 'javascript href blocked'; html = '<!DOCTYPE html><html><head></head><body><a href="javascript:alert(1)">Bad</a></body></html>'; pat = 'Disallowed dangerous URI' },
+            @{ name = 'external img blocked'; html = '<!DOCTYPE html><html><head></head><body><img src="https://evil.example/px.png" alt="px"></body></html>'; pat = 'Disallowed external <img> URL' },
+            @{ name = 'external css url blocked'; html = '<!DOCTYPE html><html><head><style>body{background:url(https://evil.example/a.png)}</style></head><body></body></html>'; pat = 'Disallowed external resource' }
         )) {
             $negFile = Join-Path $qaDir 'neg.html'
             [System.IO.File]::WriteAllText($negFile, $neg.html, (New-Object System.Text.UTF8Encoding($false)))
@@ -603,7 +616,9 @@ try {
                 @{ name = 'missing alt'; html = '<!DOCTYPE html><html><head></head><body><img src="x.png"></body></html>'; pat = 'missing alt attribute' },
                 @{ name = 'unembedded img'; html = '<!DOCTYPE html><html><head></head><body><img src="missing.png" alt="x"></body></html>'; pat = 'un-embedded local' },
                 @{ name = 'broken anchor'; html = '<!DOCTYPE html><html><head></head><body><a href="#bad">Link</a></body></html>'; pat = 'Broken internal anchor' },
-                @{ name = 'latex no mathjax'; html = '<!DOCTYPE html><html><head></head><body><p>Formula \(a+b\)</p></body></html>'; pat = 'Detected LaTeX math delimiters' }
+                @{ name = 'latex no mathjax'; html = '<!DOCTYPE html><html><head></head><body><p>Formula \(a+b\)</p></body></html>'; pat = 'Detected LaTeX math delimiters' },
+                @{ name = 'inline script blocked under PreserveLayout'; html = '<!DOCTYPE html><html><head></head><body><script>console.log(1)</script></body></html>'; pat = 'Disallowed <script>' },
+                @{ name = 'external img blocked under PreserveLayout'; html = '<!DOCTYPE html><html><head></head><body><img src="https://evil.example/p.png" alt="p"></body></html>'; pat = 'Disallowed external <img> URL' }
             )) {
                 [System.IO.File]::WriteAllText($plBad, $neg.html, (New-Object System.Text.UTF8Encoding($false)))
                 $rNeg = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $plBad, '-OutHtmlPath', (Join-Path $plRoot 'bad_pl_out.html'), '-PreserveLayout')

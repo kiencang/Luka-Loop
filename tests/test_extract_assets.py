@@ -759,22 +759,23 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Invalid crop box"):
             ea.crop_from_json(bad_box, crops_dir)
 
-    def test_optimize_images_batch_modes_and_cli(self) -> None:
+    def test_optimize_image_bytes_core_modes(self) -> None:
         # 1. Rich noisy photo PNG (300x200) -> resized to 200 & compressed to JPEG
         photo_png = self.tmp_dir / "photo.png"
         photo_png.write_bytes(self._make_noisy_rgb_pixmap(300, 200).tobytes("png"))
 
-        # 2. Transparent RGBA diagram (260x80) -> resized to 200 & kept as PNG with alpha
+        # 2. Transparent RGBA diagram (260x80) -> kept as PNG with alpha
         alpha_png = self.tmp_dir / "alpha.png"
         alpha_png.write_bytes(self._make_alpha_pixmap(260, 80).tobytes("png"))
 
-        # 3. Simple solid low-color grayscale PNG (60x60) -> kept untouched (out_file=None)
+        # 3. Simple solid low-color grayscale PNG (60x60) -> kept untouched
         gray_png = self.tmp_dir / "gray.png"
         gp = pymupdf.Pixmap(pymupdf.csGRAY, pymupdf.IRect(0, 0, 60, 60), False)
         gp.clear_with(220)
-        gray_png.write_bytes(gp.tobytes("png"))
+        gray_orig = gp.tobytes("png")
+        gray_png.write_bytes(gray_orig)
 
-        # 4. Opaque CMYK JPEG (260x100) -> converted to RGB safely
+        # 4. Opaque CMYK JPEG (260x100) -> converted to RGB safely & resized to 200px
         cmyk_jpg = self.tmp_dir / "cmyk.jpg"
         cmyk_buf = bytes([40, 120, 200, 10] * (260 * 100))
         cmyk_pix = pymupdf.Pixmap(pymupdf.csCMYK, 260, 100, cmyk_buf, False)
@@ -802,77 +803,39 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         wide_diag = self.tmp_dir / "wide_diag.png"
         wide_diag.write_bytes(pymupdf.Pixmap(pymupdf.csRGB, 600, 400, bytes(diag_raw), False).tobytes("png"))
 
-        spec_path = self.tmp_dir / "opt_spec.json"
-        spec_path.write_text(
-            json.dumps(
-                {
-                    "items": [
-                        {"path": str(photo_png)},
-                        {"path": str(alpha_png)},
-                        {"path": str(gray_png)},
-                        {"path": str(cmyk_jpg)},
-                        {"path": str(opaque_rgba)},
-                        {"path": str(wide_diag)},
-                    ]
-                }
-            ),
-            encoding="utf-8",
-        )
-        out_dir = self.tmp_dir / "opt_out"
-        out_json = self.tmp_dir / "opt_res.json"
-
-        proc = subprocess.run(
-            [
-                sys.executable,
-                str(SRC_DIR / "extract_assets.py"),
-                "--mode",
-                "optimize-images",
-                "--spec",
-                str(spec_path),
-                "--out-dir",
-                str(out_dir),
-                "--out-json",
-                str(out_json),
-                "--max-width",
-                "200",
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        res = json.loads(out_json.read_text(encoding="utf-8"))["results"]
-        self.assertEqual(len(res), 6)
-
         # Photo PNG -> JPEG resized to 200px
-        self.assertEqual(res[0]["mime"], "image/jpeg")
-        self.assertIsNotNone(res[0]["out_file"])
-        self.assertEqual(pymupdf.Pixmap(res[0]["out_file"]).width, 200)
-        self.assertLess(res[0]["final_len"], res[0]["orig_len"])
+        out0, mime0, orig0 = ea._optimize_image_bytes(photo_png, quality=95, max_width=200)
+        self.assertEqual(mime0, "image/jpeg")
+        self.assertEqual(pymupdf.Pixmap(out0).width, 200)
+        self.assertLess(len(out0), orig0)
 
         # Transparent PNG -> kept PNG (cannot convert transparent to JPEG)
-        self.assertEqual(res[1]["mime"], "image/png")
+        out1, mime1, _ = ea._optimize_image_bytes(alpha_png, quality=95, max_width=200)
+        self.assertEqual(mime1, "image/png")
+        self.assertTrue(pymupdf.Pixmap(out1).alpha)
 
-        # Tiny grayscale PNG -> untouched (out_file is None)
-        self.assertEqual(res[2]["mime"], "image/png")
-        self.assertIsNone(res[2]["out_file"])
+        # Tiny grayscale PNG -> untouched
+        out2, mime2, orig2 = ea._optimize_image_bytes(gray_png, quality=95, max_width=200)
+        self.assertEqual(mime2, "image/png")
+        self.assertEqual(out2, gray_orig)
+        self.assertEqual(len(out2), orig2)
 
         # CMYK JPEG -> processed safely, resized to 200px & kept as JPEG
-        self.assertEqual(res[3]["mime"], "image/jpeg")
-        self.assertIsNotNone(res[3]["out_file"])
-        self.assertEqual(pymupdf.Pixmap(res[3]["out_file"]).width, 200)
-        self.assertLess(res[3]["final_len"], res[3]["orig_len"])
+        out3, mime3, orig3 = ea._optimize_image_bytes(cmyk_jpg, quality=95, max_width=200)
+        self.assertEqual(mime3, "image/jpeg")
+        self.assertEqual(pymupdf.Pixmap(out3).width, 200)
+        self.assertLess(len(out3), orig3)
 
         # Opaque RGBA rich photo -> stripped alpha & compressed to JPEG
-        self.assertEqual(res[4]["mime"], "image/jpeg")
-        self.assertLess(res[4]["final_len"], res[4]["orig_len"])
+        out4, mime4, orig4 = ea._optimize_image_bytes(opaque_rgba, quality=95, max_width=200)
+        self.assertEqual(mime4, "image/jpeg")
+        self.assertLess(len(out4), orig4)
 
         # Wide 2-color diagram PNG -> resized down to 200px & kept lossless PNG
-        self.assertEqual(res[5]["mime"], "image/png")
-        self.assertIsNotNone(res[5]["out_file"])
-        self.assertEqual(pymupdf.Pixmap(res[5]["out_file"]).width, 200)
-        self.assertLess(res[5]["final_len"], res[5]["orig_len"])
+        out5, mime5, orig5 = ea._optimize_image_bytes(wide_diag, quality=95, max_width=200)
+        self.assertEqual(mime5, "image/png")
+        self.assertEqual(pymupdf.Pixmap(out5).width, 200)
+        self.assertLess(len(out5), orig5)
 
     def test_optimize_image_bytes_low_color_grayscale_and_resize_edges(self) -> None:
         import random
@@ -1095,6 +1058,29 @@ class TestPathGuardsModule(unittest.TestCase):
             pg.resolve_safe_crop_input_file(str(outside), roots)
         with self.assertRaisesRegex(ValueError, "Path traversal blocked"):
             pg.resolve_safe_crop_out_file(allowed_dir, "../escape.png")
+        for bad_win_name in ("CON", "con.png", "NUL.png", "aux .png", "COM1.tar.png", "lpt9.png", "fig1.png."):
+            with self.subTest(bad_win_name=bad_win_name):
+                with self.assertRaisesRegex(ValueError, "reserved/invalid Windows filename"):
+                    pg.resolve_safe_crop_out_file(allowed_dir, bad_win_name)
+        for ok_name in ("console.png", "com10.png", "fig_nul_1.png"):
+            with self.subTest(ok_name=ok_name):
+                resolved = pg.resolve_safe_crop_out_file(allowed_dir, ok_name)
+                self.assertEqual(resolved.name, ok_name)
+
+        # Verify modular split preserves lazy PyMuPDF loading on CLI import (no eager pymupdf import)
+        lazy_check = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import sys; sys.path.insert(0, r'" + str(SRC_DIR) + "'); "
+                "import extract_assets, figure_detector, image_ops; "
+                "assert 'pymupdf' not in sys.modules",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(lazy_check.returncode, 0, lazy_check.stderr)
 
         work_dir = self.tmp_dir / "work"
         (work_dir / "sub").mkdir(parents=True, exist_ok=True)
@@ -1300,6 +1286,201 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
             with self.subTest(expected=expected_rx, html=bad_html):
                 with self.assertRaisesRegex(ValueError, expected_rx):
                     hpc.run_html_qa_check(bad_html)
+
+    def test_qa_security_whitelist_and_injection_blocks(self) -> None:
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        # 1. Legitimate HTML with MathJax CDN, Google Fonts @import & <link>, SVG url(#id),
+        #    external DOI <a href>, escaped <code>, <textarea>, comments, and injected reader_shell passes
+        safe_html = (
+            "<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'>"
+            "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
+            "<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Inter&display=swap'>"
+            "<style>"
+            "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap');"
+            "/* url(https://evil.example/commented) */"
+            "body { color: #222; }"
+            "</style>"
+            '<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>'
+            "</head><body>"
+            '<p>Formula \\(x &lt; y\\) and <a href="https://doi.org/10.1016/j.buildenv.2006.11.016">DOI</a></p>'
+            '<p><a href="mailto:test@example.org">Email</a></p>'
+            '<svg width="40" height="20"><defs><linearGradient id="g1"></linearGradient></defs>'
+            '<rect width="40" height="20" style="fill: url(#g1)"></rect></svg>'
+            "<pre><code>&lt;script&gt;alert(1)&lt;/script&gt;</code></pre>"
+            '<textarea><script>evil()</script><iframe src="https://evil.example"></iframe></textarea>'
+            '<!-- <script>evil()</script><iframe src="x"></iframe><img src="https://evil.example/p.png"> -->'
+            "</body></html>"
+        )
+        with_shell, _ = hpc.inject_reader_shell(safe_html)
+        with redirect_stdout(StringIO()):
+            hpc.run_html_qa_check(with_shell, skip_table_wrapper_check=False)
+
+        # PreserveLayout mode allows cdnjs MathJax v3 CDN without reader_shell, but forbids reader_shell inline script
+        safe_pl = safe_html.replace(
+            "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+            "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js",
+        )
+        with redirect_stdout(StringIO()):
+            hpc.run_html_qa_check(safe_pl, skip_table_wrapper_check=True)
+        with self.assertRaisesRegex(ValueError, r"Disallowed <script> tag\(s\)"):
+            hpc.run_html_qa_check(with_shell, skip_table_wrapper_check=True)
+
+        # 2. Security attack payloads must ALL be blocked
+        sample_b64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        security_fail_cases = [
+            (
+                "arbitrary inline script",
+                "<!DOCTYPE html><html><head></head><body><script>alert(1)</script></body></html>",
+                r"Disallowed <script> tag\(s\)",
+            ),
+            (
+                "spoofed reader shell script attribute",
+                '<!DOCTYPE html><html><head></head><body><script data-reader-shell="script">fetch("https://evil.example")</script></body></html>',
+                r"Disallowed <script> tag\(s\)",
+            ),
+            (
+                "spoofed MathJax inline body",
+                '<!DOCTYPE html><html><head><script id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">alert(1)</script></head><body></body></html>',
+                r"Disallowed <script> tag\(s\)",
+            ),
+            (
+                "untrusted MathJax CDN domain",
+                '<!DOCTYPE html><html><head><script id="MathJax-script" src="https://evil.example/mathjax@3/es5/tex-mml-chtml.js"></script></head><body></body></html>',
+                r"Disallowed <script> tag\(s\)",
+            ),
+            (
+                "duplicate script src attribute",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" src="https://evil.example/pwn.js"></script></head><body></body></html>',
+                r"Disallowed <script> tag\(s\)",
+            ),
+            (
+                "unclosed script at EOF",
+                "<!DOCTYPE html><html><head></head><body><script>alert(1)",
+                r"Disallowed <script> tag\(s\)",
+            ),
+            (
+                "self-closing script tag",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"/></head><body></body></html>',
+                r"Disallowed <script> tag\(s\)",
+            ),
+            (
+                "svg embedded script",
+                "<!DOCTYPE html><html><head></head><body><svg><script>alert(1)</script></svg></body></html>",
+                r"Disallowed <script> tag\(s\)",
+            ),
+            (
+                "unescaped script inside pre/code",
+                "<!DOCTYPE html><html><head></head><body><pre><code><script>alert(1)</script></code></pre></body></html>",
+                r"Disallowed <script> tag\(s\)",
+            ),
+            (
+                "iframe tag",
+                '<!DOCTYPE html><html><head></head><body><iframe src="https://evil.example"></iframe></body></html>',
+                r"Disallowed HTML tag\(s\):.*<iframe>",
+            ),
+            (
+                "object/embed/base/form tags",
+                '<!DOCTYPE html><html><head><base href="https://evil.example/"></head><body><form action="https://evil.example"></form></body></html>',
+                r"Disallowed HTML tag\(s\):.*<base>.*<form>",
+            ),
+            (
+                "meta http-equiv refresh",
+                '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=https://evil.example"></head><body></body></html>',
+                r'Disallowed HTML tag\(s\):.*<meta http-equiv="refresh">',
+            ),
+            (
+                "inline onclick handler",
+                '<!DOCTYPE html><html><head></head><body><button onclick="alert(1)">Click</button></body></html>',
+                r"Disallowed inline event handler attribute\(s\):.*<button onclick>",
+            ),
+            (
+                "svg onload handler",
+                '<!DOCTYPE html><html><head></head><body><svg onload="alert(1)"></svg></body></html>',
+                r"Disallowed inline event handler attribute\(s\):.*<svg onload>",
+            ),
+            (
+                "anchor ping beacon",
+                '<!DOCTYPE html><html><head></head><body><a href="https://example.org" ping="https://evil.example/p">Link</a></body></html>',
+                r"Disallowed inline event handler attribute\(s\):.*<a ping>",
+            ),
+            (
+                "javascript URI obfuscated with entity and whitespace",
+                '<!DOCTYPE html><html><head></head><body><a href="  &#106;ava&#x09;script:alert(1)">Bad</a></body></html>',
+                r"Disallowed dangerous URI\(s\)",
+            ),
+            (
+                "data text/html URI in anchor",
+                '<!DOCTYPE html><html><head></head><body><a href="data:text/html;base64,PHNjcmlwdD4=">Bad</a></body></html>',
+                r"Disallowed dangerous URI\(s\)",
+            ),
+            (
+                "data image/svg+xml URI in img",
+                '<!DOCTYPE html><html><head></head><body><img src="data:image/svg+xml;base64,PHN2Zz4=" alt="svg"></body></html>',
+                r"Disallowed dangerous URI\(s\)",
+            ),
+            (
+                "protocol-relative UNC/SMB link",
+                '<!DOCTYPE html><html><head></head><body><a href="//evil.example/share/doc">SMB</a></body></html>',
+                r"Disallowed dangerous URI\(s\)",
+            ),
+            (
+                "external https img tracking pixel",
+                '<!DOCTYPE html><html><head></head><body><img src="https://evil.example/px.png" alt="px"></body></html>',
+                r"Disallowed external <img> URL\(s\).*https://evil\.example/px\.png",
+            ),
+            (
+                "empty img src outside lightbox",
+                '<!DOCTYPE html><html><head></head><body><img src="" alt="empty"></body></html>',
+                r"un-embedded local <img> src link\(s\): <empty src>",
+            ),
+            (
+                "img srcset exfiltration",
+                f'<!DOCTYPE html><html><head></head><body><img src="{sample_b64}" srcset="https://evil.example/x.png 1x" alt="ok"></body></html>',
+                r"Disallowed external resource reference\(s\).*srcset",
+            ),
+            (
+                "external stylesheet link outside Google Fonts",
+                '<!DOCTYPE html><html><head><link rel="stylesheet" href="https://evil.example/pwn.css"></head><body></body></html>',
+                r"Disallowed external resource reference\(s\).*https://evil\.example/pwn\.css",
+            ),
+            (
+                "CSS url exfiltration in style block with hex escape",
+                r'<!DOCTYPE html><html><head><style>body { background: \75 rl("\68 ttps://evil.example/leak"); }</style></head><body></body></html>',
+                r"Disallowed external resource reference\(s\)",
+            ),
+            (
+                "CSS url exfiltration in inline style",
+                '<!DOCTYPE html><html><head></head><body><div style="background-image: url(https://evil.example/leak)">Hi</div></body></html>',
+                r"Disallowed external resource reference\(s\)",
+            ),
+            (
+                "SVG image external href",
+                '<!DOCTYPE html><html><head></head><body><svg><image href="https://evil.example/px.png"/></svg></body></html>',
+                r"Disallowed external resource reference\(s\)",
+            ),
+        ]
+        for label, bad_html, expected_rx in security_fail_cases:
+            with self.subTest(case=label):
+                with self.assertRaisesRegex(ValueError, expected_rx):
+                    hpc.run_html_qa_check(bad_html)
+
+        # 3. Spoofed reader_shell script in draft.html must fail embed_images_and_package before writing output
+        spoof_draft = self.tmp_dir / "spoof_draft.html"
+        spoof_out = self.tmp_dir / "spoof_out.html"
+        spoof_draft.write_text(
+            '<!DOCTYPE html><html><head><title>Spoof</title></head>'
+            '<body><script data-reader-shell="script">fetch("https://evil.example")</script></body></html>',
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(ValueError, r"Disallowed <script> tag\(s\)"):
+            hpc.embed_images_and_package(
+                html_path=spoof_draft,
+                optimize_image_bytes_fn=ea._optimize_image_bytes,
+                out_html_path=str(spoof_out),
+            )
+        self.assertFalse(spoof_out.exists())
 
 
 if __name__ == "__main__":

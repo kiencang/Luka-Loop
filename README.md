@@ -26,7 +26,7 @@ Phần khó nhất đã xong! Giờ để dùng công cụ dịch, bạn chỉ v
 Giờ thì bạn chỉ việc tải file PDF rồi gõ câu lệnh kiểu như `Dịch tài liệu sang tiếng Việt.` là agent Gemini sẽ tiến hành dịch, và gửi kết quả về cả ở 2 định dạng HTML và PDF. Nếu muốn giữ sát bố cục/thiết kế gốc từng trang của PDF (slide, brochure, tạp chí nhiều cột...), hãy nêu rõ trong yêu cầu (ví dụ: `Dịch tài liệu sang tiếng Việt và bảo toàn thiết kế/layout.`).
 
 **Lưu ý**:
-- Khi làm việc với Antigravity nên chọn chế độ **Turbo** (thay vì mặc định Request Review) để không phải liên tục nhận được các câu hỏi xác nhận quyền thực thi.
+- Khi làm việc với Antigravity, bạn có thể chọn chế độ **Turbo** (thay vì mặc định Request Review) để tránh phải xác nhận lặp lại các lệnh đóng gói; tuy nhiên **chỉ nên dùng Turbo với tài liệu PDF từ nguồn tin cậy** *(với PDF lạ, nên giữ Request Review để kiểm soát lệnh thực thi)*.
 - Nếu đặt thư mục `luka-loop` bên trong vùng đồng bộ đám mây (OneDrive, Google Drive, Dropbox...), hãy bật tùy chọn giữ tệp ngoại tuyến trên máy (*Always keep on this device* / *Mirror files* / *Available offline*) để `extract_assets.exe` nạp đủ các thư viện đi kèm và tránh lồng đường dẫn quá sâu vượt giới hạn ký tự trên Windows.
 
 ## Cấu trúc dự án
@@ -38,7 +38,7 @@ Giờ thì bạn chỉ việc tải file PDF rồi gõ câu lệnh kiểu như `
   - [`pdf_fallback_tools.ps1`](./tools/pdf_fallback_tools.ps1) gọi `tools/extract_assets/extract_assets.exe` (PyMuPDF) để render trang PDF scan và cắt khung ảnh theo JSON kèm auto-trim và kiểm tra giới hạn thư mục.
   - [`html_packager.ps1`](./tools/html_packager.ps1) chuyển tiếp sang `tools/extract_assets/extract_assets.exe` để tối ưu & nhúng ảnh Base64 trong bộ nhớ (không tạo ảnh tạm trên đĩa), bơm lớp vỏ đọc [`reader_shell.html`](./tools/reader_shell.html) (hoặc bỏ qua khi bật `-PreserveLayout`), kiểm định Auto-QA, tự động đánh số chống ghi đè (`_2`, `_3`...), xuất PDF và dọn sạch `work/`.
   - [`_path_guards.ps1`](./tools/_path_guards.ps1) — Tiện ích PowerShell kiểm tra an toàn đường dẫn và gọi `extract_assets.exe` (kèm phát hiện tệp đám mây offline).
-  - [`src/`](./tools/src/) ([`extract_assets.py`](./tools/src/extract_assets.py), [`html_packager_core.py`](./tools/src/html_packager_core.py), [`path_guards.py`](./tools/src/path_guards.py)) & [`src/requirements-build.txt`](./tools/src/requirements-build.txt) — Mã nguồn Python gốc và danh sách gói ghim phiên bản dùng trên GitHub Actions (hoặc chạy [`build_extractor.ps1`](./tools/build_extractor.ps1) khi phát triển ở máy cá nhân) để biên dịch ra `extract_assets.exe` *(khi chạy dịch thuật tuyệt đối không gọi Python hệ thống)*.
+  - [`src/`](./tools/src/) ([`extract_assets.py`](./tools/src/extract_assets.py), [`figure_detector.py`](./tools/src/figure_detector.py), [`image_ops.py`](./tools/src/image_ops.py), [`html_packager_core.py`](./tools/src/html_packager_core.py), [`path_guards.py`](./tools/src/path_guards.py)) & [`src/requirements-build.txt`](./tools/src/requirements-build.txt) — Mã nguồn Python gốc và danh sách gói ghim phiên bản dùng trên GitHub Actions (hoặc chạy [`build_extractor.ps1`](./tools/build_extractor.ps1) khi phát triển ở máy cá nhân) để biên dịch ra `extract_assets.exe` *(khi chạy dịch thuật tuyệt đối không gọi Python hệ thống)*.
 - `output/` — Thư mục chứa tệp đầu ra (`*_vi.html`/`*_vi.pdf` cho bản đọc mượt mặc định; `*_layout_vi.html`/`*_layout_vi.pdf` cho bản bảo toàn thiết kế; tự động thêm `_2`, `_3`... nếu dịch lại nhiều lần cùng một file), tự động được tạo khi đóng gói và được bỏ qua bởi [`.gitignore`](./.gitignore).
 
 ## Cách công cụ xử lý ảnh
@@ -92,7 +92,7 @@ flowchart TD
 ## Cách công cụ giảm dung lượng ảnh
 Đây là phần thông tin kỹ thuật, phục vụ mục đích bảo trì là chủ yếu, người dùng có thể bỏ qua nếu không quan tâm. 
 
-Ở Bước 4, [`html_packager.ps1`](./tools/html_packager.ps1) gọi `extract_assets.exe` ([`html_packager_core.py`](./tools/src/html_packager_core.py) & [`extract_assets.py`](./tools/src/extract_assets.py)) để tối ưu từng ảnh cục bộ ngay trong RAM trước khi mã hóa Base64 nhúng vào HTML:
+Ở Bước 4, [`html_packager.ps1`](./tools/html_packager.ps1) gọi `extract_assets.exe` ([`html_packager_core.py`](./tools/src/html_packager_core.py) & [`image_ops.py`](./tools/src/image_ops.py)) để tối ưu từng ảnh cục bộ ngay trong RAM trước khi mã hóa Base64 nhúng vào HTML:
 
 ```mermaid
 flowchart TD
@@ -160,7 +160,7 @@ Công cụ này có thể được sử dụng cho mục đích nghiên cứu v�
 
 ## Giấy phép & Thành phần Bên thứ ba (License & Third-Party Notices)
 
-- **Mã nguồn gốc của `luka-loop`:** Phần kịch bản điều phối Agent, Skill, script PowerShell, lớp vỏ [`tools/reader_shell.html`](./tools/reader_shell.html) và bộ mã nguồn tự viết trong [`tools/src/`](./tools/src/) ([`extract_assets.py`](./tools/src/extract_assets.py), [`html_packager_core.py`](./tools/src/html_packager_core.py), [`path_guards.py`](./tools/src/path_guards.py)) được cấp phép theo **MIT License** — xem chi tiết tại [`LICENSE`](./LICENSE).
+- **Mã nguồn gốc của `luka-loop`:** Phần kịch bản điều phối Agent, Skill, script PowerShell, lớp vỏ [`tools/reader_shell.html`](./tools/reader_shell.html) và bộ mã nguồn tự viết trong [`tools/src/`](./tools/src/) ([`extract_assets.py`](./tools/src/extract_assets.py), [`figure_detector.py`](./tools/src/figure_detector.py), [`image_ops.py`](./tools/src/image_ops.py), [`html_packager_core.py`](./tools/src/html_packager_core.py), [`path_guards.py`](./tools/src/path_guards.py)) được cấp phép theo **MIT License** — xem chi tiết tại [`LICENSE`](./LICENSE).
 - **Bộ công cụ thực thi dựng sẵn (`tools/extract_assets/`):** Bản đóng gói portable phân phối kèm trong gói phát hành Release (`luka-loop-win-x64.zip`, biên dịch tự động qua GitHub Actions từ [`tools/build_extractor.ps1`](./tools/build_extractor.ps1)) có tích hợp các thành phần phần mềm bên thứ ba và chịu sự điều chỉnh của giấy phép tương ứng từng thành phần:
   - **PyMuPDF / MuPDF:** Cấp phép theo **AGPL-3.0**; toàn bộ mã nguồn tương ứng của công cụ thực thi được công khai đầy đủ tại [`tools/src/`](./tools/src/).
   - **Python 3.12.7:** Cấp phép theo **PSF License v2**.

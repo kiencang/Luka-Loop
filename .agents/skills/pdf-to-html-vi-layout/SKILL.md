@@ -83,10 +83,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1
     - **Tối ưu ảnh:** Ảnh chụp nhiều màu không có kênh alpha (`>= 200` cụm màu mẫu) được thử nén JPEG theo `-JpegQuality` (giữ bản nhỏ hơn `<= 85%` nếu không resize); sơ đồ ít màu hoặc có kênh alpha được giữ nguyên PNG. Ảnh vượt `-MaxImageWidth` tự co theo tỷ lệ.
     - **Cổng Auto-QA dưới `-PreserveLayout` (chạy trước khi ghi tệp ra `output\` — ném lỗi dừng chạy nếu vi phạm; khi fail KHÔNG tạo tệp đích và vẫn giữ nguyên `work\` để sửa):**
       1. HTML có đủ thẻ `<head>...</head>` và `<body>...</body>`.
-      2. `0` thẻ `<img>` trỏ tới tệp cục bộ chưa được nhúng (mọi `src` đều là `data:image/...` hoặc `http(s)://`), và mọi `<img>` đều có `alt`.
+      2. `0` thẻ `<img>` trỏ tới tệp cục bộ chưa được nhúng hoặc đường dẫn ảnh mạng ngoài (`http(s)://`) — mọi `<img>` đều phải là Base64 nội bộ và đều có thuộc tính `alt`.
       3. Cho phép `<table>` không bọc `.table-wrapper` để giữ nguyên cấu trúc bảng vừa trang.
-      4. Nếu ngoài `<pre>`/`<code>`/`<textarea>`/`<script>`/`<style>` và HTML comment xuất hiện `\(` hoặc `\[`, HTML phải có `<script ... MathJax>` trong `<head>`.
+      4. Nếu ngoài `<pre>`/`<code>`/`<textarea>`/`<script>`/`<style>` và HTML comment xuất hiện `\(` hoặc `\[`, HTML phải có thẻ `<script>` MathJax v3 CDN tin cậy (`cdn.jsdelivr.net` / `cdnjs.cloudflare.com`, thân thẻ rỗng) trong `<head>`.
       5. `0` liên kết nội bộ `href="#..."` bị gãy (đều có `id="..."` tương ứng trong DOM thật).
+      6. **An toàn HTML/DOM:** Chỉ cho phép duy nhất `<script>` MathJax CDN hợp lệ trong `<head>` (**tuyệt đối cấm mọi `<script>` nội tuyến kể cả `reader_shell.html`**); chặn `<iframe>`/`<object>`/`<embed>`/`<applet>`/`<base>`/`<form>`/`<meta http-equiv="refresh">`, thuộc tính `on*`/`srcdoc`/`ping`, URI nguy hiểm (`javascript:`, `vbscript:`, `file:`, `//...`, `data:` ngoài ảnh raster), và tài nguyên/CSS `url(...)` trỏ ra ngoài ngoài Google Fonts.
       - *Phục hồi khi QA fail:* Xem dòng báo lỗi trên stdout/stderr, mở sửa thẳng `work\draft.html` rồi chạy lại đúng lệnh Bước 4 (không chạy lại Bước 1–2).
   - **Action `HtmlToPdf`** *(xuất PDF độc lập từ HTML đã đóng gói)*:
     - CLI: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1" -Action HtmlToPdf -HtmlPath "<in.html>" [-OutPdfPath "<out.pdf>"] [-PdfTimeoutSeconds <60>] [-CleanDir "<dir>"]` *(tự tìm Microsoft Edge hoặc Chrome headless, tự đánh số `_2`, `_3`... nếu PDF đích đã tồn tại; phát `Write-Warning` và bỏ qua nếu thiếu trình duyệt)*.

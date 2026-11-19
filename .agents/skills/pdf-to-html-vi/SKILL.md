@@ -71,11 +71,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1
     - **Tự động gắn lớp vỏ tương tác (`tools\reader_shell.html`):** Trước khi chạy Auto-QA, kiểm tra tệp HTML có đủ `<head>...</head>` và `<body>...</body>`, rồi bơm idempotent các mảnh còn thiếu (CSS vỏ `rsfv-*` trước `</head>`, thanh `.rsfv-toolbar` ngay sau `<body...>`, và `#rsfv-img-lightbox` + `<script>` trước `</body>`); bỏ qua nếu HTML đã có sẵn vỏ tương tác (kể cả định dạng cũ `.reader-toolbar` / `#img-lightbox`).
     - **Tối ưu ảnh:** Ảnh chụp nhiều màu không có kênh alpha (`>= 200` cụm màu mẫu) được thử nén JPEG theo `-JpegQuality` và chỉ giữ khi nhỏ hơn bản gốc (`<= 85%` nếu không resize); sơ đồ ít màu hoặc có độ trong suốt được giữ nguyên PNG.
     - **Cổng Auto-QA (chạy trước khi ghi tệp ra `output\` — ném lỗi dừng chạy nếu vi phạm bất kỳ điều kiện nào sau đây; khi fail sẽ không tạo/ghi đè tệp đích và giữ nguyên `work\` để sửa):**
-      1. `0` thẻ `<img>` trỏ tới tệp cục bộ chưa được nhúng (mọi `src` phải là `data:image/...` hoặc `http(s)://`).
+      1. `0` thẻ `<img>` trỏ tới tệp cục bộ chưa được nhúng hoặc đường dẫn ảnh mạng ngoài (`http(s)://`) — mọi `<img>` nội dung đều phải là Base64 nội bộ (`data:image/...;base64,...`).
       2. Mọi thẻ `<img>` đều phải có thuộc tính `alt`.
       3. Mọi `<table>` đều phải nằm bên trong phần tử bọc `.table-wrapper` trong DOM thật (ngoài HTML comment / `<script>` / `<style>` / `<textarea>`).
-      4. Nếu trong văn bản ngoài `<pre>`/`<code>`/`<textarea>`/`<script>`/`<style>` và HTML comment xuất hiện `\(` hoặc `\[`, HTML phải chứa `<script ... MathJax>` bên trong `<head>`.
+      4. Nếu trong văn bản ngoài `<pre>`/`<code>`/`<textarea>`/`<script>`/`<style>` và HTML comment xuất hiện `\(` hoặc `\[`, HTML phải chứa thẻ `<script>` MathJax v3 CDN tin cậy (`cdn.jsdelivr.net` / `cdnjs.cloudflare.com`, thân thẻ rỗng) bên trong `<head>`.
       5. `0` liên kết nội bộ `href="#..."` bị gãy (đều có `id="..."` tương ứng trong DOM thật).
+      6. **An toàn HTML/DOM:** Chỉ cho phép `<script>` MathJax CDN hợp lệ trong `<head>` (và đúng script tin cậy của `tools\reader_shell.html`); chặn mọi `<script>` tự viết/giả mạo, thẻ nhúng/chuyển hướng (`<iframe>`, `<object>`, `<embed>`, `<applet>`, `<base>`, `<form>`, `<meta http-equiv="refresh">`), thuộc tính sự kiện `on*`/`srcdoc`/`ping`, URI nguy hiểm (`javascript:`, `vbscript:`, `file:`, `//...`, `data:` ngoài ảnh raster), và tài nguyên/CSS `url(...)` trỏ ra ngoài ngoài Google Fonts.
       - *Phục hồi khi QA fail:* Đọc thông báo lỗi từ stdout/stderr, mở sửa trực tiếp `work\draft.html` rồi chạy lại đúng lệnh Bước 4.
   - **Action `HtmlToPdf`** *(xuất PDF độc lập từ tệp HTML đã đóng gói trọn vẹn / self-contained)*:
     - CLI: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\html_packager.ps1" -Action HtmlToPdf -HtmlPath "<in.html>" [-OutPdfPath "<out.pdf>"] [-CleanDir "<dir>"]`

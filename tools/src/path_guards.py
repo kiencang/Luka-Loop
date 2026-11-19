@@ -16,6 +16,11 @@ from urllib.parse import unquote, urlparse
 _NON_FS_PROVIDER_RE = re.compile(r"^[A-Za-z0-9_.-]+::")
 _UNC_SCHEME_RE = re.compile(r"^(?:file://[^/]|(?:Microsoft\.PowerShell\.Core\\)?FileSystem::(?:\\\\|//)|\\\\|//)", re.IGNORECASE)
 _DEFAULT_INVALID_FILENAME_CHARS = set('<>:"/\\|?*')
+_WINDOWS_RESERVED_DEVICE_NAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{i}" for i in range(1, 10)}
+    | {f"LPT{i}" for i in range(1, 10)}
+)
 
 
 def get_repo_root() -> Path:
@@ -305,6 +310,11 @@ def resolve_safe_crop_out_file(dest_dir: Path, out_name: str, invalid_chars: set
     ):
         raise ValueError(
             f"Path traversal blocked: invalid out_name '{out_name}' (must be a plain filename inside OutDir)"
+        )
+    base_stem = name.split(".", 1)[0].rstrip(" ").upper()
+    if name.endswith(".") or base_stem in _WINDOWS_RESERVED_DEVICE_NAMES:
+        raise ValueError(
+            f"Path traversal blocked: reserved/invalid Windows filename '{out_name}' (must be a plain filename inside OutDir)"
         )
 
     norm_dest = _norm_abs_str(dest_dir)

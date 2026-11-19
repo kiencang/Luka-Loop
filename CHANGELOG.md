@@ -2,18 +2,27 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **luka-loop** sẽ được ghi lại trong file này.
 
-## [1.1.3] - 2026-11-19
+## [1.1.4] - 2026-11-19
 ### Added
-- Bổ sung nhánh khôi phục vector rời `_fallback_search_band` và `_collect_caption_fallback_vectors` trong `tools\src\extract_assets.py` để thu hồi các biểu đồ cột/thanh tách rời nằm ngay dưới hoặc trên chú thích hình bị mồ côi khi thiếu đường trục nối;
-- Mở rộng bộ kiểm thử Python `tests\test_extract_assets.py` (tăng từ 18 lên 24 ca) bao phủ tách cột/chú thích giữa đoạn văn, phân xử chú thích hai phía, nhãn trục tọa độ & ghép đa subplot, bỏ qua confetti ký tự vẽ nét/poster dày đặc, bảng chuyển đổi đơn vị mảnh, bảng tài chính kẻ ngang mở, trang scan chia dải ngang, dải tràn lề, watermark vector/raster và thanh tiêu đề có chữ đè.
+- Gia cố bảo mật HTML/DOM trong `run_html_qa_check` (`tools\src\html_packager_core.py`): whitelist `<script>` (chỉ cho phép MathJax v3 CDN rỗng thân trong `<head>` và đúng mã `tools\reader_shell.html` khi không bật `-PreserveLayout`), chặn thẻ nhúng/chuyển hướng (`<iframe>`, `<object>`, `<embed>`, `<applet>`, `<base>`, `<form>`, `<meta http-equiv="refresh">`), thuộc tính `on*`/`srcdoc`/`ping`, URI nguy hiểm (`javascript:`, `vbscript:`, `file:`, `//...`, `data:` ngoài ảnh raster), ảnh/tài nguyên/CSS `url(...)` trỏ ra ngoài ngoài Google Fonts, và liệt kê cụ thể `src` ảnh lỗi;
+- Lọc tên thiết bị dành riêng của Windows (`CON`, `PRN`, `AUX`, `NUL`, `COM1`–`COM9`, `LPT1`–`LPT9`) và tên kết thúc bằng dấu `.` trong `resolve_safe_crop_out_file` (`tools\src\path_guards.py`), kèm bộ kiểm thử bảo mật mới tại `tests\test_extract_assets.py` (25 ca) và `tests\test_powershell.ps1`.
 
 ### Changed
-- Nâng cấp bộ tách và ghép chú thích hình trong `tools\src\extract_assets.py` (`_collect_text_blocks`, `_split_dict_block`, `_is_prose_after_label`, `_is_short_axis_label`, `_match_caption_scored`, `_resolve_opposing_captions`, `_propagate_captions`, `_has_obstacle_between`, `_should_merge_candidates`): tách dòng qua ranh giới cột/giữa block, phân biệt nhãn chú thích với câu văn xuôi tham chiếu nội tuyến, hỗ trợ chú thích bên cạnh căn đáy, khoảng cách trên hình tới `64 pt` và cầu nối nhãn trục tới `78 pt`, phân xử tranh chấp khi một chú thích kẹp giữa hai hình và ghép các subplot ngăn cách bởi nhãn trục xoay `90°`/legend chung;
-- Mở rộng ngưỡng nhận diện dải minh họa nằm gọn trong ô bảng ở `_collect_raster_boxes` (`min >= 16 pt`, `max >= 100 pt`, diện tích `>= 1800 pt²`), đồng thời chuẩn hóa điều kiện kích thước cụm vector theo tỷ lệ khổ trang trong `_is_valid_vector_cluster`.
+- Tách `tools\src\extract_assets.py` thành 3 module gọn (`extract_assets.py`, `figure_detector.py`, `image_ops.py`) vẫn đóng gói thành 1 tệp `extract_assets.exe` duy nhất (giữ nguyên lazy-import PyMuPDF); bỏ `onclick` và `src=""` mặc định trong `tools\reader_shell.html`; đồng bộ `SKILL.md`, `README.md` và `THIRD_PARTY_LICENSES.md`.
+
+### Removed
+- Gỡ bỏ chế độ CLI cũ không còn sử dụng `--mode optimize-images` (`optimize_images_batch`, `_optimize_single_image`) và hàm chết `_validate_bare_filename`.
+
+## [1.1.3] - 2026-11-19
+### Added
+- Thu hồi các biểu đồ cột/thanh tách rời cạnh chú thích hình trong `tools\src\extract_assets.py` và mở rộng `tests\test_extract_assets.py` (từ 18 lên 24 ca) cho toàn bộ các ca bố cục, đồ thị và lọc nhiễu mới.
+
+### Changed
+- Nâng cấp ghép chú thích & đa khung hình trong `tools\src\extract_assets.py`: tách dòng qua ranh giới cột/giữa block, phân biệt chú thích với câu văn tham chiếu, hỗ trợ chú thích bên cạnh căn đáy, khoảng cách trên hình (`<= 64 pt`), cầu nối nhãn trục (`<= 78 pt`), phân xử chú thích hai phía, gộp nhiều subplot chung legend và giữ dải hình minh họa thấp trong ô bảng (`>= 16 pt`).
 
 ### Fixed
-- Sửa sót đồ thị khoa học và biểu đồ phân tán trong `_is_valid_vector_cluster`: dùng `_has_non_grid_detail` tránh để `find_tables` loại nhầm biểu đồ nhiều ô chứa `>= 12` nét cong/chéo, và chỉ áp dụng bộ lọc confetti ký tự nhỏ khi có `< 2` trục/khung dài (`long_parts < 2`);
-- Siết lọc dương tính giả trên tài liệu thực chiến: kiểm tra lại `_is_page_background` sau `_merge_touching` để nhận diện trang scan chia nhiều dải ngang; lọc dải tràn lề (`_is_vertical_bleed_strip`, `_is_horizontal_bleed_strip`, `_is_full_bleed_edge_strip`), dải đứng mảnh `< 36 pt`, banner rộng đầu/cuối trang (`_is_edge_ornament`), chuỗi watermark vector xám nhạt (`_is_light_gray_watermark_glyph`), watermark nền raster nằm dưới `>= 3` đoạn văn dài, thanh tiêu đề raster có chữ đè, cột/khung bảng kẻ mảnh thưa chữ, bảng tài chính kẻ ngang mở không cột dọc (`all_thin`, không nét cong/chéo) và cụm poster/công thức chữ vẽ nét `0`-từ.
+- Khắc phục sót đồ thị khoa học đa khung và biểu đồ phân tán nhiều điểm dấu (không để nhận nhầm biểu đồ có đường cong/chéo thành bảng và bảo vệ cụm có trục/khung dài);
+- Lọc mạnh dương tính giả thực chiến: trang scan chia nhiều dải ngang, dải trang trí tràn lề, banner rộng đầu/cuối trang, watermark vector/raster dưới đoạn văn, thanh tiêu đề có chữ đè, cột bảng thưa chữ, bảng tài chính kẻ ngang không cột dọc và poster/công thức chữ vẽ nét `0`-từ.
 
 ## [1.1.2] - 2026-11-19
 ### Added
