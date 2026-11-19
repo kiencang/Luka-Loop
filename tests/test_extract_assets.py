@@ -18,6 +18,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 import extract_assets as ea  # noqa: E402
+import figure_detector as fd  # noqa: E402
 import html_packager_core as hpc  # noqa: E402
 import path_guards as pg  # noqa: E402
 
@@ -33,6 +34,7 @@ class TestExtractAssetsTextAndClassification(unittest.TestCase):
             ("Fig.1a. Overview", "fig_caption"),
             ("Fig. S1: Supplementary arch", "fig_caption"),
             ("Figure A.2 — Pipeline", "fig_caption"),
+            ("Figure. A.7: Appendix diagram", "fig_caption"),
             ("Supplementary Figure 3: Detail", "fig_caption"),
             ("Extended Data Fig. 4. Results", "fig_caption"),
             ("Appendix Figure A1: Layout", "fig_caption"),
@@ -604,6 +606,119 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
         p4_figs = [f for f in meta["figures"] if f["page"] == 4]
         self.assertEqual(len(p4_figs), 1)
         self.assertTrue((p4_figs[0].get("caption") or "").startswith("Fig. 2."))
+
+    def test_layout_samples_regression(self) -> None:
+        samples_dir = REPO_ROOT / "tests" / "layout_samples"
+
+        # 1. Two-column academic journal: 6 figures (Fig 1 vector, 3 table_cell thumbnails, Fig 2, Fig 3 full caption)
+        j_out = self.tmp_dir / "out_journal"
+        ea.extract_images(samples_dir / "journal_2col_academic.pdf", j_out, dpi=96, write_meta=True)
+        j_meta = json.loads((j_out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(j_meta["scanned_pages"], [])
+        self.assertEqual(len(j_meta["figures"]), 6)
+        self.assertEqual(sum(1 for f in j_meta["figures"] if f["placement"] == "table_cell"), 3)
+        fig3 = j_meta["figures"][-1]
+        self.assertIn("Figure 3:", fig3["caption"] or "")
+        self.assertIn("ksat = 0.04 cm/s", fig3["caption"] or "")
+
+        # 2. Mixed executive magazine: 2 figures + scanned page 3 + Table 2 card rejected + full Fig 2 caption
+        m_out = self.tmp_dir / "out_mag"
+        ea.extract_images(samples_dir / "executive_magazine_mixed.pdf", m_out, dpi=96, write_meta=True)
+        m_meta = json.loads((m_out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(m_meta["scanned_pages"], [3])
+        self.assertEqual(len(m_meta["figures"]), 2)
+        self.assertIn("Figure 1:", m_meta["figures"][0]["caption"] or "")
+        self.assertIn("Figure 2:", m_meta["figures"][1]["caption"] or "")
+        self.assertIn("Page 3", m_meta["figures"][1]["caption"] or "")
+
+        # 3. Product datasheet grid: exact 3 figures (hero banner, left sidebar, and 3 pricing cards rejected)
+        d_out = self.tmp_dir / "out_datasheet"
+        ea.extract_images(samples_dir / "product_datasheet_grid.pdf", d_out, dpi=96, write_meta=True)
+        d_meta = json.loads((d_out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(d_meta["scanned_pages"], [])
+        self.assertEqual(len(d_meta["figures"]), 3)
+        self.assertEqual(
+            [f["source"] for f in d_meta["figures"]],
+            ["raster", "vector", "raster"],
+        )
+        for idx, prefix in enumerate(("Figure 1:", "Figure 2:", "Figure 3:")):
+            self.assertIn(prefix, d_meta["figures"][idx]["caption"] or "")
+
+    def test_six_phase_pipeline_features_and_debug_trace(self) -> None:
+        pdf_path = self.tmp_dir / "six_phase_features.pdf"
+        with pymupdf.open() as doc:
+            # Page 1: Two vertically stacked scientific subplots with Y-axis ticks & rotated Y-axis title ->
+            # must propagate FIG. 1 upward, merge into 1 figure, AND expand box to include Y-axis title & ticks.
+            p1 = doc.new_page(width=612, height=792)
+            p1.draw_rect(pymupdf.Rect(200, 80, 420, 210), color=(0, 0, 0), width=1.0)
+            p1.draw_line((210, 195), (410, 95), color=(0, 0, 1), width=1.2)
+            p1.draw_line((210, 175), (410, 120), color=(0, 0.6, 0), width=1.0)
+            p1.draw_line((210, 150), (410, 145), color=(0.5, 0.2, 0.8), width=1.0)
+            p1.draw_rect(pymupdf.Rect(200, 238, 420, 368), color=(0, 0, 0), width=1.0)
+            p1.draw_line((210, 355), (410, 255), color=(1, 0, 0), width=1.2)
+            p1.draw_line((210, 330), (410, 285), color=(0.8, 0.4, 0), width=1.0)
+            p1.draw_line((210, 305), (410, 300), color=(0.2, 0.5, 0.8), width=1.0)
+            for val, y in (("10", 90), ("0", 145), ("-10", 200), ("10", 248), ("0", 303), ("-10", 358)):
+                p1.insert_text((178, y), val, fontsize=8)
+            p1.insert_text((168, 195), "Energy [MeV]", fontsize=9, rotate=90)
+            p1.insert_text((168, 350), "Energy [MeV]", fontsize=9, rotate=90)
+            p1.insert_text((260, 226), "0.0  0.5  1.0", fontsize=8)
+            p1.insert_text((260, 382), "Parameter beta", fontsize=9)
+            p1.insert_text((140, 412), "FIG. 1: Stacked energy spectra across upper", fontsize=10)
+            p1.insert_text((140, 425), "and lower bands with shared deformation axis.", fontsize=10)
+
+            # Page 2: Stroked tiny-segment diagram (kept) vs strokeless filled outlined glyphs (rejected)
+            p2 = doc.new_page(width=612, height=792)
+            for row in range(8):
+                for col in range(8):
+                    x = 80 + col * 11
+                    y = 90 + row * 11
+                    p2.draw_line((x, y), (x + 7, y + 6), color=(0, 0, 0), width=0.8)
+            for row in range(8):
+                for col in range(8):
+                    x = 340 + col * 11
+                    y = 90 + row * 11
+                    p2.draw_rect(pymupdf.Rect(x, y, x + 6, y + 6), color=None, fill=(0, 0, 0))
+
+            # Page 3: Dense 8x20 heatmap grid (low word density) kept + captioned wide horizontal strip (180x22pt) kept
+            p3 = doc.new_page(width=612, height=792)
+            for r in range(8):
+                for c in range(20):
+                    cell = pymupdf.Rect(100 + c * 14, 90 + r * 14, 114 + c * 14, 104 + r * 14)
+                    shade = 0.2 + 0.6 * ((r + c) % 5) / 4.0
+                    p3.draw_rect(cell, color=(0.3, 0.3, 0.3), fill=(shade, 0.4, 1.0 - shade), width=0.4)
+            p3.insert_text((105, 86), "0  5  10  15  20", fontsize=8)
+            p3.insert_text((105, 224), "Heatmap matrix intensity", fontsize=8)
+
+            # Wide thin schematic with direct Figure caption
+            p3.draw_rect(pymupdf.Rect(110, 320, 295, 342), color=(0, 0, 0), width=1.0)
+            p3.draw_line((115, 331), (290, 331), color=(0, 0, 1), width=1.2)
+            p3.draw_circle((150, 331), 5, color=(0, 0, 0), width=0.9)
+            p3.draw_circle((255, 331), 5, color=(0, 0, 0), width=0.9)
+            p3.insert_text((110, 362), "Figure. 2: Compact 1D scattering diagram.", fontsize=10)
+            doc.save(pdf_path)
+
+        with pymupdf.open(pdf_path) as doc:
+            cands1, scan1, trace1 = fd.detect_page_figures_debug(doc[0])
+            self.assertFalse(scan1)
+            self.assertTrue(any("vector:keep:vector_figure" in t for t in trace1))
+            self.assertEqual(len(cands1), 1)
+            # Box must merge both panels (y0 <= 85..y1 >= 375) and expand left for rotated Y-axis label (x0 < 175)
+            self.assertLess(cands1[0].rect.y0, 85.0)
+            self.assertLess(cands1[0].rect.x0, 175.0)
+            self.assertGreater(cands1[0].rect.y1, 375.0)
+            ctx1 = fd.analyze_page(doc[0])
+            full_cap = fd._clean_text(ctx1.fig_captions[0].text)
+            self.assertIn("upper and lower bands", full_cap)
+
+            cands2, _, trace2 = fd.detect_page_figures_debug(doc[1])
+            self.assertEqual(len(cands2), 1)
+            self.assertLess(cands2[0].rect.x1, 220.0)
+            self.assertTrue(any("reject:outlined_glyph_confetti" in t for t in trace2))
+
+            cands3, _, _ = fd.detect_page_figures_debug(doc[2])
+            self.assertEqual(len(cands3), 2)
+            self.assertTrue(any(c.caption_idx is not None for c in cands3))
 
 
 class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):

@@ -2,6 +2,20 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **luka-loop** sẽ được ghi lại trong file này.
 
+## [1.1.5] - 2026-11-19
+### Added
+- Viết lại hoàn chỉnh `tools\src\figure_detector.py` theo kiến trúc **6 pha tuyến tính** (thuần PyMuPDF): tập trung cấu hình ngưỡng tại `DetectorConfig`, phân tích trang một lần vào `PageContext` (cache lazy `get_page_tables()`), phân loại minh bạch qua `FilterDecision(keep, reason)` và bổ sung API truy vết `detect_page_figures_debug(page)`;
+- Tự động nới khung biểu đồ vector/hybrid để ôm trọn số chia trục, tiêu đề trục Y xoay 90° và tiêu đề trục X (`_expand_plot_axis_labels`), kèm nối dòng chú thích bị ngắt khối (`_merge_caption_continuations`) và hỗ trợ mẫu `Figure. A.7:`;
+- Mở rộng bộ kiểm thử hồi quy tại `tests\test_extract_assets.py` (27 ca) và `tests\test_powershell.ps1` (14 ca) bao phủ toàn bộ 3 mẫu `tests\layout_samples\` và các tính năng mới của pipeline 6 pha.
+
+### Changed
+- Tinh chỉnh thuật toán ghép chú thích và gộp đa panel dựa trên đối chứng định lượng **4.999 trang IBM DocLayNet** (`scientific_articles` tăng IoU≥0.50 F1 từ `70.1%` lên `84.8%`, Loose F1 từ `79.3%` lên `91.6%` với Recall `98.3%`; toàn bộ 6 thể loại đạt IoU≥0.50 F1 `62.9%` / Loose F1 `68.7%`): ưu tiên chú thích trên/dưới hơn cạnh bên, áp dụng bất biến chống nuốt (`_violates_merge_invariants`) và bỏ xích gộp các khối không chú thích rời nhau.
+
+### Fixed
+- Khắc phục lỗi chia cắt đồ thị khoa học xếp chồng (không để số trục Y / tiêu đề trục xoay 90° bị nhận nhầm thành ô bảng, nhận diện nhãn toán/hóa học ngắn và cho phép dải sơ đồ ngang có chú thích `>= 18 pt`);
+- Cứu biểu đồ vector vẽ nét nhỏ và heatmap nhiều ô ít chữ khỏi bị bộ lọc chữ vẽ nét (`outlined_glyph_confetti`) hoặc `find_tables()` loại nhầm;
+- Loại sạch dương tính giả UI/bố cục hiện đại (Chrome/Skia/WeasyPrint): hộp bo góc nhiều đoạn Bézier, hero banner đầu trang, khung sidebar trái, thẻ giá/KPI có bullet căn cột + pill badge và bảng bo góc chứa `Table X` bên trong.
+
 ## [1.1.4] - 2026-11-19
 ### Added
 - Gia cố bảo mật HTML/DOM trong `run_html_qa_check` (`tools\src\html_packager_core.py`): whitelist `<script>` (chỉ cho phép MathJax v3 CDN rỗng thân trong `<head>` và đúng mã `tools\reader_shell.html` khi không bật `-PreserveLayout`), chặn thẻ nhúng/chuyển hướng (`<iframe>`, `<object>`, `<embed>`, `<applet>`, `<base>`, `<form>`, `<meta http-equiv="refresh">`), thuộc tính `on*`/`srcdoc`/`ping`, URI nguy hiểm (`javascript:`, `vbscript:`, `file:`, `//...`, `data:` ngoài ảnh raster), ảnh/tài nguyên/CSS `url(...)` trỏ ra ngoài ngoài Google Fonts, và liệt kê cụ thể `src` ảnh lỗi;

@@ -836,6 +836,44 @@ try {
             Assert-True ($rBadPg.ExitCode -ne 0) "Invalid -Pages '$badPages' should fail"
         }
     }
+
+    Invoke-TestCase 'Bundled layout_samples PDFs extract exact figures, captions, and zero UI/banner false positives' {
+        $samplesDir = Join-Path $PSScriptRoot 'layout_samples'
+        $extractPs1 = Join-Path $toolsDir 'extract_pdf_assets.ps1'
+        $sampleOut = Join-Path $tmpRoot 'layout_samples_out'
+
+        # 1. journal_2col_academic.pdf: 6 figures (3 table_cell thumbnails + Fig 1..3 with full multi-line Fig 3 caption)
+        $jAssets = Join-Path $sampleOut 'journal'
+        $rJ = Invoke-CliPs1 $extractPs1 @('-PdfPath', (Join-Path $samplesDir 'journal_2col_academic.pdf'), '-OutDir', $jAssets, '-Dpi', '96', '-Meta')
+        Assert-Equal 0 $rJ.ExitCode "journal_2col_academic failed: $($rJ.Output)"
+        $mJ = Get-Content (Join-Path $jAssets 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        Assert-Equal 6 $mJ.figures.Count 'journal_2col_academic figure count'
+        Assert-Equal 0 $mJ.scanned_pages.Count 'journal_2col_academic scanned pages'
+        $jThumbCount = @($mJ.figures | Where-Object { $_.placement -eq 'table_cell' }).Count
+        Assert-Equal 3 $jThumbCount 'journal_2col_academic table_cell thumbnails'
+        Assert-True ($mJ.figures[5].caption -match 'ksat = 0\.04 cm/s') 'journal_2col_academic full Fig 3 multi-line caption'
+
+        # 2. executive_magazine_mixed.pdf: 2 figures + scanned page 3 + Table 2 card rejected + full Fig 2 caption
+        $mAssets = Join-Path $sampleOut 'magazine'
+        $rM = Invoke-CliPs1 $extractPs1 @('-PdfPath', (Join-Path $samplesDir 'executive_magazine_mixed.pdf'), '-OutDir', $mAssets, '-Dpi', '96', '-Meta')
+        Assert-Equal 0 $rM.ExitCode "executive_magazine_mixed failed: $($rM.Output)"
+        $mM = Get-Content (Join-Path $mAssets 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        Assert-Equal 2 $mM.figures.Count 'executive_magazine_mixed figure count'
+        Assert-Equal 1 $mM.scanned_pages.Count 'executive_magazine_mixed scanned page count'
+        Assert-Equal 3 $mM.scanned_pages[0] 'executive_magazine_mixed scanned page number'
+        Assert-True ($mM.figures[1].caption -match 'Page 3') 'executive_magazine_mixed full Fig 2 multi-line caption'
+
+        # 3. product_datasheet_grid.pdf: exact 3 figures (hero banner, left sidebar, and 3 pricing cards rejected)
+        $dAssets = Join-Path $sampleOut 'datasheet'
+        $rD = Invoke-CliPs1 $extractPs1 @('-PdfPath', (Join-Path $samplesDir 'product_datasheet_grid.pdf'), '-OutDir', $dAssets, '-Dpi', '96', '-Meta')
+        Assert-Equal 0 $rD.ExitCode "product_datasheet_grid failed: $($rD.Output)"
+        $mD = Get-Content (Join-Path $dAssets 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        Assert-Equal 3 $mD.figures.Count 'product_datasheet_grid figure count'
+        Assert-Equal 0 $mD.scanned_pages.Count 'product_datasheet_grid scanned pages'
+        Assert-True ($mD.figures[0].caption -match '^Figure 1:') 'datasheet Fig 1 caption'
+        Assert-True ($mD.figures[1].caption -match '^Figure 2:') 'datasheet Fig 2 caption'
+        Assert-True ($mD.figures[2].caption -match '^Figure 3:') 'datasheet Fig 3 caption'
+    }
 } finally {
     Remove-Item -LiteralPath $tmpRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
