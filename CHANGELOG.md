@@ -2,6 +2,16 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.7] - 2026-11-19
+### Changed
+- Tinh chỉnh chuyên sâu thuật toán tách ảnh tài liệu khoa học trong `tools\src\figure_detector.py` dựa trên phân tích thực nghiệm từ bộ dữ liệu **IBM DocLayNet** (`validation` split và đối chứng chéo trên `test` split): nâng điểm `IoU≥0.50 F1` nhóm `scientific_articles` trên tập `DocLayNet-val` (944 trang, 388 hình) lên **`97.4%`** (`Loose F1 = 99.0%`, `0` dương tính giả văn bản/bảng/công thức) và trên tập `DocLayNet-test` độc lập (943 trang, 359 hình) từ `84.8%` lên **`93.9%`** (`Loose F1 = 96.6%`, `Recall = 99.2%`);
+- Bổ sung cơ chế gom lưới không gian tuyến tính $O(n)$ (`_downsample_dense_drawings`) trước khi phân cụm cho các đồ thị vector siêu dày (`> 2.500` đến `200.000` nét vẽ/trang như đồ thị quỹ đạo hỗn loạn 3D), nhận diện lưới giản đồ Feynman/sơ đồ vật lý nhiều thành phần nhỏ (`24–41 pt`) trong vùng trống phía trên chú thích (`_is_in_caption_above_zone`), và giữ nguyên từng đồ thị độc lập đối với ma trận nhiều hàng × 2 cột đồ thị lớn không đánh nhãn `(a)/(b)` (`_is_unlabeled_two_col_plot_grid`).
+
+### Fixed
+- Khắc phục lỗi hai subplot xếp chồng trên bài báo 2 cột bị `_is_table_row_pair` / `_row_aligned_text_indices` chặn gộp do quét sang đoạn văn xuôi ở cột bên cạnh hoặc các ký hiệu hạt/toán học ngắn (`<= 2` ký tự);
+- Khấu trừ token số chia vạch trục (`_TICK_TOKEN_RE`) trên đồ thị nhiều đường cong để không loại nhầm hình nhiều subplot có trên `150` số chia trục ở bộ lọc `uncaptioned_high_words` và `prose_box`;
+- Mở rộng `_PROSE_AFTER_NUM_RE` chặn dòng văn xuôi ngắt dòng bắt đầu bằng `Figure <số> that/where/when...`, sửa `_has_obstacle_between` không nhận nhầm trục X dưới đáy đồ thị trên thành đường kẻ ngăn cách trang, và nâng ngưỡng cầu nối nhãn trục X (`caption_below_bridge_gap`: `78 → 96 pt`).
+
 ## [1.1.6] - 2026-11-19
 ### Security
 - **Chặn PowerShell Double-Quote Injection & Indirect Prompt Injection:** Bổ sung ranh giới dữ liệu không tin cậy vào `AGENTS.md` và cả hai `SKILL.md`, chuyển toàn bộ mẫu tham số đường dẫn PowerShell sang ngoặc đơn `'...'` (không bung `$(...)`/`$var` từ tên tệp PDF) và lọc ký tự điều khiển / chuỗi giả mạo `=== MANIFEST JSON START/END ===` trên stdout;

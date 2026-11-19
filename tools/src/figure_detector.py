@@ -71,19 +71,21 @@ class DetectorConfig:
     min_vector_dim: float = 42.0
     max_vector_words: int = 200
     max_uncaptioned_vector_words: int = 80
-    max_page_drawings: int = 25000
+    max_page_drawings: int = 200000
+    dense_drawing_downsample_threshold: int = 2500
+    dense_drawing_grid_pt: float = 6.0
     # Phase 4: Caption linking & sibling propagation
     caption_below_max_gap: float = 64.0
-    caption_below_bridge_gap: float = 78.0
-    caption_above_max_gap: float = 64.0
+    caption_below_bridge_gap: float = 96.0
+    caption_above_max_gap: float = 68.0
     caption_side_max_gap_x: float = 35.0
     caption_side_align_y: float = 35.0
-    sibling_col_max_gap: float = 56.0
+    sibling_col_max_gap: float = 68.0
     sibling_row_max_gap: float = 42.0
     # Phase 5: Candidate merging
     touch_pad: float = 2.0
-    same_caption_merge_gap: float = 64.0
-    same_caption_row_merge_gap: float = 68.0
+    same_caption_merge_gap: float = 68.0
+    same_caption_row_merge_gap: float = 74.0
     touching_merge_gap: float = 4.0
 
 
@@ -111,6 +113,10 @@ _PROSE_AFTER_NUM_RE = re.compile(
     r"indicates|lists|provides|gives|reports|reveals|confirms|suggests|highlights|describes|details|"
     r"evaluates|examines|explains|explores|contains|includes|measures|outlines|plots|records|reflects|"
     r"tracks|traces|is|was|are|were|has|have|can|may|will|"
+    r"that|where|when|which|while|whereas|because|since|if|unless|although|though|after|before|until|"
+    r"during|between|among|within|without|under|over|above|below|through|across|along|around|near|"
+    r"against|despite|could|would|should|must|might|had|does|did|do|we|it|they|this|these|those|our|"
+    r"their|its|here|there|also|only|still|already|clearly|further|again|"
     r"cho\s+thấy|minh\s+họa|mô\s+tả|trình\s+bày|tóm\s+tắt|so\s+sánh|chỉ\s+ra|thể\s+hiện)\b",
 )
 _PLURAL_CAPTION_NOUN_RE = re.compile(
@@ -670,12 +676,14 @@ def _is_short_axis_label(tb: TextBlock, vertical_ok: bool = False) -> bool:
     """Return True for compact axis titles, rotated Y labels, tick-value rows, or subpanel markers."""
     if tb.kind != "text":
         return False
-    if vertical_ok and tb.rect.width <= 28.0 and tb.rect.height >= 1.8 * tb.rect.width:
-        return True
     cleaned = _clean_text(tb.text)
     if not cleaned or _SECTION_HEADING_RE.match(cleaned):
         return False
     tokens = cleaned.split()
+    if vertical_ok and tb.rect.width <= 32.0 and (
+        tb.rect.height >= 1.4 * tb.rect.width or (tb.rect.height <= 42.0 and len(tokens) <= 8)
+    ):
+        return True
     if tb.rect.height <= 30.0 and len(tokens) <= 4 and not cleaned.endswith("."):
         return True
     # Narrow inline math/chemical/axis label whose subscripts/superscripts split into extra short tokens
@@ -755,9 +763,16 @@ def detect_raster_regions(
                     for tb in ctx.text_blocks
                     if tb.kind == "text"
                     and tb.word_count >= 10
-                    and (tb.rect & r).get_area() > 0.5 * tb.rect.get_area()
+                    and (tb.rect & r).get_area() >= 0.5 * min(tb.rect.get_area(), r.get_area())
                 ]
-                if len(prose_blocks) >= 3 and sum(tb.word_count for tb in prose_blocks) >= 85:
+                is_single_col_prose = (
+                    _count_words_inside(r, ctx.word_rects) >= 85
+                    and any(
+                        (tb.rect & r).get_area() >= 0.75 * max(1.0, r.get_area()) and tb.word_count >= 85
+                        for tb in prose_blocks
+                    )
+                )
+                if (len(prose_blocks) >= 3 and sum(tb.word_count for tb in prose_blocks) >= 85) or is_single_col_prose:
                     ctx.log(f"raster:skip prose_backdrop_watermark {r}")
                     continue
         kept.append(r)
@@ -927,6 +942,29 @@ def _is_financial_numeric_table(
     return lines >= 3
 
 
+def _is_in_caption_above_zone(rect: pymupdf.Rect, ctx: PageContext) -> bool:
+    """Return True if `rect` sits in an unobstructed figure zone above a `fig_caption`."""
+    for cap in ctx.fig_captions:
+        cr = cap.rect
+        if rect.y1 > cr.y0 + 4.0 or (cr.y0 - rect.y0) > min(0.75 * ctx.ph, 540.0):
+            continue
+        pad_x = 120.0 if cr.width < 0.50 * ctx.pw else 60.0
+        if rect.x0 < cr.x0 - pad_x or rect.x1 > cr.x1 + pad_x:
+            continue
+        span = pymupdf.Rect(min(rect.x0, cr.x0), rect.y1, max(rect.x1, cr.x1), cr.y0)
+        blocked = any(
+            tb.rect != cr
+            and _horiz_overlap(tb.rect, span) >= 25.0
+            and rect.y1 - 2.0 <= tb.rect.y0
+            and tb.rect.y1 <= cr.y0 - 2.0
+            and (tb.kind in ("fig_caption", "tab_caption") or (tb.kind == "text" and tb.word_count >= 10))
+            for tb in ctx.text_blocks
+        )
+        if not blocked:
+            return True
+    return False
+
+
 def _evaluate_vector_cluster(
     ctx: PageContext,
     rect: pymupdf.Rect,
@@ -943,13 +981,29 @@ def _evaluate_vector_cluster(
     has_fig_cap = cap_idx is not None and cap_side != "side"
     dim_scale = 1.0 if has_fig_cap else max(1.0, min(ctx.pw, ctx.ph) / 792.0)
     min_dim = cfg.min_vector_dim * dim_scale
+
+    has_raster = any(rect.intersects(rr) for rr in raster_rects)
+    inside_drawings = [dr for dr in filtered_drawings if rect.contains(dr["rect"])]
+    inside_rects = [dr["rect"] for dr in inside_drawings]
+    has_curves_12 = _has_non_grid_detail(filtered_drawings, rect, min_count=12)
+    has_curves_2 = has_curves_12 or _has_non_grid_detail(filtered_drawings, rect, min_count=2)
+    has_curves_1 = has_curves_2 or _has_non_grid_detail(filtered_drawings, rect, min_count=1)
+
     is_captioned_strip = (
         has_fig_cap
         and min(rect.width, rect.height) >= 18.0
         and max(rect.width, rect.height) >= 95.0
         and rect.get_area() >= 1800.0
     )
-    if (rect.width < min_dim or rect.height < min_dim) and not is_captioned_strip:
+    is_caption_zone_subdiagram = (
+        min(rect.width, rect.height) >= 24.0
+        and max(rect.width, rect.height) >= 38.0
+        and rect.get_area() >= 1100.0
+        and has_curves_2
+        and len(inside_rects) >= 4
+        and _is_in_caption_above_zone(rect, ctx)
+    )
+    if (rect.width < min_dim or rect.height < min_dim) and not (is_captioned_strip or is_caption_zone_subdiagram):
         return FilterDecision(False, "reject:too_small")
     if _is_edge_ornament(rect, ctx.page_rect, ctx.fig_captions):
         return FilterDecision(False, "reject:edge_ornament")
@@ -962,17 +1016,17 @@ def _evaluate_vector_cluster(
         return FilterDecision(False, "reject:inner_table_caption")
 
     txt = ctx.page.get_text("text", clip=rect).strip()
-    word_count = len(txt.split())
-    if word_count > cfg.max_vector_words:
+    tokens = txt.split()
+    word_count = len(tokens)
+    non_tick_word_count = (
+        sum(1 for tok in tokens if not _TICK_TOKEN_RE.match(tok))
+        if has_curves_12
+        else word_count
+    )
+    if non_tick_word_count > cfg.max_vector_words:
         return FilterDecision(False, "reject:excessive_words")
-    if word_count > cfg.max_uncaptioned_vector_words and not has_fig_cap:
+    if non_tick_word_count > cfg.max_uncaptioned_vector_words and not has_fig_cap:
         return FilterDecision(False, "reject:uncaptioned_high_words")
-
-    has_raster = any(rect.intersects(rr) for rr in raster_rects)
-    inside_drawings = [dr for dr in filtered_drawings if rect.contains(dr["rect"])]
-    inside_rects = [dr["rect"] for dr in inside_drawings]
-    has_curves_12 = _has_non_grid_detail(filtered_drawings, rect, min_count=12)
-    has_curves_1 = has_curves_12 or _has_non_grid_detail(filtered_drawings, rect, min_count=1)
 
     if word_count >= 6:
         has_tab_cap = _match_caption(rect, ctx.tab_captions, ctx.text_blocks, cfg) is not None
@@ -1007,10 +1061,18 @@ def _evaluate_vector_cluster(
             prose_inside = [
                 tb
                 for tb in ctx.text_blocks
-                if tb.kind == "text" and (tb.rect & rect).get_area() > 0.5 * tb.rect.get_area()
+                if tb.kind == "text"
+                and (tb.rect & rect).get_area() > 0.5 * tb.rect.get_area()
+                and not _is_short_axis_label(tb, vertical_ok=True)
             ]
-            long_blocks = [tb for tb in prose_inside if tb.word_count >= 12]
-            is_prose_callout = len(long_blocks) >= 2 or any(tb.word_count >= 40 for tb in long_blocks)
+            long_blocks = [
+                tb
+                for tb in prose_inside
+                if sum(1 for tok in tb.text.split() if not _TICK_TOKEN_RE.match(tok)) >= 12
+            ]
+            is_prose_callout = len(long_blocks) >= 2 or any(
+                sum(1 for tok in tb.text.split() if not _TICK_TOKEN_RE.match(tok)) >= 40 for tb in long_blocks
+            )
             if is_prose_callout and not (has_fig_cap and not has_tab_cap and has_curves_12):
                 return FilterDecision(False, "reject:prose_box")
 
@@ -1030,6 +1092,12 @@ def _evaluate_vector_cluster(
             if (
                 (word_count >= 6 and h_rules >= 2 and v_rules >= 1)
                 or (h_rules >= 3 and v_rules >= 2)
+                or (
+                    h_rules >= 2
+                    and v_rules >= 2
+                    and not has_curves_1
+                    and all(dr.get("fill") is None for dr in inside_drawings)
+                )
                 or (word_count >= 10 and h_rules >= 2 and not has_curves_1)
             ):
                 return FilterDecision(False, "reject:hairline_table_grid")
@@ -1067,6 +1135,38 @@ def _evaluate_vector_cluster(
     return FilterDecision(True, "keep:vector_figure")
 
 
+def _downsample_dense_drawings(drawings: list[dict], grid_pt: float = 6.0) -> list[dict]:
+    """Coalesce ultra-dense micro-segments onto an O(n) spatial grid before O(n^2) clustering."""
+    inv = 1.0 / max(1.0, grid_pt)
+    small_cap = grid_pt
+    buckets: dict[tuple[int, ...], dict] = {}
+    for dr in drawings:
+        r = dr["rect"]
+        is_stroked = 1 if dr.get("color") is not None else 0
+        if max(r.width, r.height) <= small_cap:
+            key: tuple[int, ...] = (
+                0,
+                is_stroked,
+                int((r.x0 + r.x1) * 0.5 * inv),
+                int((r.y0 + r.y1) * 0.5 * inv),
+            )
+        else:
+            key = (
+                1,
+                is_stroked,
+                int(r.x0 * inv),
+                int(r.y0 * inv),
+                int(r.x1 * inv),
+                int(r.y1 * inv),
+            )
+        existing = buckets.get(key)
+        if existing is None:
+            buckets[key] = dict(dr)
+        else:
+            existing["rect"] = existing["rect"] | r
+    return list(buckets.values())
+
+
 def detect_vector_regions(
     ctx: PageContext,
     raster_rects: list[pymupdf.Rect],
@@ -1088,6 +1188,10 @@ def detect_vector_regions(
     filtered = _filter_drawings(ctx, raster_rects, cfg=cfg)
     if not filtered:
         return [], [], 0
+    if len(filtered) > cfg.dense_drawing_downsample_threshold:
+        orig_len = len(filtered)
+        filtered = _downsample_dense_drawings(filtered, grid_pt=cfg.dense_drawing_grid_pt)
+        ctx.log(f"vector:downsample_dense {orig_len}->{len(filtered)}")
 
     raw_clusters = ctx.page.cluster_drawings(
         drawings=filtered, x_tolerance=cfg.cluster_tol_x, y_tolerance=cfg.cluster_tol_y
@@ -1228,11 +1332,14 @@ def _has_obstacle_between(
             if allow_axis_labels and _is_short_axis_label(tb):
                 continue
             tr = tb.rect
+            tr_area = max(1.0, tr.get_area())
+            if (tr & a).get_area() >= 0.5 * tr_area or (tr & b).get_area() >= 0.5 * tr_area:
+                continue
             if tr.y0 >= top.y1 - 4.0 and tr.y1 <= bot.y0 + 4.0:
                 if max(0.0, min(x_hi, tr.x1) - max(x_lo, tr.x0)) >= 15.0:
                     return True
         for rr in rules:
-            if top.y1 - 2.0 <= rr.y0 <= bot.y0 + 2.0 and rr.height <= 4.0:
+            if top.y1 + 0.5 < rr.y0 and rr.y1 < bot.y0 - 0.5 and rr.height <= 4.0:
                 if max(0.0, min(x_hi, rr.x1) - max(x_lo, rr.x0)) >= 0.4 * (x_hi - x_lo):
                     return True
 
@@ -1243,11 +1350,14 @@ def _has_obstacle_between(
             if allow_axis_labels and _is_short_axis_label(tb, vertical_ok=True):
                 continue
             tr = tb.rect
+            tr_area = max(1.0, tr.get_area())
+            if (tr & a).get_area() >= 0.5 * tr_area or (tr & b).get_area() >= 0.5 * tr_area:
+                continue
             if tr.x0 >= left.x1 - 4.0 and tr.x1 <= right.x0 + 4.0:
                 if max(0.0, min(y_hi, tr.y1) - max(y_lo, tr.y0)) >= 12.0:
                     return True
         for rr in rules:
-            if left.x1 - 2.0 <= rr.x0 <= right.x0 + 2.0 and rr.width <= 4.0:
+            if left.x1 + 0.5 < rr.x0 and rr.x1 < right.x0 - 0.5 and rr.width <= 4.0:
                 if max(0.0, min(y_hi, rr.y1) - max(y_lo, rr.y0)) >= 0.4 * (y_hi - y_lo):
                     return True
 
@@ -1271,14 +1381,14 @@ def _row_aligned_text_indices(
         gap_x = max(0.0, max(rect.x0, tr.x0) - min(rect.x1, tr.x1))
         if gap_x > max_gap_x:
             continue
-        # Never treat adjacent Y-axis tick values or subpanel markers ((a), -70, 0.0) as table rows.
+        # Never treat adjacent Y-axis tick values, short particle/math symbols, or subpanel markers as table rows.
         cleaned = _clean_text(tb.text)
         tokens = cleaned.split()
-        if gap_x <= 40.0 and tokens and len(tokens) <= 3 and all(
+        if not tokens or len(cleaned) <= 4 or all(len(tok) <= 2 for tok in tokens):
+            continue
+        if len(tokens) <= 4 and all(
             _TICK_TOKEN_RE.match(tok) or _SUBPANEL_LABEL_RE.match(tok) for tok in tokens
         ):
-            continue
-        if tr.x1 <= rect.x0 + 8.0 and len(cleaned) <= 4:
             continue
         vert_nested = (
             tr.y0 >= rect.y0 - 8.0
@@ -1298,6 +1408,8 @@ def _row_aligned_text_indices(
 
 def _is_table_row_pair(a: pymupdf.Rect, b: pymupdf.Rect, text_blocks: list[TextBlock]) -> bool:
     """Return True if vertically stacked `a` and `b` align with separate adjacent table-row texts."""
+    if min(a.width, b.width) >= 165.0:
+        return False
     if not (a.y1 <= b.y0 + 2.0 or b.y1 <= a.y0 + 2.0):
         return False
     if _horiz_overlap(a, b) < 0.5 * min(a.width, b.width):
@@ -1393,9 +1505,15 @@ def _propagate_captions(
                 gap = _rect_gap(a.rect, b.rect)
                 shares_col = _horiz_overlap(a.rect, b.rect) >= 0.35 * min(a.rect.width, b.rect.width)
                 shares_row = _vert_overlap(a.rect, b.rect) >= 0.45 * min(a.rect.height, b.rect.height)
+                exact_col_align = (
+                    abs(a.rect.x0 - b.rect.x0) <= 12.0
+                    and abs(a.rect.x1 - b.rect.x1) <= 12.0
+                    and _horiz_overlap(a.rect, b.rect) >= 0.85 * max(a.rect.width, b.rect.width)
+                )
 
                 if shares_col:
-                    if gap > cfg.sibling_col_max_gap:
+                    col_limit = cfg.sibling_col_max_gap * 1.65 if exact_col_align else cfg.sibling_col_max_gap
+                    if gap > col_limit:
                         continue
                 elif shares_row:
                     if gap > cfg.sibling_row_max_gap:
@@ -1477,7 +1595,7 @@ def _recover_orphan_caption_vectors(
     if not filtered_drawings or not ctx.fig_captions:
         return []
     assigned = {c.caption_idx for c in candidates if c.caption_idx is not None}
-    existing_rects = [c.rect for c in candidates]
+    existing_rects = [c.rect for c in candidates if c.caption_idx is not None]
     extra_vecs: list[pymupdf.Rect] = []
 
     for cap_idx, cap in enumerate(ctx.fig_captions):
@@ -1497,21 +1615,51 @@ def _recover_orphan_caption_vectors(
                 continue
 
             found_here = False
-            for c in ctx.page.cluster_drawings(drawings=band_drawings, x_tolerance=48, y_tolerance=24):
-                if any(c.intersects(er) for er in existing_rects):
-                    continue
-                if sum(1 for dr in filtered_drawings if c.contains(dr["rect"])) < 4:
-                    continue
-                if _match_caption(c, ctx.fig_captions, ctx.text_blocks, cfg) != cap_idx:
-                    continue
-                dec = _evaluate_vector_cluster(ctx, c, filtered_drawings, raster_rects, raw_cluster_count, cfg=cfg)
-                if dec.keep:
-                    extra_vecs.append(c)
-                    found_here = True
+            tol_passes = ((48, 24), (112, 68)) if direction < 0 else ((48, 24),)
+            for x_tol, y_tol in tol_passes:
+                for c in ctx.page.cluster_drawings(drawings=band_drawings, x_tolerance=x_tol, y_tolerance=y_tol):
+                    if any(c.intersects(er) for er in existing_rects):
+                        continue
+                    if sum(1 for dr in filtered_drawings if c.contains(dr["rect"])) < 4:
+                        continue
+                    if _match_caption(c, ctx.fig_captions, ctx.text_blocks, cfg) != cap_idx:
+                        continue
+                    dec = _evaluate_vector_cluster(ctx, c, filtered_drawings, raster_rects, raw_cluster_count, cfg=cfg)
+                    if dec.keep:
+                        extra_vecs.append(c)
+                        found_here = True
+                if found_here:
+                    break
             if found_here:
                 break
 
     return extra_vecs
+
+
+def _is_unlabeled_two_col_plot_grid(base_rects: list[pymupdf.Rect], ctx: PageContext) -> bool:
+    """Return True for a multi-row 2-column grid of large standalone plots lacking `(a)/(b)` subpanel labels."""
+    large_plots = [r for r in base_rects if r.width >= 155.0 and r.height >= 75.0]
+    if len(large_plots) < 4:
+        return False
+    mid_x = 0.50 * ctx.pw
+    left_col = [r for r in large_plots if r.x1 <= mid_x]
+    right_col = [r for r in large_plots if r.x0 >= mid_x]
+    if len(left_col) < 2 or len(right_col) < 2:
+        return False
+    col_gap = min(r.x0 for r in right_col) - max(r.x1 for r in left_col)
+    if col_gap < 45.0:
+        return False
+    grid_box = pymupdf.Rect(large_plots[0])
+    for r in large_plots[1:]:
+        grid_box = grid_box | r
+    grid_box = pymupdf.Rect(grid_box.x0 - 30.0, grid_box.y0 - 24.0, grid_box.x1 + 30.0, grid_box.y1 + 24.0)
+    has_subpanel_labels = any(
+        tb.kind == "text"
+        and grid_box.intersects(tb.rect)
+        and _SUBPANEL_LABEL_RE.match(_clean_text(tb.text))
+        for tb in ctx.text_blocks
+    )
+    return not has_subpanel_labels
 
 
 def link_captions(
@@ -1520,6 +1668,8 @@ def link_captions(
     cfg: DetectorConfig = DEFAULT_CONFIG,
 ) -> list[CandidateBox]:
     """Phase 4: Assign, arbitrate, and propagate figure captions across candidate regions."""
+    if _is_unlabeled_two_col_plot_grid(base_rects, ctx):
+        return [CandidateBox(r, None, "", float("inf")) for r in base_rects]
     candidates: list[CandidateBox] = []
     for r in base_rects:
         cap_idx, cap_side, dist = _match_caption_scored(r, ctx.fig_captions, ctx.text_blocks, cfg=cfg)
@@ -1596,7 +1746,16 @@ def _should_merge_candidates(
     gap = _rect_gap(a.rect, b.rect)
     if same_cap:
         shares_row = _vert_overlap(a.rect, b.rect) >= 0.40 * min(a.rect.height, b.rect.height)
-        limit = cfg.same_caption_row_merge_gap if shares_row else cfg.same_caption_merge_gap
+        exact_col_align = (
+            abs(a.rect.x0 - b.rect.x0) <= 12.0
+            and abs(a.rect.x1 - b.rect.x1) <= 12.0
+            and _horiz_overlap(a.rect, b.rect) >= 0.85 * max(a.rect.width, b.rect.width)
+        )
+        limit = (
+            cfg.same_caption_row_merge_gap
+            if shares_row
+            else (cfg.same_caption_merge_gap * 1.65 if exact_col_align else cfg.same_caption_merge_gap)
+        )
         if gap > limit:
             return False
     elif gap > cfg.touching_merge_gap:
@@ -1890,6 +2049,18 @@ def _run_page_pipeline(
 
     _annotate_candidate_origins(candidates, raster_rects, filtered_rects)
     _expand_plot_axis_labels(candidates, ctx)
+    if len(candidates) >= 2:
+        candidates = merge_candidates(ctx, candidates, cfg=cfg)
+        _annotate_candidate_origins(candidates, raster_rects, filtered_rects)
+        _expand_plot_axis_labels(candidates, ctx)
+    min_uncap_vec_dim = cfg.min_vector_dim * max(1.0, min(ctx.pw, ctx.ph) / 792.0)
+    candidates = [
+        c
+        for c in candidates
+        if c.caption_idx is not None
+        or c.source != "vector"
+        or (c.rect.width >= min_uncap_vec_dim and c.rect.height >= min_uncap_vec_dim)
+    ]
     is_scanned = has_full_page_img and not candidates
     return ctx, candidates, is_scanned
 
