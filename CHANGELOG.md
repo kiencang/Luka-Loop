@@ -2,6 +2,13 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.8] - 2026-11-19
+### Changed
+- Cập nhật SI dịch ở luồng giữ layout chi tiết hơn;
+- Cập nhật xử lý câu vắt trang chi tiết hơn cho SI khi xử lý layout;
+- Thêm thư mục dev (đưa các thông tin kỹ thuật vào đây);
+- Điều chỉnh hướng dẫn dùng;
+
 ## [1.1.7] - 2026-11-19
 ### Changed
 - Tinh chỉnh chuyên sâu thuật toán tách ảnh tài liệu khoa học trong `tools\src\figure_detector.py` dựa trên phân tích thực nghiệm từ bộ dữ liệu **IBM DocLayNet** (`validation` split và đối chứng chéo trên `test` split): nâng điểm `IoU≥0.50 F1` nhóm `scientific_articles` trên tập `DocLayNet-val` (944 trang, 388 hình) lên **`97.4%`** (`Loose F1 = 99.0%`, `0` dương tính giả văn bản/bảng/công thức) và trên tập `DocLayNet-test` độc lập (943 trang, 359 hình) từ `84.8%` lên **`93.9%`** (`Loose F1 = 96.6%`, `Recall = 99.2%`);

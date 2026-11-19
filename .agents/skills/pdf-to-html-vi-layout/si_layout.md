@@ -1,6 +1,6 @@
 # Bộ Quy tắc Tái Tạo Thiết Kế & Dàn Trang HTML/CSS (`pdf-to-html-vi-layout` — Pha Thiết Kế)
 
-> Tài liệu chuyên trách **Nghệ thuật chữ & Bảo toàn Thiết kế Từng Trang** cho Bước 3 & Bước 4 của skill [`pdf-to-html-vi-layout`](./SKILL.md). Đọc file này ngay khi bắt đầu Bước 3 để dựng `work\draft.html` từ `work\translated.md`, PDF gốc, `manifest.json` và ảnh tách.
+> Tài liệu chuyên trách **Nghệ thuật chữ & Bảo toàn Thiết kế Từng Trang** cho Bước 3 & Bước 4 của skill [`pdf-to-html-vi-layout`](./SKILL.md). Đọc file này ngay khi bắt đầu Bước 3 để dựng `work\draft.html` từ `work\translated.md`, PDF gốc, `manifest.json` và ảnh tách ra từ file PDF.
 
 ---
 
@@ -23,7 +23,7 @@ Bạn là **Kỹ sư Dàn trang & Typographer Cao cấp**. Với bản dịch đ
 - **Cỡ chữ thân bài mặc định:** **`18px`**, `line-height: 1.6`.
   - *Linh hoạt cục bộ theo thiết kế gốc:* Cho phép hạ nhẹ cỡ chữ có kiểm soát (`14px–16.5px`) tại các ô bảng nhiều cột, thẻ thông số hẹp, `running-header`, `figcaption` hoặc `footnotes` để giữ nguyên tỷ lệ khung trang PDF gốc mà không bị tràn vỡ.
 
-### 2.2 Khung Giấy Từng Trang (`.pdf-page`) & Chiều rộng Linh hoạt (`740px–1000px`)
+### 2.2 Khung Giấy Từng Trang (class `.pdf-page`) & Chiều rộng Linh hoạt (`740px–1000px`)
 - Toàn bộ tài liệu đặt trên nền ngoài trung tính nhẹ (vd `#eef2f6`), mỗi trang PDF gốc được dựng thành **một khung giấy riêng biệt**:
   `<section id="pdf-page-N" class="pdf-page" data-page="N">...</section>` *(với `N = 1, 2, ...`)*.
 - **Độ rộng linh hoạt `--page-width`:** AI chọn 1 giá trị tối ưu trong khoảng **`740px` đến `1000px`** ở Global CSS `:root` dựa theo mật độ và số cột của PDF gốc:
@@ -88,6 +88,7 @@ h1, h2, h3, h4, h5, h6 {
     break-after: avoid;
     page-break-after: avoid;
 }
+
 .pdf-page > :first-child { margin-top: 0; }
 p { margin: 0 0 0.85em; }
 
@@ -153,6 +154,7 @@ tr.summary-row td { font-weight: 700; background-color: var(--doc-surface); bord
     color: var(--doc-muted);
     line-height: 1.45;
 }
+
 .footnotes p { margin: 3px 0; }
 ul.ref-list { list-style: none; padding-left: 0; }
 ul.ref-list li { padding-left: 2em; text-indent: -2em; margin-bottom: 0.55em; overflow-wrap: anywhere; }
@@ -188,8 +190,9 @@ pre code { background: transparent; padding: 0; }
    - **Văn bản liên tục chảy từ đáy cột 1 lên đỉnh cột 2 (bài báo 2–3 cột, tạp chí):** **BẮT BUỘC** bọc chung vào 1 khối **CSS Multi-Columns** (`.multi-column-flow.cols-2` hoặc `.cols-3`, thêm `.col-rule` nếu bản gốc có đường kẻ dọc ngăn cột). Trình duyệt sẽ tự cân bằng độ cao hai cột mà không bị hụt chân cột 1! Dùng `.span-all` nếu có tiêu đề hoặc hình lớn vắt ngang 2 cột; gắn `break-inside: avoid` cho hình/bảng/callout bên trong để không bị cắt làm đôi.
    - **Hai khối nội dung độc lập đặt cạnh nhau (sidebar + thân bài, 2 card so sánh, 2 cột metadata, bố cục trang bìa/brochure):** Dùng **`CSS Grid` / `Flexbox`** (`display: grid; grid-template-columns: ...; gap: ...; align-items: start;`). Thêm `min-width: 0;` cho item bên trong Grid để bảng/ảnh không phá rộng cột.
    - **TUYỆT ĐỐI KHÔNG** dùng `<table>` để giả lập chia cột dàn trang.
-2. **Câu văn nối trang (`<!-- cont -->`):**
-   - Nếu `work\translated.md` có đoạn đánh dấu vắt trang, tiếp tục phần chữ ở đầu `.pdf-page` kế tiếp mà không tạo khoảng lùi đầu dòng `text-indent` mới (đặt `style="text-indent: 0;"` nếu trang dùng thụt lề đầu dòng).
+2. **Câu văn nối từ trang nọ sang trang kia (`<!-- cont -->`):**
+   - Nếu gặp đoạn đánh dấu `<!-- cont -->` vắt trang, bạn hiểu rằng đó là ranh giới cứng tương ứng với vị trí ngắt trang của văn bản gốc tiếng Anh, nếu bạn cũng ngắt trang tại đó ở văn bản tiếng Việt, nó thường tạo ra khoảng không hụt chữ phía sau (underfull page).
+   - Bạn phải khắc phục điều đó một cách chắc chắn bằng cách di chuyển vị trí ngắt trang (`</section>`) đến **dấu chấm gần nhất** ngay sau từ bị ngắt cứng, nhưng việc di chuyển không được phép quá 1 dòng. Nếu phải di chuyển hơn 1 dòng mới tìm thấy dấu chấm, bạn bắt buộc ngắt cứng trang đúng vị trí lưng chừng như bản gốc và thêm dấu `...` vào từ cuối của trang trước và thêm dấu `...` vào trước từ bắt đầu của trang sau.  
 3. **Thụt lề đầu dòng & Drop Caps:**
    - Chỉ áp dụng `text-indent: 1.5em` khi tài liệu gốc thực sự thụt đầu dòng từng đoạn. Nếu tái tạo Drop Caps (`float: left`), kiểm tra cẩn thận để không làm vỡ khoảng cách từ đầu tiên.
 4. **Bảng biểu phức tạp:**
@@ -216,7 +219,7 @@ pre code { background: transparent; padding: 0; }
 ## 4. Khai thác `manifest.json` & Tái tạo Hình ảnh / Sơ đồ trên Từng Trang
 
 1. **Áp dụng đúng thông tin từ `work/assets/manifest.json` (và ảnh `CropFromJson`):**
-   - Dùng đường dẫn tương đối `src="assets/<tên_file>.png"` và luôn viết `alt` tiếng Việt mô tả rõ hình. *(Lưu ý: ảnh cắt bằng `CropFromJson` không tự ghi vào `manifest.json` — nhớ đối chiếu bổ sung đủ toàn bộ `out_name`.)*
+   - Dùng đường dẫn tương đối `src="assets/<tên_file>.png"` và luôn viết `alt` tiếng Việt ngắn gọn cho ảnh. *(Lưu ý: ảnh cắt bằng `CropFromJson` không tự ghi vào `manifest.json` — nhớ đối chiếu bổ sung đủ toàn bộ `out_name`.)*
    - **`box: [x0, y0, x1, y1]` (`0.0–1.0`):** Cực kỳ hữu ích cho bảo toàn thiết kế! Dùng trực tiếp tỷ lệ `x0, x1` để đặt ảnh đúng vùng trên trang:
      - Nằm gọn cột trái (`x1 <= 0.50`) / cột phải (`x0 >= 0.50`) / trải rộng (`x0 < 0.45 && x1 > 0.55`).
      - Có thể tính gần đúng tỷ lệ bề rộng hiển thị của ảnh (vd `width = (x1 - x0) * 100%`) để hình minh họa trên `.pdf-page` có kích thước tương xứng bản gốc (kết hợp `max-width: 100%`).
