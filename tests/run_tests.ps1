@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Unified test runner for luka-loop (PowerShell suite by default; optional -IncludePython for dev).
+    Unified test runner for Luka-Loop (PowerShell suite by default; optional -IncludePython for dev).
 .EXAMPLE
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests\run_tests.ps1
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests\run_tests.ps1 -IncludePython

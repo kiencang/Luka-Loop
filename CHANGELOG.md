@@ -1,6 +1,18 @@
 # Changelog
 
-Tất cả những thay đổi đáng chú ý của dự án **luka-loop** sẽ được ghi lại trong file này.
+Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
+
+## [1.1.6] - 2026-11-19
+### Security
+- **Chặn PowerShell Double-Quote Injection & Indirect Prompt Injection:** Bổ sung ranh giới dữ liệu không tin cậy vào `AGENTS.md` và cả hai `SKILL.md`, chuyển toàn bộ mẫu tham số đường dẫn PowerShell sang ngoặc đơn `'...'` (không bung `$(...)`/`$var` từ tên tệp PDF) và lọc ký tự điều khiển / chuỗi giả mạo `=== MANIFEST JSON START/END ===` trên stdout;
+- **Auto-QA HTML/URI/CSS theo Allowlist + Chặn MathJax/SVG & tiêm CSP:** `<a href>` chỉ cho phép `#`, `https://`, `http://`, `mailto:` (chặn mọi Windows protocol handler `search-ms:`, `ms-appinstaller:`, `ms-msdt:`, `smb:`, `blob:`, `\\UNC`); CSS `url()` và `image-set()` chuyển sang allowlist; chặn `<foreignObject>`, `<animate*>`, `<set>`, `<template>`, `<noscript>`, DOM clobbering `MathJax`, và macro LaTeX nguy hiểm (`\href{javascript:...}`, `\style{...url(...)}`); tự động tiêm `<meta http-equiv="Content-Security-Policy">` kèm hash `'sha256-...'` động cho `reader_shell.html` và chặn symlink tệp vỏ;
+- **Khóa đường dẫn `-Action HtmlToPdf` & cô lập mạng Edge/Chrome headless:** Bắt buộc chạy `run_html_qa_check` trước khi in PDF trực tiếp, bổ sung cờ cô lập trình duyệt và `--host-resolver-rules` chỉ cho phép 4 host MathJax CDN / Google Fonts;
+- **Chống bom tài nguyên PDF & bom giải nén ảnh:** Tự động hạ tỷ lệ render trong `extract_images`/`render_pages` giữ `<= 6.000 px`/cạnh và `<= 25 MP`; kiểm tra header PNG/JPEG/GIF/BMP/WebP trước khi giải nén chặn ảnh `> 50 MB` hoặc `> 50 MP` (`> 16.000 px`/cạnh); giới hạn `25.000` nét vẽ vector/trang và `256 MB` cho HTML đầu vào;
+- **NTFS ADS & tự làm sạch tên tệp đầu ra:** Chặn cứng NTFS Alternate Data Streams (`:` sau ổ đĩa) trong `tools\src\path_guards.py` và `tools\_path_guards.ps1`, đồng thời tự động làm sạch tên tệp đầu ra khi tên gốc trùng tên thiết bị Windows (`CON` → `doc_CON`), chứa ký tự shell/URL nhạy cảm hoặc vượt `150` ký tự để vẫn dịch bình thường.
+
+### Changed
+- Đồng bộ thương hiệu và URL tài liệu sang **Luka-Loop** (`README.md`, `CHANGELOG.md`, `THIRD_PARTY_LICENSES.md`), giữ nguyên tên gói `luka-loop-win-x64.zip` và khóa `localStorage` để đảm bảo tương thích ngược;
+- Mở rộng bộ kiểm thử red-team tại `tests\test_extract_assets.py` (30 ca) và `tests\test_powershell.ps1` (15 ca); dọn hàm shim `_collect_page_candidates` không còn sử dụng trong `tools\src\figure_detector.py`.
 
 ## [1.1.5] - 2026-11-19
 ### Added

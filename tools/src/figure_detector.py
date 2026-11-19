@@ -14,12 +14,13 @@ from __future__ import annotations
 import json
 import math
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from html_packager_core import emit_compacted_manifest_stdout
-from image_ops import ensure_pymupdf
+from image_ops import MAX_RENDER_DIM, MAX_RENDER_PIXELS, compute_safe_render_zoom, ensure_pymupdf
 from path_guards import assert_local_no_unc_path, resolve_safe_out_directory
 
 if TYPE_CHECKING:
@@ -70,6 +71,7 @@ class DetectorConfig:
     min_vector_dim: float = 42.0
     max_vector_words: int = 200
     max_uncaptioned_vector_words: int = 80
+    max_page_drawings: int = 25000
     # Phase 4: Caption linking & sibling propagation
     caption_below_max_gap: float = 64.0
     caption_below_bridge_gap: float = 78.0
@@ -1073,6 +1075,15 @@ def detect_vector_regions(
     """Phase 3: Filter page drawings, cluster vector graphics, and classify valid figure clusters."""
     if not ctx.drawings:
         return [], [], 0
+    if len(ctx.drawings) > cfg.max_page_drawings:
+        ctx.log(f"vector:skip excessive_drawings count={len(ctx.drawings)} limit={cfg.max_page_drawings}")
+        pno = getattr(ctx.page, "number", 0) + 1
+        print(
+            f"WARNING: Page {pno} has {len(ctx.drawings):,} vector drawings (> {cfg.max_page_drawings:,} limit); "
+            f"skipped vector clustering on this page to prevent DoS (use RenderPages fallback if needed).",
+            file=sys.stderr,
+        )
+        return [], [], 0
 
     filtered = _filter_drawings(ctx, raster_rects, cfg=cfg)
     if not filtered:
@@ -1883,14 +1894,6 @@ def _run_page_pipeline(
     return ctx, candidates, is_scanned
 
 
-def _collect_page_candidates(
-    page: pymupdf.Page,
-) -> tuple[list[CandidateBox], list[TextBlock], list[TextBlock], bool]:
-    """Compatibility helper returning `(candidates, text_blocks, fig_captions, is_scanned)`."""
-    ctx, candidates, is_scanned = _run_page_pipeline(page)
-    return candidates, ctx.text_blocks, ctx.fig_captions, is_scanned
-
-
 def detect_page_figures_debug(
     page: pymupdf.Page, cfg: DetectorConfig = DEFAULT_CONFIG
 ) -> tuple[list[CandidateBox], bool, list[str]]:
@@ -1950,7 +1953,15 @@ def extract_images(
                     continue
                 out_name = f"fig_p{pno}_{idx}.png"
                 out_path = safe_out_dir / out_name
-                pix = page.get_pixmap(clip=clip, dpi=dpi)
+                desired_zoom = dpi / 72.0
+                safe_zoom, was_clamped = compute_safe_render_zoom(clip.width, clip.height, desired_zoom)
+                if was_clamped:
+                    print(
+                        f"WARNING: Clamped {out_name} render DPI ({dpi} -> {int(round(safe_zoom * 72.0))}) "
+                        f"to stay within {MAX_RENDER_DIM}px / {MAX_RENDER_PIXELS:,}px safety limit.",
+                        file=sys.stderr,
+                    )
+                pix = page.get_pixmap(clip=clip, matrix=pymupdf.Matrix(safe_zoom, safe_zoom))
                 pix.save(out_path)
                 saved.append(out_path)
 
@@ -1986,8 +1997,9 @@ def extract_images(
         print(f"[Note] Detected {len(scanned_pages)} scanned/full-page image page(s): {scanned_pages}")
     if write_meta:
         meta_path = safe_out_dir / "manifest.json"
+        safe_pdf_name = re.sub(r"[\x00-\x1F\x7F]+", " ", pdf_path.name).strip()
         meta = {
-            "pdf": pdf_path.name,
+            "pdf": safe_pdf_name,
             "dpi": dpi,
             "total_pages": total_pages,
             "scanned_pages": scanned_pages,

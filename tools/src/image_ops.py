@@ -6,6 +6,8 @@ import json
 import math
 import os
 import re
+import struct
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -25,6 +27,121 @@ _pymupdf = None
 _PAGE_TOKEN_SPLIT_RE = re.compile(r"[,;\s]+")
 _PAGE_RANGE_RE = re.compile(r"^(\d+)-(\d+)$")
 _INVALID_FILENAME_CHARS = set('<>:"/\\|?*')
+
+# Resource-exhaustion & decompression-bomb limits
+MAX_RENDER_DIM = 6000
+MAX_RENDER_PIXELS = 25_000_000  # 25 MP (~75 MB RGB Pixmap)
+MAX_IMAGE_FILE_BYTES = 50 * 1024 * 1024  # 50 MB per image file
+MAX_IMAGE_PIXELS = 50_000_000  # 50 MP max decoded image pixels
+MAX_IMAGE_DIM = 16000  # 16,000 px max single dimension
+
+
+def compute_safe_render_zoom(width_pt: float, height_pt: float, desired_zoom: float) -> tuple[float, bool]:
+    """Clamp PDF render zoom so rendered Pixmap stays within MAX_RENDER_DIM and MAX_RENDER_PIXELS."""
+    w = max(1e-6, float(width_pt))
+    h = max(1e-6, float(height_pt))
+    z = max(1e-6, float(desired_zoom))
+    max_z_dim = min(MAX_RENDER_DIM / w, MAX_RENDER_DIM / h)
+    max_z_area = math.sqrt(MAX_RENDER_PIXELS / (w * h))
+    cap_z = min(max_z_dim, max_z_area)
+    if z > cap_z:
+        return cap_z, True
+    return z, False
+
+
+def _peek_image_dimensions(img_path: Path) -> tuple[int, int] | None:
+    """Read (width, height) from PNG/JPEG/GIF/BMP/WebP headers without decompressing pixel payloads."""
+    try:
+        with open(img_path, "rb") as fh:
+            hdr = fh.read(32)
+            if len(hdr) < 10:
+                return None
+            # PNG: 8-byte signature + IHDR chunk length/type + 4-byte BE width + 4-byte BE height
+            if hdr[:8] == b"\x89PNG\r\n\x1a\n" and len(hdr) >= 24 and hdr[12:16] == b"IHDR":
+                w, h = struct.unpack(">II", hdr[16:24])
+                return int(w), int(h)
+            # GIF87a / GIF89a
+            if hdr[:6] in (b"GIF87a", b"GIF89a"):
+                w, h = struct.unpack("<HH", hdr[6:10])
+                return int(w), int(h)
+            # BMP
+            if hdr[:2] == b"BM" and len(hdr) >= 26:
+                w, h = struct.unpack("<ii", hdr[18:26])
+                return abs(int(w)), abs(int(h))
+            # WebP (VP8X / VP8L / VP8 )
+            if hdr[:4] == b"RIFF" and len(hdr) >= 30 and hdr[8:12] == b"WEBP":
+                chunk = hdr[12:16]
+                if chunk == b"VP8X":
+                    w = 1 + int.from_bytes(hdr[24:27], "little")
+                    h = 1 + int.from_bytes(hdr[27:30], "little")
+                    return w, h
+                if chunk == b"VP8L" and hdr[20] == 0x2F:
+                    bits = struct.unpack("<I", hdr[21:25])[0]
+                    return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+                if chunk == b"VP8 " and hdr[23:26] == b"\x9d\x01\x2a":
+                    w, h = struct.unpack("<HH", hdr[26:30])
+                    return w & 0x3FFF, h & 0x3FFF
+            # JPEG: scan SOF0..SOF15 markers (excluding DHT/JPG/DAC) without decoding entropy stream
+            if hdr[:2] == b"\xff\xd8":
+                fh.seek(2)
+                sof_markers = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+                bytes_scanned = 2
+                while bytes_scanned < 262144:
+                    b = fh.read(1)
+                    if not b:
+                        break
+                    bytes_scanned += 1
+                    if b[0] != 0xFF:
+                        continue
+                    while True:
+                        m = fh.read(1)
+                        if not m:
+                            return None
+                        bytes_scanned += 1
+                        if m[0] != 0xFF:
+                            marker = m[0]
+                            break
+                    if marker in (0xD8, 0xD9, 0x01) or (0xD0 <= marker <= 0xD7):
+                        continue
+                    if marker == 0xDA:  # Start of Scan (image data begins)
+                        break
+                    seg_len_b = fh.read(2)
+                    if len(seg_len_b) < 2:
+                        break
+                    bytes_scanned += 2
+                    seg_len = struct.unpack(">H", seg_len_b)[0]
+                    if seg_len < 2:
+                        break
+                    if marker in sof_markers:
+                        sof = fh.read(5)
+                        if len(sof) == 5:
+                            h, w = struct.unpack(">HH", sof[1:5])
+                            return int(w), int(h)
+                        break
+                    fh.seek(seg_len - 2, os.SEEK_CUR)
+                    bytes_scanned += seg_len - 2
+    except OSError:
+        return None
+    return None
+
+
+def assert_safe_image_file(img_path: Path) -> None:
+    """Reject oversized image files and decompression bombs before decoding into memory."""
+    if not img_path.is_file():
+        raise FileNotFoundError(f"Image file not found: {img_path}")
+    file_bytes = img_path.stat().st_size
+    if file_bytes > MAX_IMAGE_FILE_BYTES:
+        raise ValueError(
+            f"Refusing oversized image file ({file_bytes:,} bytes > {MAX_IMAGE_FILE_BYTES:,} byte limit): {img_path}"
+        )
+    dims = _peek_image_dimensions(img_path)
+    if dims is not None:
+        w, h = dims
+        if w <= 0 or h <= 0 or max(w, h) > MAX_IMAGE_DIM or (w * h) > MAX_IMAGE_PIXELS:
+            raise ValueError(
+                f"Refusing decompression-bomb / oversized image ({w}x{h} = {w * h:,} px; "
+                f"limit {MAX_IMAGE_DIM}px/edge, {MAX_IMAGE_PIXELS:,} px total): {img_path}"
+            )
 
 
 def ensure_pymupdf():
@@ -136,7 +253,14 @@ def render_pages(
         for pno in target_pages:
             page = doc[pno - 1]
             target_w = max(800, int(round(page.rect.width * scale)))
-            zoom = target_w / max(1e-6, page.rect.width)
+            desired_zoom = target_w / max(1e-6, page.rect.width)
+            zoom, was_clamped = compute_safe_render_zoom(page.rect.width, page.rect.height, desired_zoom)
+            if was_clamped:
+                print(
+                    f"WARNING: Clamped page {pno} render scale ({desired_zoom:.2f}x -> {zoom:.2f}x) "
+                    f"to stay within {MAX_RENDER_DIM}px / {MAX_RENDER_PIXELS:,}px safety limit.",
+                    file=sys.stderr,
+                )
             pix = page.get_pixmap(matrix=pm.Matrix(zoom, zoom), alpha=False)
             out_png = safe_out_dir / f"page_{pno}.png"
             out_png.write_bytes(pix.tobytes("png"))
@@ -305,8 +429,11 @@ def crop_from_json(spec_path: Path, out_dir: Path) -> list[Path]:
         src_path = resolve_safe_crop_input_file(src_raw, allowed_roots)
 
         bx0, by0, bx1, by1 = _validate_crop_box(item.get("box"), out_name)
+        assert_safe_image_file(src_path)
         pix = _ensure_rgb_or_gray(pm.Pixmap(str(src_path)))
         bw, bh = pix.width, pix.height
+        if max(bw, bh) > MAX_IMAGE_DIM or (bw * bh) > MAX_IMAGE_PIXELS:
+            raise ValueError(f"Refusing oversized decoded crop source image ({bw}x{bh}): {src_path}")
         x0 = max(0, int(round(bx0 * bw)))
         y0 = max(0, int(round(by0 * bh)))
         x1 = min(bw, int(round(bx1 * bw)))
@@ -362,14 +489,15 @@ def _optimize_image_bytes(
 ) -> tuple[bytes, str, int]:
     """Analyze, resize if wider than `max_width`, and selectively compress one image in memory."""
     pm = ensure_pymupdf()
-    if not img_path.is_file():
-        raise FileNotFoundError(f"Image file not found: {img_path}")
+    assert_safe_image_file(img_path)
 
     orig_bytes = img_path.read_bytes()
     orig_len = len(orig_bytes)
     orig_mime = "image/jpeg" if img_path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
 
     pix = _ensure_rgb_or_gray(pm.Pixmap(str(img_path)))
+    if max(pix.width, pix.height) > MAX_IMAGE_DIM or (pix.width * pix.height) > MAX_IMAGE_PIXELS:
+        raise ValueError(f"Refusing oversized decoded image ({pix.width}x{pix.height}): {img_path}")
     distinct_colors, has_alpha = _analyze_sample_grid(pix)
     is_rich_photo = distinct_colors >= 200
 

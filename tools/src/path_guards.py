@@ -21,6 +21,74 @@ _WINDOWS_RESERVED_DEVICE_NAMES = frozenset(
     | {f"COM{i}" for i in range(1, 10)}
     | {f"LPT{i}" for i in range(1, 10)}
 )
+_UNSAFE_OUT_FILENAME_CHARS_RE = re.compile(r'[\x00-\x1f\x7f$`|&;^%#<>"*?:]+')
+_MAX_OUTPUT_STEM_LEN = 150
+
+
+def _assert_no_ntfs_ads(raw_path: str, label: str) -> None:
+    """Reject Windows NTFS Alternate Data Streams (colons after the drive letter)."""
+    t = raw_path.strip()
+    if not t:
+        return
+    low = t.lower()
+    if low.startswith(("http://", "https://")):
+        return
+    if low.startswith("filesystem::"):
+        t = t[len("filesystem::") :]
+        low = t.lower()
+    elif low.startswith("microsoft.powershell.core\\filesystem::"):
+        t = t[len("microsoft.powershell.core\\filesystem::") :]
+        low = t.lower()
+    if low.startswith("file:///"):
+        parsed = urlparse(t)
+        t = unquote(parsed.path or "")
+        if len(t) >= 3 and t[0] == "/" and t[2] == ":":
+            t = t[1:]
+    # Strip legitimate single-letter Windows drive prefix (e.g. C:\...)
+    body = t[2:] if (len(t) >= 2 and t[0].isalpha() and t[1] == ":") else t
+    if ":" in body:
+        raise ValueError(f"Refusing NTFS Alternate Data Stream / colon in path for {label}: {raw_path}")
+
+
+def is_windows_reserved_name(segment: str) -> bool:
+    """Return True when `segment` ends with '.' or matches a Windows reserved device name."""
+    if not segment:
+        return False
+    base_stem = segment.split(".", 1)[0].rstrip(" ").upper()
+    return segment.endswith(".") or base_stem in _WINDOWS_RESERVED_DEVICE_NAMES
+
+
+def sanitize_output_filename(path_obj: Path) -> tuple[Path, bool]:
+    """Sanitize the leaf filename of an output path while preserving its parent directory and benign Unicode."""
+    orig_name = path_obj.name
+    if not orig_name:
+        return path_obj, False
+
+    raw_suffix = path_obj.suffix
+    raw_stem = path_obj.stem if raw_suffix else orig_name
+
+    clean_suffix = _UNSAFE_OUT_FILENAME_CHARS_RE.sub("", raw_suffix).rstrip(" .")
+    if clean_suffix and not clean_suffix.startswith("."):
+        clean_suffix = "." + clean_suffix
+
+    stem = _UNSAFE_OUT_FILENAME_CHARS_RE.sub("_", raw_stem)
+    stem = re.sub(r"_+", "_", stem).strip(" .")
+    if not stem or stem.strip("_") == "":
+        stem = "document"
+    if len(stem) > _MAX_OUTPUT_STEM_LEN:
+        stem = stem[:_MAX_OUTPUT_STEM_LEN].rstrip(" .") or "document"
+
+    base_first = stem.split(".", 1)[0].rstrip(" ").upper()
+    if base_first in _WINDOWS_RESERVED_DEVICE_NAMES:
+        stem = f"doc_{stem}"
+        if len(stem) > _MAX_OUTPUT_STEM_LEN:
+            stem = stem[:_MAX_OUTPUT_STEM_LEN].rstrip(" .")
+
+    new_name = f"{stem}{clean_suffix}".rstrip(" .")
+    if not new_name:
+        new_name = "document" + clean_suffix
+    changed = new_name != orig_name
+    return (path_obj.with_name(new_name) if changed else path_obj), changed
 
 
 def get_repo_root() -> Path:
@@ -57,6 +125,7 @@ def assert_local_no_unc_path(path_value: str | Path | None, param_name: str = "P
         parsed = urlparse(t)
         if parsed.netloc and parsed.netloc.lower() != "localhost":
             raise ValueError(f"Refusing UNC/network path for {param_name}: {path_value}")
+    _assert_no_ntfs_ads(t, param_name)
 
 
 def file_uri_to_local_path(uri: str) -> str:
@@ -114,7 +183,16 @@ def assert_safe_output_path(
     _validate_non_fs_prefix(raw, label)
     assert_local_no_unc_path(raw, label)
 
+    raw_body = raw[2:] if (len(raw) >= 2 and raw[0].isalpha() and raw[1] == ":") else raw
+    for seg in re.split(r"[\\/]+", raw_body):
+        if seg and seg not in (".", "..") and is_windows_reserved_name(seg):
+            raise ValueError(f"Refusing reserved/invalid Windows filename for {label}: {raw}")
+
     norm_target = _norm_abs_str(raw)
+    tail_target = ntpath.splitdrive(norm_target)[1]
+    for seg in re.split(r"[\\/]+", tail_target):
+        if seg and is_windows_reserved_name(seg):
+            raise ValueError(f"Refusing reserved/invalid Windows filename for {label}: {norm_target}")
     anchors: list[str] = []
     for cand in (get_repo_root(), Path.cwd(), Path(tempfile.gettempdir())):
         na = _norm_abs_str(cand)

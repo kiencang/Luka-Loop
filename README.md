@@ -1,4 +1,4 @@
-# luka-loop
+# Luka-Loop
 Quy trình AI Agent tự động dịch tài liệu PDF tiếng Anh sang tiếng Việt. Không yêu cầu cài thêm bất cứ phần mềm hỗ trợ nào. Chỉ cần mở thư mục trên [Antigravity](https://antigravity.google/) là bắt đầu dùng được ngay.
 
 Định dạng đầu ra mặc định: Bản dịch tiếng Việt trả về ở cả 2 định dạng đồng thời là HTML và PDF.
@@ -11,13 +11,13 @@ Quy trình AI Agent tự động dịch tài liệu PDF tiếng Anh sang tiếng
 ## Lý do tồn tại
 Tôi đã có sản phẩm https://github.com/kiencang/PDF-silaTranslator có chức năng tương đương, nhưng hiện tại chỉ API Key trả phí mới sử dụng được. 
 
-luka-loop sử dụng agent Gemini thông qua Antigravity, và hoàn toàn dùng được với tài khoản miễn phí. Ngoài ra, việc sử dụng các thư viện python chất lượng cao như PyMuPDF giúp công cụ có sự cải tiến tốt hơn trong khả năng tách ảnh.
+Luka-Loop sử dụng agent Gemini thông qua Antigravity, và hoàn toàn dùng được với tài khoản miễn phí. Ngoài ra, việc sử dụng các thư viện python chất lượng cao như PyMuPDF giúp công cụ có sự cải tiến tốt hơn trong khả năng tách ảnh.
 
 ## Cách dùng
 Rất đơn giản, bạn tải trực tiếp gói dựng sẵn mới nhất tại đây (chỉ cần tải 1 lần, đã kèm sẵn toàn bộ công cụ):
 
-- **Tải trực tiếp bản mới nhất:** [luka-loop-win-x64.zip](https://github.com/kiencang/luka-loop/releases/latest/download/luka-loop-win-x64.zip)
-- *(Nếu mở trang [GitHub Releases](https://github.com/kiencang/luka-loop/releases), hãy chọn tệp **`luka-loop-win-x64.zip`** trong mục **Assets** — không tải `Source code (zip)` vì gói mã nguồn thô từ Git không kèm sẵn `extract_assets.exe`).*
+- **Tải trực tiếp bản mới nhất:** [luka-loop-win-x64.zip](https://github.com/kiencang/Luka-Loop/releases/latest/download/luka-loop-win-x64.zip)
+- *(Nếu mở trang [GitHub Releases](https://github.com/kiencang/Luka-Loop/releases), hãy chọn tệp **`luka-loop-win-x64.zip`** trong mục **Assets** — không tải `Source code (zip)` vì gói mã nguồn thô từ Git không kèm sẵn `extract_assets.exe`).*
 
 Sau đó giải nén file zip đó ở bất kỳ thư mục làm việc nào mà bạn muốn. Khi giải nén, nhớ chọn tùy chọn `Extract Here`, mở thư mục `luka-loop` vừa giải nén thấy ngay file có tên `AGENTS.md` nghĩa là bạn đã giải nén thành công.
 
@@ -156,11 +156,11 @@ flowchart TD
 ## Tuyên bố từ chối trách nhiệm
 Công cụ này có thể được sử dụng cho mục đích nghiên cứu và học tập cá nhân.
 
-`luka-loop` cũng như người phát triển nó không đưa ra bất kỳ bảo đảm rõ ràng hay ngụ ý nào, cũng như không tuyên bố rằng công cụ sẽ vận hành hoàn hảo, chính xác hoặc cập nhật. Người phát triển sẽ không chịu trách nhiệm cho bất kỳ tổn thất hay thiệt hại nào phát sinh trực tiếp hoặc gián tiếp liên quan đến hoặc phát sinh từ việc sử dụng công cụ này.
+`Luka-Loop` cũng như người phát triển nó không đưa ra bất kỳ bảo đảm rõ ràng hay ngụ ý nào, cũng như không tuyên bố rằng công cụ sẽ vận hành hoàn hảo, chính xác hoặc cập nhật. Người phát triển sẽ không chịu trách nhiệm cho bất kỳ tổn thất hay thiệt hại nào phát sinh trực tiếp hoặc gián tiếp liên quan đến hoặc phát sinh từ việc sử dụng công cụ này.
 
 ## Giấy phép & Thành phần Bên thứ ba (License & Third-Party Notices)
 
-- **Mã nguồn gốc của `luka-loop`:** Phần kịch bản điều phối Agent, Skill, script PowerShell, lớp vỏ [`tools/reader_shell.html`](./tools/reader_shell.html) và bộ mã nguồn tự viết trong [`tools/src/`](./tools/src/) ([`extract_assets.py`](./tools/src/extract_assets.py), [`figure_detector.py`](./tools/src/figure_detector.py), [`image_ops.py`](./tools/src/image_ops.py), [`html_packager_core.py`](./tools/src/html_packager_core.py), [`path_guards.py`](./tools/src/path_guards.py)) được cấp phép theo **MIT License** — xem chi tiết tại [`LICENSE`](./LICENSE).
+- **Mã nguồn gốc của `Luka-Loop`:** Phần kịch bản điều phối Agent, Skill, script PowerShell, lớp vỏ [`tools/reader_shell.html`](./tools/reader_shell.html) và bộ mã nguồn tự viết trong [`tools/src/`](./tools/src/) ([`extract_assets.py`](./tools/src/extract_assets.py), [`figure_detector.py`](./tools/src/figure_detector.py), [`image_ops.py`](./tools/src/image_ops.py), [`html_packager_core.py`](./tools/src/html_packager_core.py), [`path_guards.py`](./tools/src/path_guards.py)) được cấp phép theo **MIT License** — xem chi tiết tại [`LICENSE`](./LICENSE).
 - **Bộ công cụ thực thi dựng sẵn (`tools/extract_assets/`):** Bản đóng gói portable phân phối kèm trong gói phát hành Release (`luka-loop-win-x64.zip`, biên dịch tự động qua GitHub Actions từ [`tools/build_extractor.ps1`](./tools/build_extractor.ps1)) có tích hợp các thành phần phần mềm bên thứ ba và chịu sự điều chỉnh của giấy phép tương ứng từng thành phần:
   - **PyMuPDF / MuPDF:** Cấp phép theo **AGPL-3.0**; toàn bộ mã nguồn tương ứng của công cụ thực thi được công khai đầy đủ tại [`tools/src/`](./tools/src/).
   - **Python 3.12.7:** Cấp phép theo **PSF License v2**.

@@ -119,6 +119,16 @@ function Assert-LocalNoUncPath {
             }
         } catch [System.UriFormatException] {}
     }
+    if ($t -notmatch '^(?i)https?://') {
+        $adsCheck = $t -replace '^(?i)(?:Microsoft\.PowerShell\.Core\\)?FileSystem::', ''
+        if ($adsCheck -match '^(?i)file:///') {
+            $adsCheck = [System.Uri]::UnescapeDataString(($adsCheck -replace '^(?i)file:///', ''))
+        }
+        $adsBody = if ($adsCheck -match '^[A-Za-z]:') { $adsCheck.Substring(2) } else { $adsCheck }
+        if ($adsBody.Contains(':')) {
+            throw "Refusing NTFS Alternate Data Stream / colon in path for ${ParamName}: $PathValue"
+        }
+    }
 }
 
 function Resolve-SafeOutDirectory {

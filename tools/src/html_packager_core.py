@@ -1,9 +1,10 @@
-"""Core packaging, HTML QA, transcript lookup, and headless PDF export logic for luka-loop."""
+"""Core packaging, HTML QA, transcript lookup, and headless PDF export logic for Luka-Loop."""
 
 from __future__ import annotations
 
 import base64
 import copy
+import hashlib
 import json
 import os
 import re
@@ -23,9 +24,13 @@ from path_guards import (
     file_uri_to_local_path,
     get_repo_root,
     get_tools_dir,
+    is_reparse_point,
     resolve_safe_sub_image_path,
     safe_clean_dir,
+    sanitize_output_filename,
 )
+
+MAX_INPUT_HTML_BYTES = 256 * 1024 * 1024  # 256 MB sanity ceiling for raw input HTML
 
 IMG_TAG_RX = re.compile(r'(?is)<img\b((?:[^>"\']|"[^"]*"|\'[^\']*\')*)>')
 IMG_SRC_RX = re.compile(r'(?is)((?:^|\s)src\s*=\s*)(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'=<>`]+))')
@@ -48,19 +53,56 @@ _ALLOWED_CSS_REMOTE_RX = re.compile(
     r"^https://fonts\.(?:googleapis|gstatic)\.com(?:/|$)",
     re.IGNORECASE,
 )
-_FORBIDDEN_HTML_TAGS = frozenset({"iframe", "object", "embed", "applet", "base", "form"})
+_FORBIDDEN_HTML_TAGS = frozenset(
+    {
+        "iframe",
+        "object",
+        "embed",
+        "applet",
+        "base",
+        "form",
+        "frame",
+        "frameset",
+        "portal",
+        "fencedframe",
+        "foreignobject",
+        "animate",
+        "animatemotion",
+        "animatetransform",
+        "set",
+        "handler",
+        "template",
+        "noscript",
+    }
+)
 _FORBIDDEN_META_HTTP_EQUIV = frozenset({"refresh", "set-cookie"})
 _EVENT_HANDLER_ATTR_RX = re.compile(r"^on[a-z]+$", re.IGNORECASE)
 _URI_ATTRS = frozenset({"href", "src", "xlink:href", "action", "formaction", "poster", "data", "background"})
 _SVG_EXTERNAL_HREF_TAGS = frozenset({"image", "use", "feimage"})
 _MEDIA_SRC_TAGS = frozenset({"audio", "video", "source", "track"})
+_ALLOWED_LINK_RELS = frozenset({"stylesheet", "preconnect", "font"})
 _STRIP_CTRL_WS_RX = re.compile(r"[\x00-\x20\x7f]+")
+_URI_SCHEME_RX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
+_SAFE_LINK_SCHEME_RX = re.compile(r"^(?:https?://|mailto:)", re.IGNORECASE)
 _DANGEROUS_URI_SCHEME_RX = re.compile(r"^(?:javascript|vbscript|file):", re.IGNORECASE)
 _CSS_COMMENT_RX = re.compile(r"/\*.*?\*/", re.DOTALL)
 _CSS_ESCAPE_RX = re.compile(r"\\([0-9a-fA-F]{1,6})\s?|\\(.)")
 _CSS_URL_RX = re.compile(
     r"""(?i)\burl\s*\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s"']+))\s*\)"""
     r"""|@import\s+(?:url\s*\(\s*)?(?:"([^"]*)"|'([^']*)'|([^;\s"']+))"""
+)
+_CSS_IMAGE_SET_RX = re.compile(r"""(?is)(?:-webkit-)?image-set\s*\(([^)]*)\)""")
+_CSS_QUOTED_STR_RX = re.compile(r"""(?:"([^"]*)"|'([^']*)')""")
+_LATEX_HREF_URL_RX = re.compile(r"""\\(?:href|url)\s*\{([^{}]*)\}""", re.IGNORECASE)
+_LATEX_STYLE_RX = re.compile(r"""\\style\s*\{([^{}]*)\}""", re.IGNORECASE)
+_MANIFEST_MARKER_RX = re.compile(r"===\s*MANIFEST\s+JSON\s+(?:START|END)\s*===", re.IGNORECASE)
+_CSP_META_TAG_RX = re.compile(r"""(?is)<meta\b[^>]*\bdata-luka-csp\s*=\s*["']1["'][^>]*>\s*""")
+_HEADLESS_ALLOWED_HOSTS_RULE = (
+    "MAP * ~NOTFOUND, "
+    "EXCLUDE cdn.jsdelivr.net, "
+    "EXCLUDE cdnjs.cloudflare.com, "
+    "EXCLUDE fonts.googleapis.com, "
+    "EXCLUDE fonts.gstatic.com"
 )
 _LIGHTBOX_IDS = frozenset({"rsfv-img-lightbox", "img-lightbox"})
 _HTML_VOID_TAGS = frozenset(
@@ -191,11 +233,17 @@ def find_latest_pdf_in_transcript(transcript_path: str | Path) -> Path:
     raise RuntimeError(f"No PDF attachment found in USER_INPUT entries of transcript: {abs_transcript}")
 
 
+def _sanitize_manifest_text(text: str) -> str:
+    """Strip control characters and neutralize stdout manifest delimiter spoofing."""
+    cleaned = re.sub(r"[\x00-\x1F\x7F]+", " ", str(text)).strip()
+    return _MANIFEST_MARKER_RX.sub("[manifest-marker]", cleaned)
+
+
 def limit_manifest_words(text: str | None, max_words: int = 20) -> str:
     """Truncate caption/context text cleanly to `max_words` words for compact stdout output."""
     if text is None:
         return ""
-    normalized = re.sub(r"[\x00-\x1F]+", " ", str(text)).strip()
+    normalized = _sanitize_manifest_text(str(text))
     if not normalized or max_words <= 0:
         return normalized
     words = normalized.split()
@@ -212,13 +260,14 @@ def emit_compacted_manifest_stdout(
 ) -> None:
     """Print compacted manifest JSON to stdout when within `max_bytes`, otherwise print disk path."""
     compacted = copy.deepcopy(manifest_dict)
-    if max_words > 0:
-        for fig in compacted.get("figures", []):
-            if isinstance(fig, dict):
-                if fig.get("caption") is not None:
-                    fig["caption"] = limit_manifest_words(str(fig["caption"]), max_words=max_words)
-                if fig.get("context") is not None:
-                    fig["context"] = limit_manifest_words(str(fig["context"]), max_words=max_words)
+    if compacted.get("pdf") is not None:
+        compacted["pdf"] = _sanitize_manifest_text(str(compacted["pdf"]))
+    for fig in compacted.get("figures", []):
+        if isinstance(fig, dict):
+            if fig.get("caption") is not None:
+                fig["caption"] = limit_manifest_words(str(fig["caption"]), max_words=max_words)
+            if fig.get("context") is not None:
+                fig["context"] = limit_manifest_words(str(fig["context"]), max_words=max_words)
 
     stdout_json = json.dumps(compacted, ensure_ascii=False, indent=2)
     stdout_bytes = len(stdout_json.encode("utf-8"))
@@ -246,6 +295,21 @@ def _get_shell_section(template: str, tag_name: str) -> str:
     if not m:
         raise ValueError(f"Reader shell template missing section: {tag_name}")
     return m.group(1).strip()
+
+
+def _resolve_safe_shell_path(shell_path: Path | None = None, *, required: bool = True) -> Path | None:
+    """Resolve tools/reader_shell.html while refusing symlinks/junctions."""
+    resolved_shell = shell_path if shell_path is not None else (get_tools_dir() / "reader_shell.html")
+    assert_local_no_unc_path(resolved_shell, "ReaderShellPath")
+    if os.path.lexists(resolved_shell.parent) and is_reparse_point(resolved_shell.parent):
+        raise ValueError(f"Refusing to read reader shell through symlink/junction: {resolved_shell.parent}")
+    if os.path.lexists(resolved_shell) and is_reparse_point(resolved_shell):
+        raise ValueError(f"Refusing to read symlink/junction reader shell: {resolved_shell}")
+    if not resolved_shell.is_file():
+        if required or shell_path is not None:
+            raise FileNotFoundError(f"Reader shell template not found: {resolved_shell}")
+        return None
+    return resolved_shell
 
 
 def _strip_html_comments(html_text: str) -> str:
@@ -286,9 +350,8 @@ def _sub_outside_ignored(
 
 def inject_reader_shell(html_text: str, shell_path: Path | None = None) -> tuple[str, list[str]]:
     """Idempotently inject reader CSS, toolbar, and script from tools/reader_shell.html."""
-    resolved_shell = shell_path if shell_path is not None else (get_tools_dir() / "reader_shell.html")
-    if not resolved_shell.is_file():
-        raise FileNotFoundError(f"Reader shell template not found: {resolved_shell}")
+    resolved_shell = _resolve_safe_shell_path(shell_path, required=True)
+    assert resolved_shell is not None
     dom_check = _HTML_IGNORED_SEGMENTS_RX.sub("", html_text)
     if (
         not re.search(r"(?i)</head>", dom_check)
@@ -344,10 +407,8 @@ def _normalize_script_body(text: str) -> str:
 
 def _extract_trusted_shell_scripts(shell_path: Path | None = None) -> frozenset[str]:
     """Return normalized exact inline JS bodies allowed from the trusted reader_shell.html template."""
-    resolved_shell = shell_path if shell_path is not None else (get_tools_dir() / "reader_shell.html")
-    if not resolved_shell.is_file():
-        if shell_path is not None:
-            raise FileNotFoundError(f"Reader shell template not found: {resolved_shell}")
+    resolved_shell = _resolve_safe_shell_path(shell_path, required=False)
+    if resolved_shell is None:
         return frozenset()
     tpl = resolved_shell.read_text(encoding="utf-8-sig")
     shell_script_section = _get_shell_section(tpl, "SHELL_SCRIPT")
@@ -357,6 +418,57 @@ def _extract_trusted_shell_scripts(shell_path: Path | None = None) -> frozenset[
         if m.group(1).strip()
     }
     return frozenset(bodies)
+
+
+def inject_csp_meta(
+    html_text: str,
+    *,
+    has_mathjax: bool,
+    inline_script_raw_bodies: list[str],
+) -> str:
+    """Idempotently inject a defense-in-depth Content-Security-Policy <meta> right inside <head>."""
+    cleaned, _ = _sub_outside_ignored(html_text, _CSP_META_TAG_RX, "")
+
+    script_tokens: list[str] = []
+    seen_hashes: set[str] = set()
+    for raw_body in inline_script_raw_bodies:
+        norm_lf = raw_body.replace("\r\n", "\n").replace("\r", "\n")
+        if not norm_lf.strip():
+            continue
+        digest = base64.b64encode(hashlib.sha256(norm_lf.encode("utf-8")).digest()).decode("ascii")
+        token = f"'sha256-{digest}'"
+        if token not in seen_hashes:
+            seen_hashes.add(token)
+            script_tokens.append(token)
+    if has_mathjax:
+        script_tokens.extend(["https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"])
+    script_src = " ".join(script_tokens) if script_tokens else "'none'"
+
+    font_tokens = ["https://fonts.gstatic.com", "data:"]
+    if has_mathjax:
+        font_tokens.extend(["https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"])
+    font_src = " ".join(font_tokens)
+
+    policy = (
+        f"default-src 'none'; "
+        f"img-src data:; "
+        f"style-src 'unsafe-inline' https://fonts.googleapis.com; "
+        f"font-src {font_src}; "
+        f"script-src {script_src}; "
+        f"connect-src 'none'; "
+        f"object-src 'none'; "
+        f"frame-src 'none'; "
+        f"base-uri 'none'; "
+        f"form-action 'none';"
+    )
+    meta_tag = f'<meta http-equiv="Content-Security-Policy" data-luka-csp="1" content="{policy}">'
+    updated, count = _sub_outside_ignored(
+        cleaned,
+        re.compile(r"(?i)<head\b[^>]*>"),
+        lambda m: f"{m.group(0)}\n{meta_tag}",
+        count=1,
+    )
+    return updated if count > 0 else cleaned
 
 
 def _decode_css_escapes(text: str) -> str:
@@ -378,19 +490,13 @@ def _decode_css_escapes(text: str) -> str:
 
 
 def _is_allowed_css_url(raw_url: str) -> bool:
-    """Allow local fragments, safe Base64 raster images, and Google Fonts; block remote/dangerous CSS URLs."""
+    """Allowlist-only CSS URL filter: permits empty, #fragment, Base64 raster images, and Google Fonts."""
     cleaned = _STRIP_CTRL_WS_RX.sub("", raw_url)
     if not cleaned or cleaned.startswith("#"):
         return True
     if _DATA_IMG_RX.match(cleaned) or _ALLOWED_CSS_REMOTE_RX.match(cleaned):
         return True
-    if (
-        _DANGEROUS_URI_SCHEME_RX.match(cleaned)
-        or _EXTERNAL_URL_RX.match(cleaned)
-        or cleaned.lower().startswith("data:")
-    ):
-        return False
-    return True
+    return False
 
 
 def _format_sample_items(items: list[str], limit: int = 5) -> str:
@@ -431,6 +537,7 @@ class _QADOMScanner(HTMLParser):
         self.wrapped_table_count = 0
         self.has_latex = False
         self.has_mathjax_in_head = False
+        self.allowed_inline_script_raw_bodies: list[str] = []
         self.seen_ids: set[str] = set()
         self.anchor_refs: list[str] = []
         self.disallowed_scripts: list[str] = []
@@ -462,11 +569,31 @@ class _QADOMScanner(HTMLParser):
     def _flush_prose(self) -> None:
         if not self._prose_buf:
             return
-        if not self.has_latex:
-            chunk = "".join(self._prose_buf)
-            if r"\(" in chunk or r"\[" in chunk:
-                self.has_latex = True
+        chunk = "".join(self._prose_buf)
         self._prose_buf.clear()
+        if not self.has_latex and (r"\(" in chunk or r"\[" in chunk):
+            self.has_latex = True
+        if "\\" in chunk:
+            for m in _LATEX_HREF_URL_RX.finditer(chunk):
+                raw_target = _STRIP_CTRL_WS_RX.sub("", m.group(1) or "")
+                if raw_target and not (
+                    raw_target.startswith("#") or _SAFE_LINK_SCHEME_RX.match(raw_target)
+                ):
+                    self._add_issue(
+                        self.dangerous_uris,
+                        self._seen_uris,
+                        f'LaTeX \\href{{{raw_target[:60]}}}',
+                    )
+            for m in _LATEX_STYLE_RX.finditer(chunk):
+                css_payload = m.group(1) or ""
+                if css_payload:
+                    self._scan_css_text(css_payload, source="LaTeX \\style")
+                    if "expression(" in _STRIP_CTRL_WS_RX.sub("", css_payload).lower():
+                        self._add_issue(
+                            self.disallowed_external_resources,
+                            self._seen_ext_res,
+                            "LaTeX \\style expression(...)",
+                        )
 
     def _close_implicit_p(self) -> None:
         for idx in range(len(self._open_stack) - 1, -1, -1):
@@ -493,6 +620,16 @@ class _QADOMScanner(HTMLParser):
                     self._seen_ext_res,
                     f"{source} url({raw_url.strip()[:100]})",
                 )
+        for im in _CSS_IMAGE_SET_RX.finditer(stripped):
+            body = im.group(1) or ""
+            for qm in _CSS_QUOTED_STR_RX.finditer(body):
+                cand_url = qm.group(1) if qm.group(1) is not None else (qm.group(2) or "")
+                if cand_url and not _is_allowed_css_url(cand_url):
+                    self._add_issue(
+                        self.disallowed_external_resources,
+                        self._seen_ext_res,
+                        f"{source} image-set({cand_url.strip()[:100]})",
+                    )
 
     def _finalize_style_block(self) -> None:
         if not self._style_buf:
@@ -509,7 +646,8 @@ class _QADOMScanner(HTMLParser):
         src_val = info["src"]
         body_chunks = info["body"]
         assert isinstance(body_chunks, list)
-        body_norm = _normalize_script_body("".join(body_chunks))
+        raw_body = "".join(body_chunks)
+        body_norm = _normalize_script_body(raw_body)
 
         if src_val is not None:
             cleaned_src = str(src_val).strip()
@@ -521,6 +659,7 @@ class _QADOMScanner(HTMLParser):
             return
 
         if body_norm and body_norm in self._allowed_inline_scripts:
+            self.allowed_inline_script_raw_bodies.append(raw_body)
             return
 
         snippet = (body_norm[:40] + "...") if len(body_norm) > 40 else (body_norm or "<empty>")
@@ -577,11 +716,10 @@ class _QADOMScanner(HTMLParser):
                     if _DATA_IMG_RX.match(norm_uri):
                         self.b64_count += 1
                     elif (
-                        _DANGEROUS_URI_SCHEME_RX.match(norm_uri)
-                        or norm_uri.lower().startswith("data:")
-                        or norm_uri.startswith("//")
+                        norm_uri.startswith(("//", "\\\\"))
+                        or (_URI_SCHEME_RX.match(norm_uri) and not _EXTERNAL_URL_RX.match(norm_uri))
                     ):
-                        pass  # Caught by URI security check below
+                        pass  # Caught by URI allowlist security check below
                     elif _EXTERNAL_URL_RX.match(norm_uri):
                         if not self._allow_external_images:
                             self._add_issue(self.external_img_srcs, self._seen_ext_imgs, src_val[:120])
@@ -601,6 +739,12 @@ class _QADOMScanner(HTMLParser):
         is_wrapper = False
         elem_id = ""
         meta_http_equiv = ""
+        link_rels: set[str] = set()
+        for k, v in attrs:
+            kl = (k or "").lower()
+            if kl == "rel" and t == "link" and v:
+                link_rels.update(tok for tok in v.lower().split() if tok)
+
         for k, v in attrs:
             kl = (k or "").lower()
             val_str = "" if v is None else v
@@ -611,6 +755,12 @@ class _QADOMScanner(HTMLParser):
                     self.disallowed_external_resources,
                     self._seen_ext_res,
                     f'<{t} srcset="{val_str.strip()[:100]}">',
+                )
+            if kl in ("id", "name") and val_str.strip().lower() == "mathjax":
+                self._add_issue(
+                    self.disallowed_tags,
+                    self._seen_tags,
+                    f'<{t} {kl}="MathJax"> (DOM clobbering)',
                 )
             if kl == "id" and val_str:
                 id_val = val_str.strip()
@@ -628,43 +778,84 @@ class _QADOMScanner(HTMLParser):
             if kl in _URI_ATTRS and val_str:
                 norm_uri = _STRIP_CTRL_WS_RX.sub("", val_str)
                 if norm_uri:
-                    if _DANGEROUS_URI_SCHEME_RX.match(norm_uri):
+                    # Strict URI allowlist by element/attribute role
+                    if norm_uri.startswith(("//", "\\\\")):
                         self._add_issue(
                             self.dangerous_uris,
                             self._seen_uris,
                             f'<{t} {kl}="{norm_uri[:60]}">',
                         )
-                    elif norm_uri.lower().startswith("data:"):
-                        if not (t == "img" and kl == "src" and _DATA_IMG_RX.match(norm_uri)):
+                    elif t in ("a", "area") and kl == "href":
+                        if _URI_SCHEME_RX.match(norm_uri) and not _SAFE_LINK_SCHEME_RX.match(norm_uri):
                             self._add_issue(
                                 self.dangerous_uris,
                                 self._seen_uris,
                                 f'<{t} {kl}="{norm_uri[:60]}">',
                             )
-                    elif norm_uri.startswith("//"):
-                        self._add_issue(
-                            self.dangerous_uris,
-                            self._seen_uris,
-                            f'<{t} {kl}="{norm_uri[:60]}">',
-                        )
-                    elif _EXTERNAL_URL_RX.match(norm_uri):
-                        if t == "link" and kl == "href":
-                            if not _ALLOWED_CSS_REMOTE_RX.match(norm_uri):
+                    elif t == "link" and kl == "href":
+                        if _URI_SCHEME_RX.match(norm_uri) and not _ALLOWED_CSS_REMOTE_RX.match(norm_uri):
+                            if _DANGEROUS_URI_SCHEME_RX.match(norm_uri) or norm_uri.lower().startswith("data:"):
+                                self._add_issue(
+                                    self.dangerous_uris,
+                                    self._seen_uris,
+                                    f'<link href="{norm_uri[:60]}">',
+                                )
+                            else:
                                 self._add_issue(
                                     self.disallowed_external_resources,
                                     self._seen_ext_res,
                                     f'<link href="{val_str.strip()[:100]}">',
                                 )
-                        elif (
-                            (t in _SVG_EXTERNAL_HREF_TAGS and kl in ("href", "xlink:href"))
-                            or (t in _MEDIA_SRC_TAGS and kl == "src")
-                            or kl in ("background", "poster")
-                        ):
+                        elif not _ALLOWED_CSS_REMOTE_RX.match(norm_uri) or (link_rels and not (link_rels <= _ALLOWED_LINK_RELS)):
                             self._add_issue(
                                 self.disallowed_external_resources,
                                 self._seen_ext_res,
-                                f'<{t} {kl}="{val_str.strip()[:100]}">',
+                                f'<link href="{val_str.strip()[:100]}">',
                             )
+                    elif t == "img" and kl == "src":
+                        if _URI_SCHEME_RX.match(norm_uri):
+                            if _DATA_IMG_RX.match(norm_uri) or _EXTERNAL_URL_RX.match(norm_uri):
+                                pass  # Handled cleanly in `t == "img"` block above
+                            else:
+                                self._add_issue(
+                                    self.dangerous_uris,
+                                    self._seen_uris,
+                                    f'<img src="{norm_uri[:60]}">',
+                                )
+                    elif t == "script" and kl == "src":
+                        if _URI_SCHEME_RX.match(norm_uri) and not _ALLOWED_MATHJAX_SRC_RX.match(norm_uri):
+                            if not _EXTERNAL_URL_RX.match(norm_uri):
+                                self._add_issue(
+                                    self.dangerous_uris,
+                                    self._seen_uris,
+                                    f'<script src="{norm_uri[:60]}">',
+                                )
+                    else:
+                        # All remaining URI attributes (SVG <use>/<image>/<feImage>, <audio>/<video>/<source>,
+                        # background/poster/data/action/formaction): allow only internal #fragment references.
+                        if not norm_uri.startswith("#"):
+                            if _EXTERNAL_URL_RX.match(norm_uri) and (
+                                (t in _SVG_EXTERNAL_HREF_TAGS and kl in ("href", "xlink:href"))
+                                or (t in _MEDIA_SRC_TAGS and kl == "src")
+                                or kl in ("background", "poster")
+                            ):
+                                self._add_issue(
+                                    self.disallowed_external_resources,
+                                    self._seen_ext_res,
+                                    f'<{t} {kl}="{val_str.strip()[:100]}">',
+                                )
+                            elif _URI_SCHEME_RX.match(norm_uri):
+                                self._add_issue(
+                                    self.dangerous_uris,
+                                    self._seen_uris,
+                                    f'<{t} {kl}="{norm_uri[:60]}">',
+                                )
+                            else:
+                                self._add_issue(
+                                    self.disallowed_external_resources,
+                                    self._seen_ext_res,
+                                    f'<{t} {kl}="{val_str.strip()[:100]}">',
+                                )
                 if kl == "href":
                     href_val = val_str.strip()
                     if href_val.startswith("#") and len(href_val) > 1:
@@ -710,7 +901,7 @@ class _QADOMScanner(HTMLParser):
         if self._current_raw_tag() == "style":
             self._style_buf.append(data)
             return
-        if self.has_latex or self._in_tags(_LATEX_IGNORED_TAGS):
+        if self._in_tags(_LATEX_IGNORED_TAGS):
             return
         self._prose_buf.append(data)
 
@@ -731,7 +922,7 @@ def run_html_qa_check(
     allowed_inline_scripts: frozenset[str] | None = None,
     shell_path: Path | None = None,
     allow_external_images: bool = False,
-) -> None:
+) -> _QADOMScanner:
     """Validate structure, security policy, Base64 images, alt tags, .table-wrapper nesting, MathJax, and anchors."""
     if allowed_inline_scripts is None:
         allowed_scripts = (
@@ -815,6 +1006,27 @@ def run_html_qa_check(
         else f"Tables wrapped: {scanner.wrapped_table_count}/{scanner.table_count}"
     )
     print(f"[QA PASS] Base64 images: {scanner.b64_count} | {table_status} | LaTeX/MathJax OK | Broken anchors: 0")
+    return scanner
+
+
+def _prepare_sanitized_output_path(raw_path_str: str, label: str) -> Path:
+    """Reject path-level attacks (UNC, non-FS, NTFS ADS, symlinks) while auto-sanitizing unsafe filenames."""
+    raw = raw_path_str.strip()
+    if re.match(r"^[A-Za-z0-9_.-]+::", raw) and not raw.lower().startswith("filesystem::"):
+        raise ValueError(f"Refusing non-filesystem path for {label}: {raw}")
+    if not raw.lower().startswith(("file://", "http://", "https://")) and re.match(r"^[A-Za-z]{2,}:", raw):
+        raise ValueError(f"Refusing non-filesystem path for {label}: {raw}")
+    assert_local_no_unc_path(raw, label)
+
+    parent_str, leaf_str = os.path.split(raw)
+    abs_parent = Path(os.path.abspath(parent_str)) if parent_str else Path(os.path.abspath("."))
+    cand = abs_parent / leaf_str
+    sanitized, changed = sanitize_output_filename(cand)
+    if changed:
+        print(f"Sanitized unsafe output filename -> {sanitized}")
+    dest = assert_safe_output_path(sanitized, label=label, is_directory=False)
+    assert dest is not None
+    return dest
 
 
 def get_indexed_file_path(base_path: Path, index: int) -> Path:
@@ -857,8 +1069,11 @@ def html_to_pdf(
     out_pdf_path: str | Path = "",
     clean_dir: str = "",
     timeout_seconds: int = 60,
+    *,
+    _qa_verified: bool = False,
+    shell_path: Path | None = None,
 ) -> Path | None:
-    """Convert HTML to printable PDF via headless Microsoft Edge/Chrome with collision numbering."""
+    """Convert HTML to printable PDF via hardened headless Edge/Chrome after security Auto-QA."""
     if timeout_seconds < 5 or timeout_seconds > 600:
         raise ValueError(f"PdfTimeoutSeconds out of range (5..600): {timeout_seconds}")
     assert_local_no_unc_path(html_path, "-HtmlPath")
@@ -870,11 +1085,25 @@ def html_to_pdf(
         raise FileNotFoundError(f"HTML file not found: {html_path}")
     abs_html = Path(os.path.abspath(raw_html))
     assert_local_no_unc_path(abs_html, "-HtmlPath")
+    html_sz = abs_html.stat().st_size
+    if html_sz > MAX_INPUT_HTML_BYTES:
+        raise ValueError(f"Refusing oversized HTML input ({html_sz:,} bytes > {MAX_INPUT_HTML_BYTES:,} byte limit): {abs_html}")
+
+    if not _qa_verified:
+        html_text = abs_html.read_text(encoding="utf-8-sig")
+        trusted_scripts = _extract_trusted_shell_scripts(shell_path=shell_path)
+        run_html_qa_check(
+            html_text,
+            skip_table_wrapper_check=True,
+            allowed_inline_scripts=trusted_scripts,
+            shell_path=shell_path,
+        )
 
     raw_pdf = str(out_pdf_path or "").strip()
-    base_pdf = Path(os.path.abspath(raw_pdf)) if raw_pdf else abs_html.with_suffix(".pdf")
-    dest_pdf = assert_safe_output_path(base_pdf, label="-OutPdfPath", is_directory=False)
-    assert dest_pdf is not None
+    dest_pdf = _prepare_sanitized_output_path(
+        raw_pdf if raw_pdf else str(abs_html.with_suffix(".pdf")),
+        label="-OutPdfPath",
+    )
 
     pdf_idx = find_next_available_index([dest_pdf])
     if pdf_idx > 1:
@@ -901,6 +1130,14 @@ def html_to_pdf(
             "--disable-gpu",
             "--no-pdf-header-footer",
             "--log-level=3",
+            "--disable-extensions",
+            "--disable-sync",
+            "--no-first-run",
+            "--disable-default-apps",
+            "--disable-background-networking",
+            "--disable-component-update",
+            "--disable-translate",
+            f"--host-resolver-rules={_HEADLESS_ALLOWED_HOSTS_RULE}",
             "--run-all-compositor-stages-before-draw",
             "--virtual-time-budget=4000",
             f"--user-data-dir={tmp_profile}",
@@ -980,6 +1217,9 @@ def embed_images_and_package(
         raise FileNotFoundError(f"HTML file not found: {html_path}")
     abs_html = Path(os.path.abspath(raw_in))
     assert_local_no_unc_path(abs_html, "-HtmlPath")
+    html_sz = abs_html.stat().st_size
+    if html_sz > MAX_INPUT_HTML_BYTES:
+        raise ValueError(f"Refusing oversized HTML input ({html_sz:,} bytes > {MAX_INPUT_HTML_BYTES:,} byte limit): {abs_html}")
     base_dir = abs_html.parent
     content = abs_html.read_text(encoding="utf-8-sig")
 
@@ -1017,19 +1257,29 @@ def embed_images_and_package(
     if not preserve_layout:
         updated, shell_injected = inject_reader_shell(updated, shell_path=shell_path)
 
-    run_html_qa_check(updated, skip_table_wrapper_check=preserve_layout, shell_path=shell_path)
+    updated = updated.replace("\r\n", "\n").replace("\r", "\n")
+    qa_scanner = run_html_qa_check(updated, skip_table_wrapper_check=preserve_layout, shell_path=shell_path)
+    updated = inject_csp_meta(
+        updated,
+        has_mathjax=qa_scanner.has_mathjax_in_head,
+        inline_script_raw_bodies=qa_scanner.allowed_inline_script_raw_bodies,
+    )
 
     has_explicit_out_html = bool(out_html_path and out_html_path.strip())
-    raw_dest = Path(os.path.abspath(out_html_path.strip())) if has_explicit_out_html else abs_html
-    dest = assert_safe_output_path(raw_dest, label="-OutHtmlPath", is_directory=False)
-    assert dest is not None
+    if has_explicit_out_html:
+        dest = _prepare_sanitized_output_path(out_html_path, label="-OutHtmlPath")
+    else:
+        dest = assert_safe_output_path(abs_html, label="-OutHtmlPath", is_directory=False)
+        assert dest is not None
 
     has_custom_out_pdf = bool(out_pdf_path and out_pdf_path.strip())
     want_pdf = also_pdf or has_custom_out_pdf
     pdf_protected: Path | None = None
     if want_pdf:
-        raw_pdf = Path(os.path.abspath(out_pdf_path.strip())) if has_custom_out_pdf else dest.with_suffix(".pdf")
-        pdf_protected = assert_safe_output_path(raw_pdf, label="-OutPdfPath", is_directory=False)
+        if has_custom_out_pdf:
+            pdf_protected = _prepare_sanitized_output_path(out_pdf_path, label="-OutPdfPath")
+        else:
+            pdf_protected = assert_safe_output_path(dest.with_suffix(".pdf"), label="-OutPdfPath", is_directory=False)
 
     if has_explicit_out_html and not has_custom_out_pdf:
         candidates = [dest, pdf_protected] if pdf_protected is not None else [dest]
@@ -1057,7 +1307,7 @@ def embed_images_and_package(
                 )
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(updated, encoding="utf-8")
+    dest.write_text(updated, encoding="utf-8", newline="\n")
     sz = dest.stat().st_size
 
     if stats["total"] > 0:
@@ -1075,7 +1325,14 @@ def embed_images_and_package(
 
     exported_pdf: Path | None = None
     if want_pdf and pdf_protected is not None:
-        exported_pdf = html_to_pdf(dest, out_pdf_path=pdf_protected, clean_dir="", timeout_seconds=timeout_seconds)
+        exported_pdf = html_to_pdf(
+            dest,
+            out_pdf_path=pdf_protected,
+            clean_dir="",
+            timeout_seconds=timeout_seconds,
+            _qa_verified=True,
+            shell_path=shell_path,
+        )
 
     if clean_dir and clean_dir.strip():
         protected = [dest] + ([exported_pdf] if exported_pdf is not None else [pdf_protected] if pdf_protected else [])

@@ -1,6 +1,6 @@
 # Third-Party Licenses & Notices
 
-Mã nguồn gốc của dự án **luka-loop** (bao gồm `AGENTS.md`, thư mục `.agents/skills/`, các script PowerShell trong `tools/`, `tools/reader_shell.html` và bộ mã nguồn tham chiếu trong `tools/src/`) được phát hành theo [MIT License](./LICENSE).
+Mã nguồn gốc của dự án **Luka-Loop** (bao gồm `AGENTS.md`, thư mục `.agents/skills/`, các script PowerShell trong `tools/`, `tools/reader_shell.html` và bộ mã nguồn tham chiếu trong `tools/src/`) được phát hành theo [MIT License](./LICENSE).
 
 Tuy nhiên, gói công cụ thực thi dựng sẵn dành cho Windows (`tools/extract_assets/`, được biên dịch tự động trên GitHub Actions và phân phối kèm trong gói phát hành Release `luka-loop-win-x64.zip`) chứa các thư viện và tệp nhị phân của bên thứ ba dưới các giấy phép riêng biệt sau đây:
 

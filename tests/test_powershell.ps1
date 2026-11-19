@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Zero-dependency PowerShell 5.1 & 7+ unit & integration test suite for luka-loop tools\.
+    Zero-dependency PowerShell 5.1 & 7+ unit & integration test suite for Luka-Loop tools\.
 .DESCRIPTION
     Tests tools\_path_guards.ps1, tools\extract_pdf_assets.ps1, tools\pdf_fallback_tools.ps1,
     tools\html_packager.ps1, and bundled extract_assets.exe without requiring system Python,
@@ -873,6 +873,70 @@ try {
         Assert-True ($mD.figures[0].caption -match '^Figure 1:') 'datasheet Fig 1 caption'
         Assert-True ($mD.figures[1].caption -match '^Figure 2:') 'datasheet Fig 2 caption'
         Assert-True ($mD.figures[2].caption -match '^Figure 3:') 'datasheet Fig 3 caption'
+    }
+
+    Invoke-TestCase 'Security hardening: NTFS ADS, metachar filenames, auto-sanitization, HtmlToPdf QA, allowlist, and CSP' {
+        $extractPs1 = Join-Path $toolsDir 'extract_pdf_assets.ps1'
+        $packPs1 = Join-Path $toolsDir 'html_packager.ps1'
+        $secDir = Join-Path $tmpRoot 'sec_hardening'
+        [void][System.IO.Directory]::CreateDirectory($secDir)
+
+        # 1. _path_guards.ps1 blocks NTFS ADS
+        Assert-Throws { Assert-LocalNoUncPath -PathValue 'output\doc.html:evil.exe' -ParamName 'Out' } 'NTFS Alternate Data Stream' 'Should block NTFS ADS'
+
+        # 2. PDF filename with PowerShell metacharacters extracts safely without executing expressions
+        $weirdPdf = Join-Path $secDir 'report_$(whoami)_$x.pdf'
+        New-MinimalVectorPdf -OutPath $weirdPdf
+        $weirdAssets = Join-Path $secDir 'assets'
+        $rWeird = Invoke-CliPs1 $extractPs1 @('-PdfPath', $weirdPdf, '-OutDir', $weirdAssets, '-Meta')
+        Assert-Equal 0 $rWeird.ExitCode "Weird filename PDF extraction failed: $($rWeird.Output)"
+        Assert-True (Test-Path -LiteralPath (Join-Path $weirdAssets 'fig_p1_1.png') -PathType Leaf) 'Extracted figure missing for metachar PDF'
+
+        # 3. Output filename auto-sanitization (CON.html & metachar name) + CSP meta injection
+        $okDraft = Join-Path $secDir 'ok_draft.html'
+        [System.IO.File]::WriteAllText($okDraft, '<!DOCTYPE html><html><head><title>Sec</title></head><body><h1>Safe</h1></body></html>', (New-Object System.Text.UTF8Encoding($false)))
+        $secOut = Join-Path $secDir 'out'
+        $rCon = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $okDraft, '-OutHtmlPath', (Join-Path $secOut 'CON.html'), '-PreserveLayout')
+        Assert-Equal 0 $rCon.ExitCode "Auto-sanitizing CON.html failed: $($rCon.Output)"
+        Assert-True ($rCon.Output -match 'Sanitized unsafe output filename') 'Should report sanitized filename'
+        $sanCon = Join-Path $secOut 'doc_CON.html'
+        Assert-True (Test-Path -LiteralPath $sanCon -PathType Leaf) 'doc_CON.html should be written'
+        $conHtml = [System.IO.File]::ReadAllText($sanCon, [System.Text.Encoding]::UTF8)
+        Assert-True ($conHtml -match 'http-equiv="Content-Security-Policy" data-luka-csp="1"') 'CSP meta should be injected'
+        Assert-True ($conHtml -match "script-src 'none';") 'PreserveLayout without MathJax should lock script-src none'
+
+        $rMetaOut = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $okDraft, '-OutHtmlPath', (Join-Path $secOut 'report_$(calc)_vi.html'))
+        Assert-Equal 0 $rMetaOut.ExitCode "Auto-sanitizing metachar output failed: $($rMetaOut.Output)"
+        Assert-True ($rMetaOut.Output -match 'Sanitized unsafe output filename') 'Should report sanitized metachar output'
+        $sanMeta = Join-Path $secOut 'report_(calc)_vi.html'
+        Assert-True (Test-Path -LiteralPath $sanMeta -PathType Leaf) 'Sanitized metachar HTML should exist'
+        $metaHtml = [System.IO.File]::ReadAllText($sanMeta, [System.Text.Encoding]::UTF8)
+        Assert-True ($metaHtml -match "script-src 'sha256-") 'Normal mode should inject SHA-256 CSP for reader_shell'
+
+        # 4. Direct -Action HtmlToPdf must enforce Auto-QA and block malicious <script>
+        $evilHtml = Join-Path $secDir 'evil_script.html'
+        [System.IO.File]::WriteAllText($evilHtml, '<!DOCTYPE html><html><head></head><body><script>alert(1)</script></body></html>', (New-Object System.Text.UTF8Encoding($false)))
+        $evilPdf = Join-Path $secOut 'evil_script.pdf'
+        $rEvilPdf = Invoke-CliPs1 $packPs1 @('-Action', 'HtmlToPdf', '-HtmlPath', $evilHtml, '-OutPdfPath', $evilPdf)
+        Assert-True ($rEvilPdf.ExitCode -ne 0 -and $rEvilPdf.Output -match 'Disallowed <script>') "HtmlToPdf should block malicious script: $($rEvilPdf.Output)"
+        Assert-True (-not (Test-Path -LiteralPath $evilPdf)) 'evil_script.pdf must not be created'
+
+        # 5. Red-team allowlist & ADS rejections via CLI
+        $badPayloads = @(
+            @{ Name = 'search_ms'; Html = '<!DOCTYPE html><html><head></head><body><a href="search-ms:crumb=location:\\evil\s">x</a></body></html>'; Rx = 'Disallowed dangerous URI' },
+            @{ Name = 'latex_js';  Html = '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head><body><p>\( \href{javascript:alert(1)}{x} \)</p></body></html>'; Rx = 'Disallowed dangerous URI' },
+            @{ Name = 'svg_anim';  Html = '<!DOCTYPE html><html><head></head><body><svg><animate attributeName="href" to="javascript:alert(1)"/></svg></body></html>'; Rx = 'Disallowed HTML tag' },
+            @{ Name = 'css_iset';  Html = '<!DOCTYPE html><html><head><style>body{background:image-set("https://evil.example/px.png" 1x);}</style></head><body></body></html>'; Rx = 'Disallowed external resource' }
+        )
+        foreach ($bp in $badPayloads) {
+            $pHtml = Join-Path $secDir ($bp.Name + '.html')
+            [System.IO.File]::WriteAllText($pHtml, $bp.Html, (New-Object System.Text.UTF8Encoding($false)))
+            $rBad = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $pHtml, '-OutHtmlPath', (Join-Path $secOut ($bp.Name + '_out.html')), '-PreserveLayout')
+            Assert-True ($rBad.ExitCode -ne 0 -and $rBad.Output -match $bp.Rx) "Payload $($bp.Name) should fail QA: $($rBad.Output)"
+        }
+
+        $rAds = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', $okDraft, '-OutHtmlPath', (Join-Path $secOut 'doc.html:evil.exe'), '-PreserveLayout')
+        Assert-True ($rAds.ExitCode -ne 0 -and $rAds.Output -match 'NTFS Alternate Data Stream') "NTFS ADS output should be rejected: $($rAds.Output)"
     }
 } finally {
     Remove-Item -LiteralPath $tmpRoot -Recurse -Force -ErrorAction SilentlyContinue
