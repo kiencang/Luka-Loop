@@ -2,6 +2,11 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.9] - 2026-11-20
+### Fixed
+- Thêm thư mục `input` cho người dùng;
+- Chỉnh sửa nhỏ phần SI từ PDF -> HTML;
+
 ## [1.1.8] - 2026-11-19
 ### Changed
 - Cập nhật SI dịch ở luồng giữ layout chi tiết hơn;

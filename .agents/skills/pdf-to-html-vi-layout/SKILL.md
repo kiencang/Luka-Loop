@@ -112,7 +112,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\html_packager.ps1
 ---
 
 ## Phụ lục: Fallback PDF Scan (`tools\pdf_fallback_tools.ps1`)
-Chỉ sử dụng khi Bước 1 phát hiện trang scan (`scanned_pages` khác rỗng) hoặc PDF chuẩn có hình/biểu đồ phức tạp bị tách sót (**không mở đọc `tools\pdf_fallback_tools.ps1`**):
+Chỉ sử dụng khi Bước 1 phát hiện trang scan (`scanned_pages` khác rỗng) hoặc PDF chuẩn có hình/biểu đồ phức tạp bị tách sót (**không mở đọc mã nguồn `tools\pdf_fallback_tools.ps1`**):
 
 > **Quy tắc Sàng lọc trước khi Cắt (`Triage before Crop`):**
 > - **Sơ đồ/biểu đồ đơn giản (Nhóm A — tái tạo được bằng HTML/CSS):** **KHÔNG dùng `CropFromJson`**. Nếu ảnh trang có sẵn từ PDF đã đọc rõ chữ → bỏ qua cả `RenderPages` lẫn `CropFromJson`, dựng thẳng HTML/CSS ở Bước 3; chỉ gọi `RenderPages` trang đó nếu cần soi chữ mờ.

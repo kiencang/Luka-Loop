@@ -222,7 +222,7 @@ h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; line-heigh
 
 ### 4.3 Hình ảnh & Tái tạo Sơ đồ trong HTML
 *(Phần điều phối tách ảnh, `Triage before Crop` và `read_file` song song thực hiện theo contract ở `SKILL.md`; dưới đây là chuẩn bố trí HTML/CSS từ dữ liệu ảnh đã đối chiếu):*
-1. **Đủ minh họa & quy ước thẻ `<img>`:** Mọi hình/sơ đồ trong tài liệu gốc phải có mặt theo **1 trong 2 hình thức**: giữ tệp PNG (`<img src="assets/<tên_file>.png" ...>`) hoặc dựng khối HTML/CSS tương đương (nếu đã dựng HTML/CSS thì bỏ PNG gốc để tránh trùng). Luôn viết thuộc tính `alt` tiếng Việt mô tả nội dung/mục đích hình (ảnh trang trí thuần túy dùng `alt=""`).
+1. **Đủ minh họa & quy ước thẻ `<img>`:** Mọi hình/sơ đồ trong tài liệu gốc phải có mặt theo **1 trong 2 hình thức**: giữ tệp PNG (`<img src="assets/<tên_file>.png" ...>`) hoặc dựng khối HTML/CSS tương đương (nếu đã dựng HTML/CSS thì bỏ PNG gốc để tránh trùng). Luôn viết thuộc tính `alt` tiếng Việt mô tả ngắn gọn nội dung/mục đích hình ảnh.
 2. **Định vị bằng `page` và `box: [x0, y0, x1, y1]` (`0.0–1.0`, gốc trên-trái):** Dùng `page` và `y0` sắp đúng thứ tự từ trên xuống. Trên tài liệu 2–3 cột khi gộp về 1 cột, dựa vào `x0, x1` (`x1 <= 0.50`: cột trái; `x0 >= 0.50`: cột phải; `x0 < 0.45 && x1 > 0.55`: vắt ngang toàn trang) để chèn hình đúng mạch văn cột chứa nó, tránh chen ngang vào cột bên cạnh.
 3. **Phân biệt `placement` (`"figure"` vs. `"table_cell"`):**
    - `placement = "table_cell"` *(hoặc ảnh nằm cùng hàng bảng trong `context`)*: **KHÔNG** tách ra thành `<figure>` ngoài bảng; đặt `<img src="assets/..." alt="..." style="max-width: 140px;">` *(chỉnh `max-width` theo cột)* vào **đúng ô `<td>`** của hàng bảng tương ứng.

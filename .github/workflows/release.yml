@@ -54,7 +54,7 @@ jobs:
           foreach ($file in @('AGENTS.md', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD_PARTY_LICENSES.md')) {
             Copy-Item -LiteralPath $file -Destination (Join-Path $stageDir $file) -Force
           }
-          foreach ($dir in @('.agents', 'licenses', 'tools')) {
+          foreach ($dir in @('.agents', 'input', 'licenses', 'tools')) {
             Copy-Item -LiteralPath $dir -Destination (Join-Path $stageDir $dir) -Recurse -Force
           }
 
