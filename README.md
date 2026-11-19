@@ -5,20 +5,20 @@ Công cụ AI Agent tự động dịch tài liệu PDF từ tiếng Anh sang ti
 - Định dạng đầu ra mặc định: Bản dịch tiếng Việt trả về ở cả 2 định dạng đồng thời là HTML và PDF. Định dạng HTML thường có kết quả hiển thị tốt hơn.
 
 ## Cách dùng
-Rất đơn giản, bạn tải trực tiếp gói dựng sẵn mới nhất tại đây (chỉ cần tải 1 lần, đã kèm sẵn toàn bộ công cụ):
+Rất đơn giản, bạn tải trực tiếp gói dựng sẵn mới nhất tại đây:
 
 - **Tải trực tiếp bản mới nhất:** [luka-loop-win-x64.zip](https://github.com/kiencang/Luka-Loop/releases/latest/download/luka-loop-win-x64.zip)
 - *(Nếu mở trang [GitHub Releases](https://github.com/kiencang/Luka-Loop/releases), hãy chọn tệp **`luka-loop-win-x64.zip`** trong mục **Assets** — không tải `Source code (zip)` vì gói mã nguồn thô từ Git không kèm sẵn `extract_assets.exe`).*
 
-Sau đó giải nén file zip đó ở bất kỳ thư mục làm việc nào mà bạn muốn. Khi giải nén, nhớ chọn tùy chọn `Extract Here`, mở thư mục `luka-loop` vừa giải nén thấy ngay file có tên `AGENTS.md` nghĩa là bạn đã giải nén thành công.
+Sau đó giải nén file zip đó ở bất kỳ thư mục làm việc nào mà bạn muốn. Khi giải nén, nhớ chọn tùy chọn `Extract Here`, mở thư mục `luka-loop` vừa giải nén thấy ngay file có tên `AGENTS.md` nghĩa là bạn đã giải nén thành công (nếu thích, bạn có thể đổi tên thư mục `luka-loop` sang tên khác cũng không vấn đề gì).
 
-Phần khó nhất đã xong! Giờ để dùng công cụ dịch, bạn chỉ việc vào Antigravity, chọn Workspace > Create Project > Add Folder, rồi bạn thêm thư mục vừa giải nén xong là OK.
+Phần khó nhất đã xong! Giờ để dùng công cụ dịch, bạn chỉ việc vào Antigravity, chọn `Workspace > Create Project > Add Folder`, rồi bạn thêm thư mục vừa giải nén xong là OK.
 
 Giờ thì bạn chỉ việc tải file PDF vào khung chat rồi gõ câu lệnh kiểu như `Dịch tài liệu sang tiếng Việt.` là agent Gemini sẽ tiến hành dịch, và gửi kết quả về ở cả 2 định dạng HTML và PDF. 
 
 Nếu muốn bản dịch **giữ sát bố cục/thiết kế gốc** của từng trang của PDF (sách, tạp chí, tài liệu nhiều cột...), hãy nêu rõ trong yêu cầu (ví dụ: `Dịch tài liệu sang tiếng Việt và bảo toàn thiết kế/layout.`).
 
-Dung lượng file: Nếu bạn tải lên từ khung chat, giới hạn của Antigravity là 10MB, nếu bạn có file lớn hơn, nên đặt vào thư mục `input` của chương trình này.
+Dung lượng file: Nếu bạn tải file lên từ khung chat, giới hạn của Antigravity là 10MB, trường hợp bạn có file lớn hơn, bạn nên đặt vào thư mục `input` của chương trình này.
 
 **Lưu ý**:
 - Khi làm việc với Antigravity, bạn có thể chọn chế độ **Turbo** (thay vì mặc định Request Review) để tránh phải xác nhận lặp lại các lệnh đóng gói; tuy nhiên **chỉ nên dùng Turbo với tài liệu PDF từ nguồn tin cậy** *(với PDF lạ, nên giữ Request Review để kiểm soát lệnh thực thi)*.
@@ -32,7 +32,7 @@ Dung lượng file: Nếu bạn tải lên từ khung chat, giới hạn của A
 ## Lý do tồn tại
 Tôi đã có sản phẩm https://github.com/kiencang/PDF-silaTranslator có chức năng tương đương, nhưng hiện tại chỉ API Key trả phí mới sử dụng được. 
 
-Luka-Loop sử dụng agent Gemini thông qua Antigravity, và hoàn toàn dùng được với tài khoản miễn phí. Ngoài ra, việc sử dụng các thư viện python chất lượng cao như PyMuPDF giúp công cụ có sự cải tiến tốt hơn trong khả năng tách ảnh.
+Luka-Loop sử dụng agent Gemini thông qua Antigravity, và hoàn toàn dùng được với tài khoản miễn phí. Ngoài ra, việc sử dụng các thư viện python chất lượng cao như PyMuPDF giúp công cụ có sự cải tiến tốt hơn trong khả năng tách ảnh, khi bạn thử, bạn sẽ thấy đa số các file PDF nó có khả năng bảo toàn định dạng rất tốt.
 
 ## Cấu trúc dự án
 - [`AGENTS.md`](./AGENTS.md) — Quy tắc điều phối dành cho AI Agent trong workspace.
