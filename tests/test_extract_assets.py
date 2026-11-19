@@ -39,6 +39,8 @@ class TestExtractAssetsTextAndClassification(unittest.TestCase):
             ("Figure II: Comparison", "fig_caption"),
             ("Figure 1 Overview of architecture", "fig_caption"),
             ("Figure 1: Shows that our model improves accuracy.", "fig_caption"),
+            ("FIGURE 8.14 Compare the differences between burns.", "fig_caption"),
+            ("Figure 12 Illustrate the cycle clearly.", "fig_caption"),
             ("Hình 1: Mô hình tổng quan", "fig_caption"),
             ("Sơ đồ 2.1: Quy trình xử lý", "fig_caption"),
             ("Biểu đồ 3. Kết quả thực nghiệm", "fig_caption"),
@@ -49,6 +51,12 @@ class TestExtractAssetsTextAndClassification(unittest.TestCase):
             ("Bảng II: Tham số", "tab_caption"),
             # Prose traps that must remain regular text
             ("Figures in the report indicate growth.", "text"),
+            ("Figures 2 compare both cohorts cleanly.", "text"),
+            ("Figure 26.8, the nurse performs this stereognosis test.", "text"),
+            ("Figure 1.15). The thoracic cavity is superior.", "text"),
+            ("Figure 19.25.", "text"),
+            ("Figure 20.25 for an illustration of the aorta.", "text"),
+            ("Figure 11.27 and Table 11.9). Poor ergonomics harm.", "text"),
             ("Figure values are shown below.", "text"),
             ("Figure 1 shows that our model improves accuracy.", "text"),
             ("Figure 1b illustrates the flow.", "text"),
@@ -287,6 +295,315 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
         self.assertEqual(len(meta["figures"]), 2)
         self.assertTrue(meta["figures"][0]["caption"].startswith("Figure 1:"))
         self.assertTrue(meta["figures"][1]["caption"].startswith("Figure 2:"))
+
+    def test_banner_raster_disconnected_bars_and_sidebar_separation(self) -> None:
+        pdf_path = self.tmp_dir / "banner_bars_sidebar.pdf"
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 120, 40), False)
+        pix.clear_with(160)
+        with pymupdf.open() as doc:
+            p = doc.new_page(width=612, height=792)
+            # 1. Wide low-height banner raster (280x26pt) vs slim hairline bar (280x10pt)
+            p.insert_image(pymupdf.Rect(50, 90, 330, 116), pixmap=pix, keep_proportion=False)
+            p.insert_image(pymupdf.Rect(50, 130, 330, 140), pixmap=pix, keep_proportion=False)
+
+            # 2. Disconnected vector bar chart beneath an orphaned caption (no X-axis rule)
+            p.insert_text((50, 210), "Figure 3: Disconnected bars below caption without baseline", fontsize=10)
+            for idx, height in enumerate((80, 50, 95, 65, 45, 70)):
+                bx0 = 70 + idx * 45
+                p.draw_rect(
+                    pymupdf.Rect(bx0, 340 - height, bx0 + 22, 340),
+                    color=(0.1, 0.2, 0.6),
+                    fill=(0.2, 0.4, 0.8),
+                )
+
+            # 3. Tall solid sidebar backdrop + outline enclosing 2 stacked photos + prose -> must NOT fuse
+            p.draw_rect(pymupdf.Rect(430, 70, 580, 560), color=None, fill=(0.95, 0.4, 0.1))
+            p.draw_rect(pymupdf.Rect(436, 76, 574, 554), color=(1.0, 1.0, 1.0), width=1.0)
+            p.insert_image(pymupdf.Rect(450, 90, 550, 175), pixmap=pix, keep_proportion=False)
+            p.insert_textbox(
+                pymupdf.Rect(448, 200, 560, 340),
+                "Sidebar explanatory paragraph describing workflow stages and cellular milestones across multiple lines of text.",
+                fontsize=9,
+            )
+            p.insert_image(pymupdf.Rect(450, 370, 550, 455), pixmap=pix, keep_proportion=False)
+            doc.save(pdf_path)
+
+        out_dir = self.tmp_dir / "out_banner_bars"
+        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        # Expect: banner raster + disconnected bar chart + 2 separate sidebar photos = 4 figures
+        self.assertEqual(len(meta["figures"]), 4)
+        bar_figs = [f for f in meta["figures"] if (f.get("caption") or "").startswith("Figure 3:")]
+        self.assertEqual(len(bar_figs), 1)
+        sidebar_figs = [f for f in meta["figures"] if f["box"][0] > 0.70]
+        self.assertEqual(len(sidebar_figs), 2)
+
+    def test_side_above_opposing_captions_and_column_split(self) -> None:
+        pdf_path = self.tmp_dir / "captions_layout.pdf"
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 80, 80), False)
+        pix.clear_with(140)
+        with pymupdf.open() as doc:
+            p = doc.new_page(width=612, height=792)
+            # 1. Above caption ~55pt above figure with short template link line right below caption
+            p.insert_text((150, 80), "Figure 1.1: Projected revenue curve over quarters", fontsize=10)
+            p.insert_text((170, 94), "Open Template in Microsoft Excel", fontsize=9)
+            p.insert_image(pymupdf.Rect(100, 136, 480, 260), pixmap=pix)
+
+            # 2. Second stacked chart directly below its own above-caption (must NOT confuse above/below)
+            p.insert_text((150, 286), "Figure 1.2: Sector breakdown across regions", fontsize=10)
+            p.insert_image(pymupdf.Rect(100, 298, 480, 410), pixmap=pix)
+
+            # 3. Two columns: bottom-aligned side caption + tight adjacent prose column ending before Figure 2
+            p.insert_image(pymupdf.Rect(50, 440, 200, 620), pixmap=pix)
+            p.insert_textbox(
+                pymupdf.Rect(218, 575, 360, 620),
+                "Figure 2.1 Bottom-aligned caption beside diagram.",
+                fontsize=9,
+            )
+
+            p2 = doc.new_page(width=612, height=792)
+            p2.insert_image(pymupdf.Rect(340, 80, 520, 260), pixmap=pix)
+            p2.insert_textbox(
+                pymupdf.Rect(60, 200, 315, 295),
+                "Regular left column narrative discussing policy rules across regions before the adjacent figure caption block appears on the page.",
+                fontsize=9,
+            )
+            p2.insert_textbox(
+                pymupdf.Rect(340, 268, 520, 310),
+                "Figure 27: Can labeled recycle beside column text.",
+                fontsize=9,
+            )
+            doc.save(pdf_path)
+
+        out_dir = self.tmp_dir / "out_caps"
+        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        captions = [f.get("caption") or "" for f in meta["figures"]]
+        self.assertEqual(len(meta["figures"]), 4)
+        self.assertTrue(any(c.startswith("Figure 1.1:") for c in captions))
+        self.assertTrue(any(c.startswith("Figure 1.2:") for c in captions))
+        self.assertTrue(any(c.startswith("Figure 2.1") for c in captions))
+        self.assertTrue(any(c.startswith("Figure 27:") for c in captions))
+
+        # Direct dict-block split verification (column jump & mid-block caption start)
+        ea._ensure_pymupdf()
+        fused_block = {
+            "type": 0,
+            "lines": [
+                {"bbox": (280.0, 328.0, 440.0, 340.0), "spans": [{"text": "Right column tail text."}]},
+                {"bbox": (56.0, 327.0, 260.0, 339.0), "spans": [{"text": "Figure 5.1 Left col caption"}]},
+                {"bbox": (56.0, 341.0, 250.0, 353.0), "spans": [{"text": "continued description"}]},
+            ],
+        }
+        split_blocks = ea._split_dict_block(fused_block)
+        self.assertEqual([tb.kind for tb in split_blocks], ["text", "fig_caption"])
+        self.assertTrue(split_blocks[1].text.startswith("Figure 5.1"))
+
+        mid_caption_block = {
+            "type": 0,
+            "lines": [
+                {"bbox": (72.0, 650.0, 340.0, 662.0), "spans": [{"text": "Department of Science and"}]},
+                {"bbox": (72.0, 665.0, 340.0, 677.0), "spans": [{"text": "Figure 27. Soft drinks can"}]},
+            ],
+        }
+        split_mid = ea._split_dict_block(mid_caption_block)
+        self.assertEqual([tb.kind for tb in split_mid], ["text", "fig_caption"])
+
+        wrapped_caption_block = {
+            "type": 0,
+            "lines": [
+                {"bbox": (72.0, 400.0, 360.0, 412.0), "spans": [{"text": "Figure 1. Architecture showing"}]},
+                {"bbox": (72.0, 413.5, 290.0, 425.0), "spans": [{"text": "diagram 2 details here"}]},
+            ],
+        }
+        split_wrap = ea._split_dict_block(wrapped_caption_block)
+        self.assertEqual(len(split_wrap), 1)
+        self.assertEqual(split_wrap[0].kind, "fig_caption")
+
+    def test_outlined_sub1pt_glyphs_and_dense_poster_rejection(self) -> None:
+        pdf_path = self.tmp_dir / "outlined_poster.pdf"
+        with pymupdf.open() as doc:
+            # 1. Sub-1pt outlined glyph confetti cluster (>=120 paths <=12pt) -> rejected
+            p1 = doc.new_page(width=612, height=792)
+            for idx in range(140):
+                row, col = divmod(idx, 20)
+                gx = 100 + col * 5.0
+                gy = 200 + row * 7.0
+                p1.draw_rect(pymupdf.Rect(gx, gy, gx + 0.8, gy + 4.5), color=None, fill=(0, 0, 0))
+
+            # 2. Oversized poster with >=80 uncaptioned 0-word small vector glyph shapes -> rejected
+            p2 = doc.new_page(width=1728, height=2592)
+            for idx in range(90):
+                row, col = divmod(idx, 10)
+                gx = 120 + col * 140
+                gy = 200 + row * 160
+                p2.draw_rect(pymupdf.Rect(gx, gy, gx + 95, gy + 95), color=(0, 0, 0), fill=(0.1, 0.1, 0.1))
+                p2.draw_circle((gx + 48, gy + 48), 22, color=(1, 1, 1), fill=(1, 1, 1))
+
+            # 3. Medium cluster (60 paths <=9pt, 0 text, no axis/frame) like outlined chemical formulas -> rejected
+            p3 = doc.new_page(width=612, height=792)
+            for idx in range(60):
+                row, col = divmod(idx, 15)
+                gx = 120 + col * 8.0
+                gy = 80 + row * 13.0
+                p3.draw_rect(pymupdf.Rect(gx, gy, gx + 5.5, gy + 8.0), color=None, fill=(0, 0, 0))
+            doc.save(pdf_path)
+
+        out_dir = self.tmp_dir / "out_poster"
+        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(meta["figures"], [])
+
+    def test_compact_tables_cover_glyphs_and_low_row_strip_raster(self) -> None:
+        pdf_path = self.tmp_dir / "compact_tables_and_strips.pdf"
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 120, 20), False)
+        pix.clear_with(150)
+        with pymupdf.open() as doc:
+            p = doc.new_page(width=612, height=792)
+            # 1. Zero-word 1-to-2 drawing decorative cover glyphs -> rejected
+            for gx in (120, 240, 360):
+                p.draw_rect(pymupdf.Rect(gx, 60, gx + 75, 145), color=None, fill=(0.9, 0.7, 0.1))
+
+            # 2. Compact <20-word open hairline + grid conversion table -> rejected
+            for ry in (200, 224, 248, 272):
+                p.draw_rect(pymupdf.Rect(210, ry, 390, ry + 0.3), color=None, fill=(0, 0, 0))
+            p.draw_rect(pymupdf.Rect(300, 200, 300.3, 272), color=None, fill=(0, 0, 0))
+            for idx, (left, right) in enumerate((("1 lb", "16 oz"), ("1 oz", "8 dr"), ("1 dr", "60 gr"))):
+                y = 206 + idx * 24
+                p.insert_textbox(pymupdf.Rect(216, y, 294, y + 18), left, fontsize=9)
+                p.insert_textbox(pymupdf.Rect(306, y, 384, y + 18), right, fontsize=9)
+
+            # 3. Low-profile clinical strip illustration (108x18pt) inside table row -> kept as table_cell
+            p.insert_text((72, 355), "Table 9.6 Common Patient Positions", fontsize=10)
+            p.insert_textbox(pymupdf.Rect(72, 380, 340, 410), "Supine patient lies flat on the back with pillow support.", fontsize=9)
+            p.insert_image(pymupdf.Rect(382, 382, 490, 400), pixmap=pix, keep_proportion=False)
+            doc.save(pdf_path)
+
+        out_dir = self.tmp_dir / "out_compact"
+        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(meta["figures"]), 1)
+        self.assertEqual(meta["figures"][0]["source"], "raster")
+        self.assertEqual(meta["figures"][0]["placement"], "table_cell")
+
+    def test_watermark_chains_header_banners_and_sparse_columns_rejected(self) -> None:
+        pdf_path = self.tmp_dir / "watermark_banner_column_guards.pdf"
+        shot_pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 120, 90), False)
+        shot_pix.clear_with(210)
+        bar_pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 340, 24), False)
+        bar_pix.clear_with(120)
+
+        with pymupdf.open() as doc:
+            # Page 1: diagonal light-gray outlined watermark glyphs crossing text + 2 screenshots
+            p1 = doc.new_page(width=612, height=792)
+            p1.insert_image(pymupdf.Rect(90, 210, 210, 310), pixmap=shot_pix, keep_proportion=False)
+            p1.insert_image(pymupdf.Rect(310, 330, 460, 440), pixmap=shot_pix, keep_proportion=False)
+            p1.insert_text((195, 272), "Confidential Draft", fontsize=11)
+            for k in range(8):
+                gx = 180.0 + k * 18.0
+                gy = 250.0 + k * 18.0
+                sh = p1.new_shape()
+                pts = [(gx + i * 2.0, gy + (18.0 if i % 2 else 0.0)) for i in range(12)]
+                sh.draw_polyline(pts)
+                sh.finish(color=None, fill=(0.75, 0.75, 0.75), closePath=True)
+                sh.commit()
+
+            # Page 2: wide top header banner + text-overlaid header strip + sparse vertical column
+            p2 = doc.new_page(width=612, height=792)
+            p2.insert_image(pymupdf.Rect(60, 20, 550, 76), pixmap=bar_pix, keep_proportion=False)
+            p2.insert_image(pymupdf.Rect(80, 200, 420, 224), pixmap=bar_pix, keep_proportion=False)
+            p2.insert_text((100, 216), "CONSTRUCTION DETAILS", fontsize=11)
+            # Sparse <6-word vertical table column frame (0.5pt hairlines, >=3 h_rules & >=2 v_rules)
+            for rx in (80, 155):
+                p2.draw_rect(pymupdf.Rect(rx, 260, rx + 0.5, 700), color=None, fill=(0, 0, 0))
+            for ry in (260, 380, 520, 700):
+                p2.draw_rect(pymupdf.Rect(80, ry, 155.5, ry + 0.5), color=None, fill=(0, 0, 0))
+            p2.insert_textbox(pymupdf.Rect(86, 270, 150, 300), "35-4\nAll regions", fontsize=9)
+            doc.save(pdf_path)
+
+        out_dir = self.tmp_dir / "out_guards"
+        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(meta["figures"]), 2)
+        self.assertTrue(all(f["page"] == 1 and f["source"] == "raster" for f in meta["figures"]))
+        self.assertLess(meta["figures"][0]["box"][2], meta["figures"][1]["box"][0])
+
+    def test_tiled_scans_bleed_strips_open_tables_and_scientific_plots(self) -> None:
+        pdf_path = self.tmp_dir / "doclaynet_general_guards.pdf"
+        strip_pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 200, 40), False)
+        strip_pix.clear_with(220)
+        logo_pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 60, 50), False)
+        logo_pix.clear_with(150)
+
+        with pymupdf.open() as doc:
+            # Page 1: Tiled full-page scan strips -> scanned_pages, not a figure
+            p1 = doc.new_page(width=600, height=800)
+            for k in range(8):
+                p1.insert_image(
+                    pymupdf.Rect(0, k * 100.0, 600, (k + 1) * 100.0),
+                    pixmap=strip_pix,
+                    keep_proportion=False,
+                )
+
+            # Page 2: Vertical full-bleed left sidebar touching corner logo + open book-style financial table + prose raster backdrop
+            p2 = doc.new_page(width=600, height=800)
+            p2.insert_image(pymupdf.Rect(0, 0, 60, 800), pixmap=strip_pix, keep_proportion=False)
+            p2.insert_image(pymupdf.Rect(24, 730, 84, 780), pixmap=logo_pix, keep_proportion=False)
+            # Open financial table (horizontal hairlines only, >=10 words, 0 curves/diagonals)
+            for ry in (80, 102, 165, 168):
+                p2.draw_rect(pymupdf.Rect(140, ry, 520, ry + 0.6), color=None, fill=(0, 0, 0))
+            p2.insert_textbox(pymupdf.Rect(150, 84, 510, 100), "Item Year_2023 Year_2024 Change Notes", fontsize=9)
+            p2.insert_textbox(pymupdf.Rect(150, 110, 510, 160), "Revenue 100 120 +20% Cost 50 55 +10% Total 150 175 ok", fontsize=9)
+            # Uncaptioned raster backdrop overlaid with >=3 long prose paragraphs (>=85 words)
+            p2.insert_image(pymupdf.Rect(140, 220, 500, 520), pixmap=strip_pix, keep_proportion=False)
+            for pi in range(3):
+                p2.insert_textbox(
+                    pymupdf.Rect(145, 240 + pi * 80, 495, 305 + pi * 80),
+                    "This is an entire legal contract prose paragraph overlaid across a semi-transparent background draft watermark containing thirty words so background detection removes it safely without harming normal figures on any page.",
+                    fontsize=9,
+                )
+
+            # Page 3: Uncaptioned 2x2 grid plot with curved/diagonal lines + scatter plot with >120 markers & axis lines
+            p3 = doc.new_page(width=612, height=792)
+            # Scatter plot with 130 tiny diamond/dot glyphs AND 3 long axis/regression lines -> kept
+            p3.draw_line((120, 80), (120, 320), color=(0, 0, 0), width=1.0)
+            p3.draw_line((120, 320), (420, 320), color=(0, 0, 0), width=1.0)
+            p3.draw_line((120, 80), (420, 80), color=(0, 0, 0), width=1.0)
+            p3.draw_line((420, 80), (420, 320), color=(0, 0, 0), width=1.0)
+            p3.draw_line((130, 305), (400, 105), color=(0.8, 0.2, 0.2), width=1.2)
+            for idx in range(130):
+                dx = 135.0 + (idx % 26) * 10.0
+                dy = 120.0 + (idx // 26) * 35.0 + (idx % 5) * 4.0
+                p3.draw_rect(pymupdf.Rect(dx, dy, dx + 4.0, dy + 4.0), color=(0, 0, 0), fill=(0, 0, 0))
+            p3.insert_text((250, 342), "M/m", fontsize=9)
+            p3.insert_text((110, 392), "FIG. 5: Scatter plot beyond 64pt bridged by axis label", fontsize=10)
+
+            # Page 4: Two side-by-side subplots separated by rotated vertical y-axis text + shared legend below
+            p4 = doc.new_page(width=612, height=792)
+            p4.draw_rect(pymupdf.Rect(140, 80, 290, 290), color=(0, 0, 0), width=1.0)
+            p4.draw_line((145, 270), (285, 110), color=(0, 0, 1), width=1.2)
+            p4.draw_rect(pymupdf.Rect(322, 80, 472, 290), color=(0, 0, 0), width=1.0)
+            p4.draw_line((327, 260), (467, 100), color=(1, 0, 0), width=1.2)
+            p4.insert_text((304, 240), "Throughput in bps/Hz", fontsize=9, rotate=90)
+            p4.insert_text((260, 302), "Users", fontsize=9)
+            p4.draw_rect(pymupdf.Rect(240, 310, 372, 360), color=(0, 0, 0), width=0.8)
+            p4.insert_text((250, 330), "Upper Bound\nLower Bound", fontsize=8)
+            p4.insert_text((140, 390), "Fig. 2. Comparison across left and right subplot scenarios", fontsize=10)
+            doc.save(pdf_path)
+
+        out_dir = self.tmp_dir / "out_doclaynet"
+        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(meta["scanned_pages"], [1])
+        p2_figs = [f for f in meta["figures"] if f["page"] == 2]
+        self.assertEqual(len(p2_figs), 1)
+        self.assertLess(p2_figs[0]["box"][2], 0.20)
+        p3_figs = [f for f in meta["figures"] if f["page"] == 3]
+        self.assertEqual(len(p3_figs), 1)
+        self.assertTrue((p3_figs[0].get("caption") or "").startswith("FIG. 5:"))
+        p4_figs = [f for f in meta["figures"] if f["page"] == 4]
+        self.assertEqual(len(p4_figs), 1)
+        self.assertTrue((p4_figs[0].get("caption") or "").startswith("Fig. 2."))
 
 
 class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):

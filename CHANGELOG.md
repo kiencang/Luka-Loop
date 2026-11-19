@@ -2,6 +2,19 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **luka-loop** sẽ được ghi lại trong file này.
 
+## [1.1.3] - 2026-11-19
+### Added
+- Bổ sung nhánh khôi phục vector rời `_fallback_search_band` và `_collect_caption_fallback_vectors` trong `tools\src\extract_assets.py` để thu hồi các biểu đồ cột/thanh tách rời nằm ngay dưới hoặc trên chú thích hình bị mồ côi khi thiếu đường trục nối;
+- Mở rộng bộ kiểm thử Python `tests\test_extract_assets.py` (tăng từ 18 lên 24 ca) bao phủ tách cột/chú thích giữa đoạn văn, phân xử chú thích hai phía, nhãn trục tọa độ & ghép đa subplot, bỏ qua confetti ký tự vẽ nét/poster dày đặc, bảng chuyển đổi đơn vị mảnh, bảng tài chính kẻ ngang mở, trang scan chia dải ngang, dải tràn lề, watermark vector/raster và thanh tiêu đề có chữ đè.
+
+### Changed
+- Nâng cấp bộ tách và ghép chú thích hình trong `tools\src\extract_assets.py` (`_collect_text_blocks`, `_split_dict_block`, `_is_prose_after_label`, `_is_short_axis_label`, `_match_caption_scored`, `_resolve_opposing_captions`, `_propagate_captions`, `_has_obstacle_between`, `_should_merge_candidates`): tách dòng qua ranh giới cột/giữa block, phân biệt nhãn chú thích với câu văn xuôi tham chiếu nội tuyến, hỗ trợ chú thích bên cạnh căn đáy, khoảng cách trên hình tới `64 pt` và cầu nối nhãn trục tới `78 pt`, phân xử tranh chấp khi một chú thích kẹp giữa hai hình và ghép các subplot ngăn cách bởi nhãn trục xoay `90°`/legend chung;
+- Mở rộng ngưỡng nhận diện dải minh họa nằm gọn trong ô bảng ở `_collect_raster_boxes` (`min >= 16 pt`, `max >= 100 pt`, diện tích `>= 1800 pt²`), đồng thời chuẩn hóa điều kiện kích thước cụm vector theo tỷ lệ khổ trang trong `_is_valid_vector_cluster`.
+
+### Fixed
+- Sửa sót đồ thị khoa học và biểu đồ phân tán trong `_is_valid_vector_cluster`: dùng `_has_non_grid_detail` tránh để `find_tables` loại nhầm biểu đồ nhiều ô chứa `>= 12` nét cong/chéo, và chỉ áp dụng bộ lọc confetti ký tự nhỏ khi có `< 2` trục/khung dài (`long_parts < 2`);
+- Siết lọc dương tính giả trên tài liệu thực chiến: kiểm tra lại `_is_page_background` sau `_merge_touching` để nhận diện trang scan chia nhiều dải ngang; lọc dải tràn lề (`_is_vertical_bleed_strip`, `_is_horizontal_bleed_strip`, `_is_full_bleed_edge_strip`), dải đứng mảnh `< 36 pt`, banner rộng đầu/cuối trang (`_is_edge_ornament`), chuỗi watermark vector xám nhạt (`_is_light_gray_watermark_glyph`), watermark nền raster nằm dưới `>= 3` đoạn văn dài, thanh tiêu đề raster có chữ đè, cột/khung bảng kẻ mảnh thưa chữ, bảng tài chính kẻ ngang mở không cột dọc (`all_thin`, không nét cong/chéo) và cụm poster/công thức chữ vẽ nét `0`-từ.
+
 ## [1.1.2] - 2026-11-19
 ### Added
 - Bổ sung mục **Cách công cụ giảm dung lượng ảnh** kèm sơ đồ Mermaid và tóm tắt 3 chốt bảo vệ vào `README.md`;
