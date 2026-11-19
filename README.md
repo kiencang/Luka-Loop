@@ -7,7 +7,7 @@ Công cụ AI Agent tự động dịch tài liệu PDF từ tiếng Anh sang ti
 ## Cách dùng
 Rất đơn giản, bạn tải trực tiếp gói dựng sẵn mới nhất tại đây:
 
-- **Tải trực tiếp bản mới nhất:** [luka-loop-win-x64.zip](https://github.com/kiencang/Luka-Loop/releases/latest/download/luka-loop-win-x64.zip)
+- **Tải bản mới nhất:** [luka-loop-win-x64.zip](https://github.com/kiencang/Luka-Loop/releases/latest/download/luka-loop-win-x64.zip)
 - *(Nếu mở trang [GitHub Releases](https://github.com/kiencang/Luka-Loop/releases), hãy chọn tệp **`luka-loop-win-x64.zip`** trong mục **Assets** — không tải `Source code (zip)` vì gói mã nguồn thô từ Git không kèm sẵn `extract_assets.exe`).*
 
 Sau đó giải nén file zip đó ở bất kỳ thư mục làm việc nào mà bạn muốn. Khi giải nén, nhớ chọn tùy chọn `Extract Here`, mở thư mục `luka-loop` vừa giải nén thấy ngay file có tên `AGENTS.md` nghĩa là bạn đã giải nén thành công (nếu thích, bạn có thể đổi tên thư mục `luka-loop` sang tên khác cũng không vấn đề gì).
