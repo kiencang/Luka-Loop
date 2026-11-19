@@ -14,9 +14,9 @@ Sau đó giải nén file zip đó ở bất kỳ thư mục làm việc nào m�
 
 Phần khó nhất đã xong! Giờ để dùng công cụ dịch, bạn chỉ việc vào Antigravity, chọn Workspace > Create Project > Add Folder, rồi bạn thêm thư mục vừa giải nén xong là OK.
 
-Giờ thì bạn chỉ việc tải file PDF vào khung chat rồi gõ câu lệnh kiểu như `Dịch tài liệu sang tiếng Việt.` là agent Gemini sẽ tiến hành dịch, và gửi kết quả về cả ở 2 định dạng HTML và PDF. 
+Giờ thì bạn chỉ việc tải file PDF vào khung chat rồi gõ câu lệnh kiểu như `Dịch tài liệu sang tiếng Việt.` là agent Gemini sẽ tiến hành dịch, và gửi kết quả về ở cả 2 định dạng HTML và PDF. 
 
-Nếu muốn **giữ sát bố cục/thiết kế gốc** của từng trang của PDF (sách, tạp chí, tài liệu nhiều cột...), hãy nêu rõ trong yêu cầu (ví dụ: `Dịch tài liệu sang tiếng Việt và bảo toàn thiết kế/layout.`).
+Nếu muốn bản dịch **giữ sát bố cục/thiết kế gốc** của từng trang của PDF (sách, tạp chí, tài liệu nhiều cột...), hãy nêu rõ trong yêu cầu (ví dụ: `Dịch tài liệu sang tiếng Việt và bảo toàn thiết kế/layout.`).
 
 Dung lượng file: Nếu bạn tải lên từ khung chat, giới hạn của Antigravity là 10MB, nếu bạn có file lớn hơn, nên đặt vào thư mục `input` của chương trình này.
 
