@@ -5,6 +5,7 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 ## [1.1.11] - 2026-11-20
 ### Fixed
 - Sửa lỗi thông tin về vắt trang gây hiểu nhầm ở 2 SI của luồng giữ layout;
+- Cập nhật README.md;
 
 ## [1.1.10] - 2026-11-20
 ### Fixed
