@@ -8,6 +8,7 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 - Tăng `--virtual-time-budget` của trình duyệt headless từ `4000` lên `7000` ms để MathJax kịp dàn công thức trước khi in PDF;
 - Cập nhật 2 `SKILL.md` và `AGENTS.md` với mẫu phản hồi khi chỉ riêng PDF lỗi; thêm `tests/test_pdf_export_resilience.py` (trình duyệt giả, không cần Edge/PyMuPDF).
 - Thu hẹp phạm vi `-CleanDir`: ngoài `work\` của workspace, chỉ cho dọn `<thư mục hiện hành>\work` khi thư mục hiện hành nằm trong thư mục tạm của hệ thống (dành cho test), tránh xóa nhầm một thư mục `work` không liên quan; thêm `tests/test_clean_dir_scope.py`.
+- Sửa lỗi gõ `ingput/` → `input/` trong README.
 
 ### Added
 - `tests/test_skill_contracts.py`: tự động đối chiếu `AGENTS.md` + các `SKILL.md` với mã thật — lệnh mẫu gọi đúng script/tham số/`-Action`, giá trị mặc định khớp `param()`, các dòng stdout được nhắc tới thực sự được in ra, liên kết và đường dẫn `tools\` tồn tại, file SI đọc 1 lần nằm trong giới hạn `read_file` và khớp kích thước ghi trong SKILL;
@@ -15,6 +16,10 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 - Thêm `.editorconfig` (UTF-8, LF) để trình soạn thảo tạo tệp mới đúng chuẩn.
 
 ### Changed
+- Tách chỉ dẫn riêng của Antigravity ra `.agents/adapters/antigravity.md` (đường dẫn transcript nội bộ, khối `<user_information>`, tệp tạm `media_<id>.pdf`, giới hạn và tên công cụ `read_file`/`edit_file`); `AGENTS.md` và 2 `SKILL.md` chuyển sang cách viết trung lập theo hành động ("đọc trọn 1 lần", "mở xem song song", "ghi nối dần") và chỉ trỏ tới bộ chuyển đổi khi phát hiện môi trường Antigravity. Agent khác không lấy được PDF đính kèm sẽ đề nghị người dùng đặt tệp vào `input\`;
+- Rút gọn `AGENTS.md` về vai trò điều phối (chọn skill, môi trường agent, quy tắc an toàn chung); chi tiết đầu ra/phản hồi do Bước 4 của `SKILL.md` đảm nhận;
+- Thông báo `Manifest too large for stdout` của `extract_assets.exe` không còn nhắc tên công cụ `read_file`;
+- `tests/test_skill_contracts.py`: kiểm tra chi tiết riêng Antigravity chỉ nằm trong bộ chuyển đổi, mọi tài liệu chung đều trỏ tới bộ chuyển đổi kèm dấu hiệu nhận diện môi trường, và lấy giới hạn đọc tệp từ chính bộ chuyển đổi;
 - Thống nhất ký tự xuống dòng LF cho toàn dự án qua `.gitattributes` (`* text=auto eol=lf`; riêng `*.cmd`/`*.bat` giữ CRLF; ảnh/PDF/exe/dll đánh dấu `binary`), không còn phụ thuộc cấu hình `core.autocrlf` của từng máy; chuẩn hóa `.gitignore` (trước đó lưu CRLF trong repo) và các tệp CRLF trên đĩa.
 
 ## [1.1.11] - 2026-11-20

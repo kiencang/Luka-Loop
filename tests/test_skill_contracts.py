@@ -15,10 +15,28 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_DIR = REPO_ROOT / "tools"
 SKILLS_DIR = REPO_ROOT / ".agents" / "skills"
 
-INSTRUCTION_DOCS = [REPO_ROOT / "AGENTS.md", *sorted(SKILLS_DIR.glob("*/SKILL.md"))]
+ADAPTERS_DIR = REPO_ROOT / ".agents" / "adapters"
+ANTIGRAVITY_ADAPTER = ADAPTERS_DIR / "antigravity.md"
+
+GENERIC_DOCS = [REPO_ROOT / "AGENTS.md", *sorted(SKILLS_DIR.glob("*/SKILL.md"))]
+INSTRUCTION_DOCS = [*GENERIC_DOCS, *sorted(ADAPTERS_DIR.glob("*.md"))]
+SI_DOCS = sorted(SKILLS_DIR.glob("*/si_*.md"))
 PS_HOST_PARAMS = {"NoProfile", "ExecutionPolicy", "File", "Command", "NonInteractive"}
-READ_FILE_MAX_LINES = 800
-READ_FILE_MAX_BYTES = 46 * 1024
+
+# Details that only make sense inside Antigravity (internal paths, tool names, upload naming).
+# They must live in .agents/adapters/antigravity.md, never in AGENTS.md, SKILL.md or SI files.
+# The environment-detection signal (`<user_information>` / `appDataDir`) is allowed everywhere.
+ANTIGRAVITY_ONLY_TOKENS = (
+    "read_file",
+    "StartLine",
+    "EndLine",
+    "edit_file",
+    "transcript.jsonl",
+    ".system_generated",
+    "\\brain\\",
+    "<conversation-id>",
+    "media_",
+)
 
 _PS_COMMAND_RX = re.compile(r"powershell\.exe[^`\n]*")
 _SCRIPT_REF_RX = re.compile(r"tools[\\/]([A-Za-z0-9_]+\.ps1)")
@@ -59,6 +77,14 @@ def _ps_params(script: Path) -> dict[str, dict[str, object]]:
             params[pm.group(1)] = {"default": default, "set": pending_set}
             pending_set = None
     return params
+
+
+def _read_file_limits() -> tuple[int, int]:
+    """Per-call read limits as documented in the Antigravity adapter (single source of truth)."""
+    m = re.search(r"khoảng (\d+) dòng / (\d+) KB", _read(ANTIGRAVITY_ADAPTER))
+    if not m:
+        raise AssertionError("antigravity.md must document the read_file limit as 'khoảng <N> dòng / <K> KB'")
+    return int(m.group(1)), int(m.group(2)) * 1024
 
 
 def _tools_source() -> str:
@@ -159,7 +185,8 @@ class TestSkillContracts(unittest.TestCase):
                 with self.subTest(doc=doc.name, path=rel):
                     self.assertTrue((REPO_ROOT / rel.replace("\\", "/")).exists(), f"missing path: {rel}")
 
-    def test_single_read_files_fit_read_file_limits_and_size_claims(self) -> None:
+    def test_single_read_files_fit_read_limits_and_size_claims(self) -> None:
+        max_lines, max_bytes = _read_file_limits()
         checked = 0
         for doc, text in self.docs.items():
             for m in _SIZE_CLAIM_RX.finditer(text):
@@ -170,12 +197,33 @@ class TestSkillContracts(unittest.TestCase):
                     data = target.read_bytes()
                     lines = data.decode("utf-8-sig").count("\n") + 1
                     kb = len(data) / 1024
-                    self.assertLessEqual(lines, READ_FILE_MAX_LINES, "file must be readable in one read_file call")
-                    self.assertLessEqual(len(data), READ_FILE_MAX_BYTES, "file must be readable in one read_file call")
+                    self.assertLessEqual(lines, max_lines, "file must be readable in one call (adapter limit)")
+                    self.assertLessEqual(len(data), max_bytes, "file must be readable in one call (adapter limit)")
                     self.assertLess(abs(lines - claimed_lines) / claimed_lines, 0.2, f"doc says ~{claimed_lines} lines, file has {lines}")
                     self.assertLess(abs(kb - claimed_kb) / claimed_kb, 0.2, f"doc says ~{claimed_kb} KB, file is {kb:.1f} KB")
                     checked += 1
         self.assertGreaterEqual(checked, 3, "expected size claims for every SI file read in one call")
+
+
+    def test_antigravity_details_live_only_in_adapter(self) -> None:
+        adapter = _read(ANTIGRAVITY_ADAPTER)
+        for token in ANTIGRAVITY_ONLY_TOKENS:
+            with self.subTest(token=token):
+                self.assertTrue(token in adapter, f"adapter should document {token!r}")
+        for doc in [*GENERIC_DOCS, *SI_DOCS]:
+            text = _read(doc)
+            for token in ANTIGRAVITY_ONLY_TOKENS:
+                with self.subTest(doc=doc.relative_to(REPO_ROOT).as_posix(), token=token):
+                    self.assertFalse(token in text, f"Antigravity-specific {token!r} belongs in .agents/adapters/antigravity.md")
+
+    def test_generic_docs_point_to_adapter_with_detection_signal(self) -> None:
+        for doc in GENERIC_DOCS:
+            text = _read(doc)
+            with self.subTest(doc=doc.relative_to(REPO_ROOT).as_posix()):
+                linked = re.search(r"\]\([./]*(?:\.\./\.\./|\.agents/)adapters/antigravity\.md\)", text)
+                self.assertTrue(linked, "must link the Antigravity adapter")
+                self.assertTrue("`<user_information>`" in text, "must state the environment-detection signal")
+                self.assertTrue("`appDataDir`" in text, "must state the environment-detection signal")
 
 
 if __name__ == "__main__":

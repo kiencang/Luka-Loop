@@ -280,7 +280,7 @@ def emit_compacted_manifest_stdout(
     else:
         print(
             f"Manifest too large for stdout ({stdout_bytes:,} bytes > {max_bytes:,} limit); "
-            f"use read_file -> {os.path.abspath(str(manifest_path))}"
+            f"read the file in parts -> {os.path.abspath(str(manifest_path))}"
         )
 
 
