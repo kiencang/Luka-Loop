@@ -73,6 +73,9 @@ PART_COVER = 0.5             # "mostly inside" for merge/split/fragment attribut
 RENDER_PAD = 4.0             # extract_images renders each box with 4 pt padding on every side
 MISS_BELOW = 0.5             # Picture area covered by extracted images below this -> missed
 AREA_OK = 0.9                # ... below this (but not missed) -> graphic area clipped
+MAJOR_CUT_CELLS = 3          # >= this many visibly cut text cells (or area clipped) -> major clip, else minor
+INK_WINDOW = 3.0             # half-size (pt) of the window checked for visible ink around a cut text cell
+INK_MIN_PIXELS = 4           # dark pixels (at 3x zoom) outside every image needed to call a cell visible
 
 Box = tuple[float, float, float, float]
 Point = tuple[float, float]
@@ -298,6 +301,33 @@ def severity_page(preds: list[Box], pictures: list[GtBox], others: list[GtBox], 
     return {"figures": figures, "preds": pred_status, "intrusions": intrusions, "severe": severe}
 
 
+def apply_visibility(sev: dict, visible: list[list[bool]]) -> dict:
+    """Keep only cut cells that show real ink outside the images; grade clipped figures major/minor.
+
+    `visible[k][n]` says whether cut point n of figure k has visible ink outside every extracted image
+    (DocLayNet text cells can sit on invisible or overlapping text). A figure stays 'clipped' only with
+    >= 1 visible cut cell or an area clip; 'clip' is 'major' with >= MAJOR_CUT_CELLS visible cells or an area
+    clip, otherwise 'minor' (typically one sub-panel label or a stray tick value).
+    """
+    out = dict(sev)
+    figures = []
+    for f, flags in zip(sev["figures"], visible):
+        g = dict(f)
+        if f["status"] in ("clipped", "ok"):
+            pts = [p for p, v in zip(f["cut_points"], flags) if v]
+            area_clip = f["coverage"] < AREA_OK
+            g["cut_points"] = pts
+            g["cut_cells"] = len(pts)
+            g["status"] = "clipped" if pts or area_clip else "ok"
+            g["clip"] = ("major" if area_clip or len(pts) >= MAJOR_CUT_CELLS else "minor") if g["status"] == "clipped" else ""
+        figures.append(g)
+    out["figures"] = figures
+    out["severe"] = any(f["status"] == "missed" or f.get("clip") == "major" for f in figures) or any(
+        p["status"] in ("intrusion", "bad_merge") for p in sev["preds"]
+    )
+    return out
+
+
 def prf(tp: int, n_pred: int, n_gt: int) -> dict:
     precision = tp / n_pred if n_pred else 1.0
     recall = tp / n_gt if n_gt else 1.0
@@ -316,6 +346,7 @@ def summarize(results: list[dict]) -> dict:
     by_source = collections.defaultdict(collections.Counter)
     matched_ious: list[float] = []
     fig_status, pred_status, intr_cls = collections.Counter(), collections.Counter(), collections.Counter()
+    clip_grade = collections.Counter()
     cut_cells = intr_cells = severe_pages = clipped_by_labels = 0
     for r in ok:
         ev = r["eval"]
@@ -335,6 +366,8 @@ def summarize(results: list[dict]) -> dict:
                 fig_status[f["status"]] += 1
                 cut_cells += f["cut_cells"]
                 clipped_by_labels += f["status"] == "clipped" and f["cut_cells"] > 0
+                if f["status"] == "clipped":
+                    clip_grade[f.get("clip") or "major"] += 1
             for p in sev["preds"]:
                 pred_status[p["status"]] += 1
             for it in sev["intrusions"]:
@@ -350,7 +383,10 @@ def summarize(results: list[dict]) -> dict:
             "figures": n_fig,
             "figures_ok": fig_status["ok"],
             "figures_ok_rate": _rate(fig_status["ok"], n_fig),
+            "figures_acceptable_rate": _rate(fig_status["ok"] + clip_grade["minor"], n_fig),
             "figures_clipped": fig_status["clipped"],
+            "figures_clipped_major": clip_grade["major"],
+            "figures_clipped_minor": clip_grade["minor"],
             "figures_clipped_labels_cut": clipped_by_labels,
             "figure_text_cells_cut": cut_cells,
             "figures_missed": fig_status["missed"],
@@ -484,6 +520,73 @@ def load_ground_truth(entries: list[dict], workers: int, cache_dir: Path) -> dic
     return gt
 
 
+def _ink_group(file: str, rg: int, items: list[dict]) -> list[tuple[str, list[list[bool]]]]:
+    """For each cut text cell, is there visible ink near it that lies outside every extracted image?"""
+    import pyarrow.parquet as pq
+    import pymupdf
+
+    rows = pq.ParquetFile(file).read_row_group(rg, columns=["pdf"]).to_pylist()
+    zoom = 3.0
+    out = []
+    for it in items:
+        with pymupdf.open(stream=rows[it["row"]]["pdf"], filetype="pdf") as doc:
+            page = doc[0]
+            pr = (page.rect.x0, page.rect.y0, page.rect.x1, page.rect.y1)
+            imgs = [expand(tuple(p), RENDER_PAD, pr) for p in it["preds"]]
+            flags = []
+            for pts in it["cut_points"]:
+                fl = []
+                for x, y in pts:
+                    win = pymupdf.Rect(x - INK_WINDOW, y - INK_WINDOW, x + INK_WINDOW, y + INK_WINDOW) & page.rect
+                    if win.is_empty:
+                        fl.append(False)
+                        continue
+                    pix = page.get_pixmap(clip=win, matrix=pymupdf.Matrix(zoom, zoom), colorspace=pymupdf.csGRAY, alpha=False)
+                    samples, stride, dark = pix.samples, pix.stride, 0
+                    for row in range(pix.height):
+                        py = win.y0 + (row + 0.5) / zoom
+                        base = row * stride
+                        for col in range(pix.width):
+                            if samples[base + col] < 160:
+                                px = win.x0 + (col + 0.5) / zoom
+                                if not any(contains_point(im, (px, py)) for im in imgs):
+                                    dark += 1
+                    fl.append(dark >= INK_MIN_PIXELS)
+                flags.append(fl)
+        out.append((it["page_hash"], flags))
+    return out
+
+
+def load_visibility(results: list[dict], fp: str, workers: int, cache_dir: Path) -> dict[str, list[list[bool]]]:
+    """Ink visibility of every cut text cell, cached per detector fingerprint."""
+    path = cache_dir / "ink" / f"{fp}_pad{RENDER_PAD:g}_w{INK_WINDOW:g}_v1.jsonl"
+    vis: dict[str, list[list[bool]]] = {}
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                h, v = json.loads(line)
+                vis[h] = v
+    todo = collections.defaultdict(list)
+    for r in results:
+        sev = r.get("sev")
+        if not sev or r["page_hash"] in vis:
+            continue
+        cut = [f["cut_points"] for f in sev["figures"]]
+        if not any(cut):
+            vis[r["page_hash"]] = [[] for _ in cut]
+            continue
+        todo[(r["file"], r["rg"])].append({"page_hash": r["page_hash"], "row": r["row"], "preds": r["preds"], "cut_points": cut})
+    if todo:
+        print(f"Checking ink for cut text cells on {sum(len(v) for v in todo.values())} pages ...", flush=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh, cf.ProcessPoolExecutor(max_workers=workers) as pool:
+            for fut in cf.as_completed([pool.submit(_ink_group, f, g, items) for (f, g), items in todo.items()]):
+                for h, v in fut.result():
+                    vis[h] = v
+                    fh.write(json.dumps([h, v]) + "\n")
+    return vis
+
+
 def _worker_init(disabled_rules: list[str]) -> None:
     if str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
@@ -565,7 +668,7 @@ def _error_weight(r: dict) -> int:
     if "error" in r:
         return 1000
     sev = r.get("sev") or {}
-    weight = sum(1 for f in sev.get("figures", []) if f["status"] != "ok")
+    weight = sum(1 for f in sev.get("figures", []) if f["status"] == "missed" or f.get("clip") == "major")
     weight += sum(2 for p in sev.get("preds", []) if p["status"] in ("intrusion", "bad_merge"))
     return weight
 
@@ -604,6 +707,24 @@ def _render_marked(r: dict, scale: float, crop: bool) -> tuple[bytes, int, int]:
         return pix.tobytes("jpeg" if crop else "png", **({"jpg_quality": 82} if crop else {})), pix.width, pix.height
 
 
+def _render_outputs(r: dict, scale: float, limit: int = 3) -> list[tuple[bytes, int, int]]:
+    """The images extract_images would write for the predictions touching a figure (box +/- 4 pt, unmarked)."""
+    import pyarrow.parquet as pq
+    import pymupdf
+
+    rec = pq.ParquetFile(r["file"]).read_row_group(r["rg"], columns=["pdf"]).to_pylist()[r["row"]]
+    gts = [tuple(g) for g in r["gts"]]
+    picked = [p for p in r["preds"] if not gts or any(intersection(tuple(p), g) > 0 for g in gts)][:limit]
+    out = []
+    with pymupdf.open(stream=rec["pdf"], filetype="pdf") as doc:
+        page = doc[0]
+        for p in picked:
+            clip = pymupdf.Rect(p[0] - RENDER_PAD, p[1] - RENDER_PAD, p[2] + RENDER_PAD, p[3] + RENDER_PAD) & page.rect
+            pix = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), clip=clip)
+            out.append((pix.tobytes("jpeg", jpg_quality=85), pix.width, pix.height))
+    return out
+
+
 def write_overlays(results: list[dict], out_dir: Path, limit: int) -> list[Path]:
     worst = sorted((r for r in results if "sev" in r and _error_weight(r)), key=_error_weight, reverse=True)[:limit]
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -626,12 +747,16 @@ GALLERY_CATEGORIES = [
     ("bad_merge", "Gộp lệch",
      "Một ảnh bao nhiều hình và nuốt cả chữ nằm giữa / quanh chúng.",
      lambda r: any(p["status"] == "bad_merge" for p in r["sev"]["preds"])),
-    ("labels_cut", "Cắt thiếu nhãn trục / chú giải",
-     "Chữ thuộc hình (nhãn trục, số chia, chú giải — chấm xanh dương) nằm ngoài mọi ảnh đã tách.",
-     lambda r: any(f["status"] == "clipped" and f["cut_cells"] for f in r["sev"]["figures"])),
     ("area_cut", "Cắt thiếu một phần hình",
-     "Hơn 10% diện tích hình nằm ngoài mọi ảnh đã tách (không kèm chữ bị cắt).",
-     lambda r: any(f["status"] == "clipped" and not f["cut_cells"] for f in r["sev"]["figures"])),
+     "Hơn 10% diện tích hình nằm ngoài mọi ảnh đã tách.",
+     lambda r: any(f.get("clip") == "major" and f["coverage"] < AREA_OK for f in r["sev"]["figures"])),
+    ("labels_cut_major", "Cắt mất nhiều chữ của hình (≥ 3 ô chữ)",
+     "Ít nhất 3 ô chữ thuộc hình (nhãn trục, số chia, chú giải — chấm xanh dương) có mực thật nằm ngoài ảnh. "
+     "So với ảnh xuất ra thực tế bên dưới.",
+     lambda r: any(f.get("clip") == "major" and f["coverage"] >= AREA_OK for f in r["sev"]["figures"])),
+    ("labels_cut_minor", "Cắt mất ít chữ của hình (1–2 ô chữ)",
+     "Thường chỉ là một nhãn panel như (c)/(d) hoặc một số chia ở mép — mức nhẹ.",
+     lambda r: any(f.get("clip") == "minor" for f in r["sev"]["figures"])),
     ("missed", "Bỏ sót hình",
      "Chưa tới một nửa diện tích hình nằm trong ảnh nào.",
      lambda r: any(f["status"] == "missed" for f in r["sev"]["figures"])),
@@ -658,14 +783,23 @@ def write_gallery(results: list[dict], summary: dict, path: Path, per_category: 
         cards = []
         for r in picked:
             data, w, h = _render_marked(r, 1.8, crop=True)
-            states = collections.Counter(f["status"] for f in r["sev"]["figures"])
+            states = collections.Counter(
+                f["status"] + (f" ({f['clip']})" if f.get("clip") else "") for f in r["sev"]["figures"]
+            )
             imgs = collections.Counter(p["status"] for p in r["sev"]["preds"])
             info = (f"hình: {', '.join(f'{v} {k}' for k, v in states.items()) or '0'} · "
                     f"ảnh: {', '.join(f'{v} {k}' for k, v in imgs.items()) or '0'}")
+            outputs = "".join(
+                f'<img class="out" loading="lazy" width="{ow}" height="{oh}" '
+                f'src="data:image/jpeg;base64,{base64.b64encode(od).decode()}" alt="ảnh xuất ra">'
+                for od, ow, oh in _render_outputs(r, 1.3)
+            )
+            out_block = f'<div class="outs"><span>Ảnh xuất ra thực tế:</span>{outputs}</div>' if outputs else ""
             cards.append(
                 f'<figure class="card"><img loading="lazy" width="{w}" height="{h}" '
                 f'src="data:image/jpeg;base64,{base64.b64encode(data).decode()}" alt="{html.escape(r["doc"])}">'
-                f'<figcaption><b>{html.escape(r["doc"])}</b>, trang {r["page_no"]}<br>{html.escape(info)}</figcaption></figure>'
+                f'{out_block}<figcaption><b>{html.escape(r["doc"])}</b>, trang {r["page_no"]}<br>{html.escape(info)}'
+                f'</figcaption></figure>'
             )
         nav.append(f'<a href="#{key}">{html.escape(title)} ({n_pages})</a>')
         sections.append(
@@ -673,7 +807,8 @@ def write_gallery(results: list[dict], summary: dict, path: Path, per_category: 
             f'<p class="note">{html.escape(note)}</p><div class="grid">{"".join(cards)}</div></section>'
         )
     stats = (f"{sev['figures']} hình: {sev['figures_ok']} ổn ({sev['figures_ok_rate']:.1%}), "
-             f"{sev['figures_clipped']} cắt thiếu, {sev['figures_missed']} bỏ sót · {sev['images']} ảnh: "
+             f"{sev['figures_clipped_major']} cắt thiếu nhiều, {sev['figures_clipped_minor']} cắt thiếu ít, "
+             f"{sev['figures_missed']} bỏ sót · {sev['images']} ảnh: "
              f"{sev['images_with_text_intrusion']} lấn chữ (trong đó {sev['images_bad_merge']} gộp lệch), "
              f"{sev['images_merge_ok']} gộp đúng")
     page = f"""<!doctype html><html lang="vi"><head><meta charset="utf-8">
@@ -692,6 +827,9 @@ nav a {{ margin-right:14px; color:inherit; font-size:14px; }}
 .card {{ margin:0; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }}
 .card img {{ display:block; width:100%; height:auto; background:#fff; cursor:zoom-in; }}
 .card figcaption {{ padding:8px 10px; font-size:13px; color:var(--muted); }} .card figcaption b {{ color:var(--fg); }}
+.outs {{ display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; padding:8px 10px 0; border-top:1px dashed var(--line); }}
+.outs span {{ width:100%; font-size:12px; color:var(--muted); }}
+.outs img.out {{ max-width:100%; height:auto; width:auto; max-height:260px; background:#fff; outline:1px solid var(--line); cursor:zoom-in; }}
 @media (max-width:480px) {{ .grid {{ grid-template-columns:1fr; }} }}
 </style></head><body>
 <header><h1>Lỗi nặng của bộ tách hình — DocLayNet, {html.escape(' + '.join(summary['subsets']))}</h1>
@@ -739,6 +877,10 @@ def main(argv: list[str] | None = None) -> None:
     raw = run_pages(entries, args.disable_rule, args.workers, args.cache_dir / "pages" / f"{fp}.jsonl")
     gt = load_ground_truth(entries, args.workers, args.cache_dir)
     results = [score(r, gt[r["page_hash"]]) for r in raw]
+    visibility = load_visibility(results, fp, args.workers, args.cache_dir)
+    for r in results:
+        if "sev" in r:
+            r["sev"] = apply_visibility(r["sev"], visibility[r["page_hash"]])
 
     name = "+".join(subsets) + (f"-n{args.limit}s{args.seed}" if args.limit else "") + f"-{fp}"
     out = args.out or args.cache_dir / "runs" / name

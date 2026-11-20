@@ -152,6 +152,26 @@ class TestSeverity(unittest.TestCase):
         self.assertEqual(sev["preds"][0]["status"], "intrusion")
         self.assertEqual(sev["preds"][0]["intruded_cells"], 1, "only the cell under the padding, not the label")
 
+    def test_visibility_drops_invisible_cuts_and_grades_clips(self) -> None:
+        # axis labels 6-10 pt below the padded image; ~91% of the picture area is still covered (no area clip)
+        pic = ("Picture", (100, 100, 300, 214), [(200, 210), (230, 210), (260, 210), (290, 212)])
+        sev = ev.severity_page([(100, 100, 300, 200)], [pic], [], PAGE)
+        self.assertEqual(sev["figures"][0]["cut_cells"], 4)
+        none_visible = ev.apply_visibility(sev, [[False, False, False, False]])
+        self.assertEqual(none_visible["figures"][0]["status"], "ok")
+        self.assertFalse(none_visible["severe"])
+        minor = ev.apply_visibility(sev, [[True, False, False, True]])
+        self.assertEqual((minor["figures"][0]["status"], minor["figures"][0]["clip"]), ("clipped", "minor"))
+        self.assertFalse(minor["severe"], "a minor clip (1-2 cells) is not a severe error")
+        major = ev.apply_visibility(sev, [[True, True, True, False]])
+        self.assertEqual(major["figures"][0]["clip"], "major")
+        self.assertTrue(major["severe"])
+
+    def test_area_clip_is_major_even_without_visible_text(self) -> None:
+        pic = ("Picture", (100, 100, 300, 300), [])
+        sev = ev.apply_visibility(ev.severity_page([(100, 100, 300, 260)], [pic], [], PAGE), [[]])
+        self.assertEqual((sev["figures"][0]["status"], sev["figures"][0]["clip"]), ("clipped", "major"))
+
     def test_bad_merge_versus_acceptable_merge(self) -> None:
         pics = [("Picture", (100, 100, 280, 200), []), ("Picture", (320, 100, 500, 200), [])]
         ok = ev.severity_page([(100, 100, 500, 200)], pics, [], PAGE)
