@@ -740,6 +740,22 @@ try {
         }
     }
 
+    Invoke-TestCase 'Path arguments with spaces and a trailing backslash reach extract_assets.exe intact' {
+        Assert-Equal 'C:\my dir\\' (ConvertTo-NativeArgument -Value 'C:\my dir\') 'Trailing backslash after whitespace must be doubled'
+        Assert-Equal '--out-dir=C:\a b\\\\' (ConvertTo-NativeArgument -Value '--out-dir=C:\a b\\') 'Every trailing backslash must be doubled'
+        Assert-Equal 'C:\nospace\' (ConvertTo-NativeArgument -Value 'C:\nospace\') 'Unquoted arguments must stay unchanged'
+        Assert-Equal 'C:\my dir\x.pdf' (ConvertTo-NativeArgument -Value 'C:\my dir\x.pdf') 'No trailing backslash: unchanged'
+        Assert-Equal '' (ConvertTo-NativeArgument -Value '') 'Empty argument stays empty'
+
+        $fbPs1 = Join-Path $toolsDir 'pdf_fallback_tools.ps1'
+        $memoPdf = Join-Path (Join-Path $PSScriptRoot 'fixtures') 'synthetic_scanned_memo.pdf'
+        $spacedDir = Join-Path $tmpRoot 'spaced out dir'
+        # Call the wrapper in-process: spawning powershell.exe would hit the same legacy quoting bug one layer
+        # earlier (in the test harness itself), so only the wrapper -> extract_assets.exe hop is exercised here.
+        $out = (& $fbPs1 -Action RenderPages -PdfPath $memoPdf -OutDir ($spacedDir + '\') -Pages '1' 2>&1 | Out-String)
+        Assert-True (Test-Path -LiteralPath (Join-Path $spacedDir 'page_1.png') -PathType Leaf) "RenderPages with spaced OutDir ending in '\' failed: $out"
+    }
+
     Invoke-TestCase 'Committed fixtures (standard, pure scan, mixed scan) extract and fallback cleanly' {
         $fixDir = Join-Path $PSScriptRoot 'fixtures'
         $extractPs1 = Join-Path $toolsDir 'extract_pdf_assets.ps1'

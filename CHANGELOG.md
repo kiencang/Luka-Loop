@@ -2,6 +2,16 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- Windows PowerShell 5.1 (và PowerShell 7.0–7.2) làm hỏng tham số đường dẫn có khoảng trắng và kết thúc bằng `\` (vd `-OutDir 'C:\my dir\'`): dấu `\` cuối bị hiểu là escape cho dấu `"` đóng, nuốt mọi tham số phía sau. `Invoke-ExtractAssetsExe` nay nhân đôi các `\` cuối trước khi gọi `extract_assets.exe` khi host dùng kiểu truyền tham số cũ;
+- `-CleanDir` không hợp lệ (ngoài `work\`, hoặc chứa tệp đầu ra) trước đây chỉ bị phát hiện **sau khi** HTML/PDF đã ghi ra `output\`, khiến lệnh báo thất bại và Agent chạy lại tạo bản trùng `_2`. Nay `EmbedImages` và `HtmlToPdf` kiểm tra `-CleanDir` trước khi ghi tệp hoặc mở trình duyệt; lỗi dọn dẹp phát sinh sau khi đầu ra đã hoàn tất chỉ in `WARNING: Skipped cleaning temp directory; outputs are complete` (stderr) thay vì làm hỏng cả lệnh;
+- Bỏ import thừa `get_repo_root` trong `html_packager_core.py`.
+
+### Added
+- `path_guards.validate_clean_dir()`: chạy đủ các kiểm tra an toàn của `safe_clean_dir` mà không xóa gì;
+- Test: `-CleanDir` sai không tạo tệp nào trong `output\` và không khởi động trình duyệt, lỗi dọn dẹp sau khi ghi chỉ cảnh báo, `RenderPages` với `-OutDir` có khoảng trắng + `\` cuối.
+
 ## [1.1.12] - 2026-11-20
 ### Fixed
 - Xuất PDF lỗi (Edge/Chrome quá thời gian hoặc tạo PDF rỗng) không còn làm cả lệnh `-Action EmbedImages` báo thất bại: HTML đã đạt QA vẫn được giữ, `work\` vẫn được dọn, tệp PDF dở dang tự xóa và stdout in `WARNING: PDF export failed; HTML output is complete -> ...` — tránh việc Agent chạy lại Bước 4 tạo bản trùng `_2`, `_3`;

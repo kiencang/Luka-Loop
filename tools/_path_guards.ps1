@@ -160,6 +160,27 @@ function Resolve-SafeOutDirectory {
     return $outDirFull
 }
 
+function Test-UsesLegacyNativeArgPassing {
+    <# True when this host joins native-command arguments without escaping trailing backslashes (PS 5.1, PS 7.0-7.2, or Legacy mode). #>
+    if ($PSVersionTable.PSEdition -eq 'Desktop') { return $true }
+    $mode = Get-Variable -Name PSNativeCommandArgumentPassing -ValueOnly -ErrorAction SilentlyContinue
+    return ($null -eq $mode -or "$mode" -eq 'Legacy')
+}
+
+function ConvertTo-NativeArgument {
+    <#
+    Prepares one argument for legacy native-command passing. Legacy hosts wrap an argument containing
+    whitespace in double quotes but leave trailing backslashes alone, so 'C:\my dir\' becomes "C:\my dir\"
+    and the closing quote is read as an escaped literal quote, swallowing every later argument.
+    Doubling the trailing backslashes makes the native parser read them back as the original backslashes.
+    #>
+    param([AllowEmptyString()][string]$Value)
+    if ($Value -match '\s' -and $Value -match '(\\+)$') {
+        return $Value + $Matches[1]
+    }
+    return $Value
+}
+
 function Invoke-ExtractAssetsExe {
     <# Resolves tools\extract_assets\extract_assets.exe safely, sets UTF-8 stdio env vars, executes it, and verifies exit code. #>
     param(
@@ -188,10 +209,15 @@ function Invoke-ExtractAssetsExe {
     $prevPythonUtf8 = $env:PYTHONUTF8
     $prevPythonIoEnc = $env:PYTHONIOENCODING
     $exeExit = 0
+    $nativeArgs = if (Test-UsesLegacyNativeArgPassing) {
+        @($Arguments | ForEach-Object { ConvertTo-NativeArgument -Value $_ })
+    } else {
+        $Arguments
+    }
     try {
         $env:PYTHONUTF8 = '1'
         $env:PYTHONIOENCODING = 'utf-8'
-        & $exePath @Arguments
+        & $exePath @nativeArgs
         $exeExit = $LASTEXITCODE
     } finally {
         if ($null -eq $prevPythonUtf8) { Remove-Item Env:PYTHONUTF8 -ErrorAction SilentlyContinue } else { $env:PYTHONUTF8 = $prevPythonUtf8 }
