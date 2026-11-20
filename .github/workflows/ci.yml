@@ -6,12 +6,16 @@ on:
     paths:
       - 'tools/**'
       - 'tests/**'
+      - '.agents/**'
+      - 'AGENTS.md'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [main]
     paths:
       - 'tools/**'
       - 'tests/**'
+      - '.agents/**'
+      - 'AGENTS.md'
       - '.github/workflows/ci.yml'
   workflow_dispatch:
 

@@ -411,8 +411,36 @@ def resolve_safe_crop_out_file(dest_dir: Path, out_name: str, invalid_chars: set
     return Path(out_file)
 
 
+def _is_within_system_temp(path_str: str) -> bool:
+    """True when `path_str` is the system temp dir or below it (8.3 short names tolerated via samefile)."""
+    temp_dirs: list[str] = []
+    for cand in (tempfile.gettempdir(), os.environ.get("TEMP", ""), os.environ.get("TMP", "")):
+        if cand and cand.strip() and os.path.isdir(cand) and cand not in temp_dirs:
+            temp_dirs.append(cand)
+    if not temp_dirs:
+        return False
+    cursor = _norm_abs_str(path_str)
+    while cursor:
+        for t in temp_dirs:
+            try:
+                if os.path.samefile(cursor, t):
+                    return True
+            except OSError:
+                pass
+        parent = os.path.dirname(cursor)
+        if not parent or parent == cursor:
+            break
+        cursor = parent
+    return False
+
+
 def get_allowed_work_roots(repo_root: Path | None = None) -> list[str]:
-    """Return canonical `work` roots eligible for cleanup (repo root and safe CWD)."""
+    """Return canonical `work` roots eligible for cleanup.
+
+    Always the workspace `<repo>/work`. A `<CWD>/work` root is only added when CWD lies inside the
+    system temp directory (isolated test/sandbox runs), so a drifted CWD can never delete an
+    unrelated user folder that happens to be named `work`.
+    """
     roots: list[str] = []
     seen: set[str] = set()
     blocked = _blocked_system_roots()
@@ -426,7 +454,7 @@ def get_allowed_work_roots(repo_root: Path | None = None) -> list[str]:
 
     cwd = _norm_abs_str(Path.cwd())
     cwd_drive = _norm_abs_str(ntpath.splitdrive(cwd)[0] + os.sep)
-    if cwd and cwd.lower() != cwd_drive.lower() and cwd.lower() not in blocked:
+    if cwd and cwd.lower() != cwd_drive.lower() and cwd.lower() not in blocked and _is_within_system_temp(cwd):
         cwd_work = _norm_abs_str(os.path.join(cwd, "work"))
         if cwd_work.lower() not in seen:
             seen.add(cwd_work.lower())

@@ -7,6 +7,11 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 - Xuất PDF lỗi (Edge/Chrome quá thời gian hoặc tạo PDF rỗng) không còn làm cả lệnh `-Action EmbedImages` báo thất bại: HTML đã đạt QA vẫn được giữ, `work\` vẫn được dọn, tệp PDF dở dang tự xóa và stdout in `WARNING: PDF export failed; HTML output is complete -> ...` — tránh việc Agent chạy lại Bước 4 tạo bản trùng `_2`, `_3`;
 - Tăng `--virtual-time-budget` của trình duyệt headless từ `4000` lên `7000` ms để MathJax kịp dàn công thức trước khi in PDF;
 - Cập nhật 2 `SKILL.md` và `AGENTS.md` với mẫu phản hồi khi chỉ riêng PDF lỗi; thêm `tests/test_pdf_export_resilience.py` (trình duyệt giả, không cần Edge/PyMuPDF).
+- Thu hẹp phạm vi `-CleanDir`: ngoài `work\` của workspace, chỉ cho dọn `<thư mục hiện hành>\work` khi thư mục hiện hành nằm trong thư mục tạm của hệ thống (dành cho test), tránh xóa nhầm một thư mục `work` không liên quan; thêm `tests/test_clean_dir_scope.py`.
+
+### Added
+- `tests/test_skill_contracts.py`: tự động đối chiếu `AGENTS.md` + các `SKILL.md` với mã thật — lệnh mẫu gọi đúng script/tham số/`-Action`, giá trị mặc định khớp `param()`, các dòng stdout được nhắc tới thực sự được in ra, liên kết và đường dẫn `tools\` tồn tại, file SI đọc 1 lần nằm trong giới hạn `read_file` và khớp kích thước ghi trong SKILL;
+- CI chạy cả khi `.agents/**` hoặc `AGENTS.md` thay đổi.
 
 ## [1.1.11] - 2026-11-20
 ### Fixed
