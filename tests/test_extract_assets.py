@@ -1,4 +1,7 @@
-"""Unit & integration tests for tools/src/extract_assets.py (dev-only; uses Python stdlib unittest)."""
+"""Unit & integration tests for the extract_assets.exe modules in tools/src/ (dev-only; uses Python stdlib unittest).
+
+CLI parsing and dispatch of extract_assets.py itself are covered by test_cli.py.
+"""
 
 from __future__ import annotations
 
@@ -17,7 +20,6 @@ SRC_DIR = REPO_ROOT / "tools" / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-import extract_assets as ea  # noqa: E402
 import figure_detector as fd  # noqa: E402
 import html_qa as qa  # noqa: E402
 import image_ops as iops  # noqa: E402
@@ -32,7 +34,7 @@ import transcript as tr  # noqa: E402
 class TestExtractAssetsTextAndClassification(unittest.TestCase):
     def test_clean_text_normalizes_whitespace_and_ligatures(self) -> None:
         raw = "  eﬀect\ncoeﬃcient\tshuﬄe  ﬁle\r\nﬂow  "
-        self.assertEqual(ea._clean_text(raw), "effect coefficient shuffle file flow")
+        self.assertEqual(fd._clean_text(raw), "effect coefficient shuffle file flow")
 
     def test_caption_classification_cases(self) -> None:
         cases = [
@@ -77,7 +79,7 @@ class TestExtractAssetsTextAndClassification(unittest.TestCase):
         ]
         for text, expected in cases:
             with self.subTest(text=text):
-                self.assertEqual(ea._classify_text_block(text), expected)
+                self.assertEqual(fd._classify_text_block(text), expected)
 
 
 class TestExtractAssetsPdfExtraction(unittest.TestCase):
@@ -146,7 +148,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out"
-        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(meta["dpi"], 150)
         self.assertEqual(len(meta["figures"]), 2)
@@ -173,7 +175,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out_crop"
-        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(len(meta["figures"]), 1)
         fig = meta["figures"][0]
@@ -210,7 +212,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out_cls"
-        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(len(meta["figures"]), 4)
         self.assertEqual(meta["figures"][0]["source"], "raster")
@@ -234,21 +236,21 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out_scan"
-        ea.extract_images(pdf_path, out_dir, dpi=120, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=120, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(meta["figures"], [])
         self.assertEqual(meta["scanned_pages"], [1])
 
     def test_validation_and_utf8_cli_output(self) -> None:
         with self.assertRaises(FileNotFoundError):
-            ea.extract_images(self.tmp_dir / "does_not_exist.pdf", self.tmp_dir / "o")
+            fd.extract_images(self.tmp_dir / "does_not_exist.pdf", self.tmp_dir / "o")
 
         enc_pdf = self.tmp_dir / "locked.pdf"
         with pymupdf.open() as doc:
             doc.new_page().insert_text((72, 72), "Secret")
             doc.save(enc_pdf, encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw="1234", owner_pw="5678")
         with self.assertRaisesRegex(RuntimeError, "password-protected"):
-            ea.extract_images(enc_pdf, self.tmp_dir / "enc_out")
+            fd.extract_images(enc_pdf, self.tmp_dir / "enc_out")
 
         valid_pdf = self.tmp_dir / "Tài liệu UTF8.pdf"
         with pymupdf.open() as doc:
@@ -256,7 +258,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             p.draw_rect(pymupdf.Rect(80, 80, 240, 180), color=(0, 0, 0))
             doc.save(valid_pdf)
         with self.assertRaises(ValueError):
-            ea.extract_images(valid_pdf, self.tmp_dir / "bad_dpi", dpi=10)
+            fd.extract_images(valid_pdf, self.tmp_dir / "bad_dpi", dpi=10)
 
         out_utf8 = self.tmp_dir / "Thư mục đầu ra"
         proc = subprocess.run(
@@ -298,7 +300,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out_subpanel"
-        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(len(meta["figures"]), 2)
         self.assertTrue(meta["figures"][0]["caption"].startswith("Figure 1:"))
@@ -337,7 +339,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out_banner_bars"
-        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         # Expect: banner raster + disconnected bar chart + 2 separate sidebar photos = 4 figures
         self.assertEqual(len(meta["figures"]), 4)
@@ -384,7 +386,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out_caps"
-        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         captions = [f.get("caption") or "" for f in meta["figures"]]
         self.assertEqual(len(meta["figures"]), 4)
@@ -394,7 +396,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
         self.assertTrue(any(c.startswith("Figure 27:") for c in captions))
 
         # Direct dict-block split verification (column jump & mid-block caption start)
-        ea._ensure_pymupdf()
+        fd._ensure_pymupdf()
         fused_block = {
             "type": 0,
             "lines": [
@@ -403,7 +405,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
                 {"bbox": (56.0, 341.0, 250.0, 353.0), "spans": [{"text": "continued description"}]},
             ],
         }
-        split_blocks = ea._split_dict_block(fused_block)
+        split_blocks = fd._split_dict_block(fused_block)
         self.assertEqual([tb.kind for tb in split_blocks], ["text", "fig_caption"])
         self.assertTrue(split_blocks[1].text.startswith("Figure 5.1"))
 
@@ -414,7 +416,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
                 {"bbox": (72.0, 665.0, 340.0, 677.0), "spans": [{"text": "Figure 27. Soft drinks can"}]},
             ],
         }
-        split_mid = ea._split_dict_block(mid_caption_block)
+        split_mid = fd._split_dict_block(mid_caption_block)
         self.assertEqual([tb.kind for tb in split_mid], ["text", "fig_caption"])
 
         wrapped_caption_block = {
@@ -424,7 +426,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
                 {"bbox": (72.0, 413.5, 290.0, 425.0), "spans": [{"text": "diagram 2 details here"}]},
             ],
         }
-        split_wrap = ea._split_dict_block(wrapped_caption_block)
+        split_wrap = fd._split_dict_block(wrapped_caption_block)
         self.assertEqual(len(split_wrap), 1)
         self.assertEqual(split_wrap[0].kind, "fig_caption")
 
@@ -458,7 +460,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out_poster"
-        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(meta["figures"], [])
 
@@ -488,7 +490,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out_compact"
-        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(len(meta["figures"]), 1)
         self.assertEqual(meta["figures"][0]["source"], "raster")
@@ -530,7 +532,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out_guards"
-        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(len(meta["figures"]), 2)
         self.assertTrue(all(f["page"] == 1 and f["source"] == "raster" for f in meta["figures"]))
@@ -600,7 +602,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
             doc.save(pdf_path)
 
         out_dir = self.tmp_dir / "out_doclaynet"
-        ea.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
+        fd.extract_images(pdf_path, out_dir, dpi=150, write_meta=True)
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(meta["scanned_pages"], [1])
         p2_figs = [f for f in meta["figures"] if f["page"] == 2]
@@ -618,7 +620,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
 
         # 1. Two-column academic journal: 6 figures (Fig 1 vector, 3 table_cell thumbnails, Fig 2, Fig 3 full caption)
         j_out = self.tmp_dir / "out_journal"
-        ea.extract_images(samples_dir / "journal_2col_academic.pdf", j_out, dpi=96, write_meta=True)
+        fd.extract_images(samples_dir / "journal_2col_academic.pdf", j_out, dpi=96, write_meta=True)
         j_meta = json.loads((j_out / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(j_meta["scanned_pages"], [])
         self.assertEqual(len(j_meta["figures"]), 6)
@@ -629,7 +631,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
 
         # 2. Mixed executive magazine: 2 figures + scanned page 3 + Table 2 card rejected + full Fig 2 caption
         m_out = self.tmp_dir / "out_mag"
-        ea.extract_images(samples_dir / "executive_magazine_mixed.pdf", m_out, dpi=96, write_meta=True)
+        fd.extract_images(samples_dir / "executive_magazine_mixed.pdf", m_out, dpi=96, write_meta=True)
         m_meta = json.loads((m_out / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(m_meta["scanned_pages"], [3])
         self.assertEqual(len(m_meta["figures"]), 2)
@@ -639,7 +641,7 @@ class TestExtractAssetsPdfExtraction(unittest.TestCase):
 
         # 3. Product datasheet grid: exact 3 figures (hero banner, left sidebar, and 3 pricing cards rejected)
         d_out = self.tmp_dir / "out_datasheet"
-        ea.extract_images(samples_dir / "product_datasheet_grid.pdf", d_out, dpi=96, write_meta=True)
+        fd.extract_images(samples_dir / "product_datasheet_grid.pdf", d_out, dpi=96, write_meta=True)
         d_meta = json.loads((d_out / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(d_meta["scanned_pages"], [])
         self.assertEqual(len(d_meta["figures"]), 3)
@@ -761,7 +763,7 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
             doc.save(pdf_path)
 
         out_pages = self.tmp_dir / "pages"
-        saved = ea.render_pages(pdf_path, out_pages, scale=1.5, pages="[1, 3-4]")
+        saved = iops.render_pages(pdf_path, out_pages, scale=1.5, pages="[1, 3-4]")
         self.assertEqual([p.name for p in saved], ["page_1.png", "page_3.png", "page_4.png"])
         self.assertFalse((out_pages / "page_2.png").exists())
         # Page width 400 * 1.5 = 600 -> clamped to minimum 800px
@@ -770,14 +772,14 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
 
         for bad in ("0", "99", "3-1", "abc"):
             with self.assertRaises(ValueError):
-                ea.render_pages(pdf_path, out_pages, scale=1.5, pages=bad)
+                iops.render_pages(pdf_path, out_pages, scale=1.5, pages=bad)
 
         enc_pdf = self.tmp_dir / "locked_render.pdf"
         with pymupdf.open() as doc:
             doc.new_page().insert_text((72, 72), "Locked")
             doc.save(enc_pdf, encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw="pw", owner_pw="opw")
         with self.assertRaisesRegex(RuntimeError, "password-protected"):
-            ea.render_pages(enc_pdf, out_pages)
+            iops.render_pages(enc_pdf, out_pages)
 
         cli_pages = self.tmp_dir / "cli_pages"
         proc = subprocess.run(
@@ -866,19 +868,19 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
             json.dumps([{"page_png": str(crops_dir / "raw.png"), "box": [0.1, 0.1, 0.9, 0.9], "out_name": "raw.png", "auto_trim": False}]),
             encoding="utf-8",
         )
-        ea.crop_from_json(ov_spec, crops_dir)
+        iops.crop_from_json(ov_spec, crops_dir)
         self.assertEqual(pymupdf.Pixmap(str(crops_dir / "raw.png")).width, 128)
 
         # Bad path / box rejections
         bad_name = self.tmp_dir / "bad_name.json"
         bad_name.write_text(json.dumps([{"page_png": str(src_png), "box": [0.1, 0.1, 0.9, 0.9], "out_name": "../x.png"}]), encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "Path traversal blocked"):
-            ea.crop_from_json(bad_name, crops_dir)
+            iops.crop_from_json(bad_name, crops_dir)
 
         bad_box = self.tmp_dir / "bad_box.json"
         bad_box.write_text(json.dumps([{"page_png": str(src_png), "box": [0.6, 0.1, 0.5, 0.9], "out_name": "x.png"}]), encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "Invalid crop box"):
-            ea.crop_from_json(bad_box, crops_dir)
+            iops.crop_from_json(bad_box, crops_dir)
 
     def test_optimize_image_bytes_core_modes(self) -> None:
         # 1. Rich noisy photo PNG (300x200) -> resized to 200 & compressed to JPEG
@@ -925,35 +927,35 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         wide_diag.write_bytes(pymupdf.Pixmap(pymupdf.csRGB, 600, 400, bytes(diag_raw), False).tobytes("png"))
 
         # Photo PNG -> JPEG resized to 200px
-        out0, mime0, orig0 = ea._optimize_image_bytes(photo_png, quality=95, max_width=200)
+        out0, mime0, orig0 = iops._optimize_image_bytes(photo_png, quality=95, max_width=200)
         self.assertEqual(mime0, "image/jpeg")
         self.assertEqual(pymupdf.Pixmap(out0).width, 200)
         self.assertLess(len(out0), orig0)
 
         # Transparent PNG -> kept PNG (cannot convert transparent to JPEG)
-        out1, mime1, _ = ea._optimize_image_bytes(alpha_png, quality=95, max_width=200)
+        out1, mime1, _ = iops._optimize_image_bytes(alpha_png, quality=95, max_width=200)
         self.assertEqual(mime1, "image/png")
         self.assertTrue(pymupdf.Pixmap(out1).alpha)
 
         # Tiny grayscale PNG -> untouched
-        out2, mime2, orig2 = ea._optimize_image_bytes(gray_png, quality=95, max_width=200)
+        out2, mime2, orig2 = iops._optimize_image_bytes(gray_png, quality=95, max_width=200)
         self.assertEqual(mime2, "image/png")
         self.assertEqual(out2, gray_orig)
         self.assertEqual(len(out2), orig2)
 
         # CMYK JPEG -> processed safely, resized to 200px & kept as JPEG
-        out3, mime3, orig3 = ea._optimize_image_bytes(cmyk_jpg, quality=95, max_width=200)
+        out3, mime3, orig3 = iops._optimize_image_bytes(cmyk_jpg, quality=95, max_width=200)
         self.assertEqual(mime3, "image/jpeg")
         self.assertEqual(pymupdf.Pixmap(out3).width, 200)
         self.assertLess(len(out3), orig3)
 
         # Opaque RGBA rich photo -> stripped alpha & compressed to JPEG
-        out4, mime4, orig4 = ea._optimize_image_bytes(opaque_rgba, quality=95, max_width=200)
+        out4, mime4, orig4 = iops._optimize_image_bytes(opaque_rgba, quality=95, max_width=200)
         self.assertEqual(mime4, "image/jpeg")
         self.assertLess(len(out4), orig4)
 
         # Wide 2-color diagram PNG -> resized down to 200px & kept lossless PNG
-        out5, mime5, orig5 = ea._optimize_image_bytes(wide_diag, quality=95, max_width=200)
+        out5, mime5, orig5 = iops._optimize_image_bytes(wide_diag, quality=95, max_width=200)
         self.assertEqual(mime5, "image/png")
         self.assertEqual(pymupdf.Pixmap(out5).width, 200)
         self.assertLess(len(out5), orig5)
@@ -972,11 +974,11 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         diag_wide_jpg.write_bytes(
             pymupdf.Pixmap(pymupdf.csRGB, w, h, bytes(diag_buf), False).tobytes("jpeg", jpg_quality=95)
         )
-        diag_colors, diag_alpha = ea._analyze_sample_grid(pymupdf.Pixmap(str(diag_wide_jpg)))
+        diag_colors, diag_alpha = iops._analyze_sample_grid(pymupdf.Pixmap(str(diag_wide_jpg)))
         self.assertLess(diag_colors, 200)
         self.assertFalse(diag_alpha)
 
-        out_diag, mime_diag, orig_diag_len = ea._optimize_image_bytes(diag_wide_jpg, quality=90, max_width=200)
+        out_diag, mime_diag, orig_diag_len = iops._optimize_image_bytes(diag_wide_jpg, quality=90, max_width=200)
         self.assertEqual(mime_diag, "image/jpeg")
         self.assertLess(len(out_diag), orig_diag_len)
         resized_diag_pix = pymupdf.Pixmap(out_diag)
@@ -989,7 +991,7 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         gray_wide_jpg.write_bytes(
             pymupdf.Pixmap(pymupdf.csGRAY, w, h, gray_wide_buf, False).tobytes("jpeg", jpg_quality=95)
         )
-        out_gw, mime_gw, orig_gw_len = ea._optimize_image_bytes(gray_wide_jpg, quality=90, max_width=200)
+        out_gw, mime_gw, orig_gw_len = iops._optimize_image_bytes(gray_wide_jpg, quality=90, max_width=200)
         self.assertEqual(mime_gw, "image/jpeg")
         self.assertLess(len(out_gw), orig_gw_len)
         self.assertEqual(pymupdf.Pixmap(out_gw).width, 200)
@@ -1004,10 +1006,10 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
                 gp_buf[i : i + 3] = bytes((val, val, val))
         gray_photo_png = self.tmp_dir / "gray_photo_rgb.png"
         gray_photo_png.write_bytes(pymupdf.Pixmap(pymupdf.csRGB, gp_w, gp_h, bytes(gp_buf), False).tobytes("png"))
-        gp_tones, gp_alpha = ea._analyze_sample_grid(pymupdf.Pixmap(str(gray_photo_png)))
+        gp_tones, gp_alpha = iops._analyze_sample_grid(pymupdf.Pixmap(str(gray_photo_png)))
         self.assertGreaterEqual(gp_tones, 200)
         self.assertFalse(gp_alpha)
-        out_gp, mime_gp, orig_gp_len = ea._optimize_image_bytes(gray_photo_png, quality=85, max_width=200)
+        out_gp, mime_gp, orig_gp_len = iops._optimize_image_bytes(gray_photo_png, quality=85, max_width=200)
         self.assertEqual(mime_gp, "image/jpeg")
         self.assertLessEqual(len(out_gp), int(orig_gp_len * 0.85))
 
@@ -1021,9 +1023,9 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         bw_diag_png = self.tmp_dir / "bw_diag.png"
         bw_orig = pymupdf.Pixmap(pymupdf.csRGB, gp_w, gp_h, bytes(bw_buf), False).tobytes("png")
         bw_diag_png.write_bytes(bw_orig)
-        bw_tones, _ = ea._analyze_sample_grid(pymupdf.Pixmap(str(bw_diag_png)))
+        bw_tones, _ = iops._analyze_sample_grid(pymupdf.Pixmap(str(bw_diag_png)))
         self.assertLess(bw_tones, 200)
-        out_bw, mime_bw, _ = ea._optimize_image_bytes(bw_diag_png, quality=90, max_width=200)
+        out_bw, mime_bw, _ = iops._optimize_image_bytes(bw_diag_png, quality=90, max_width=200)
         self.assertEqual(mime_bw, "image/png")
         self.assertEqual(out_bw, bw_orig)
 
@@ -1037,7 +1039,7 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         small_jpg = self.tmp_dir / "diag_small.jpg"
         small_orig = pymupdf.Pixmap(pymupdf.csRGB, sm_w, sm_h, bytes(sm_buf), False).tobytes("jpeg", jpg_quality=95)
         small_jpg.write_bytes(small_orig)
-        out_sm, mime_sm, _ = ea._optimize_image_bytes(small_jpg, quality=90, max_width=200)
+        out_sm, mime_sm, _ = iops._optimize_image_bytes(small_jpg, quality=90, max_width=200)
         self.assertEqual(mime_sm, "image/jpeg")
         self.assertEqual(out_sm, small_orig)
 
@@ -1045,13 +1047,13 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         tight_jpg = self.tmp_dir / "low_q_wide.jpg"
         tight_orig = self._make_noisy_rgb_pixmap(400, 200, seed=99).tobytes("jpeg", jpg_quality=10)
         tight_jpg.write_bytes(tight_orig)
-        out_tight, mime_tight, _ = ea._optimize_image_bytes(tight_jpg, quality=95, max_width=200)
+        out_tight, mime_tight, _ = iops._optimize_image_bytes(tight_jpg, quality=95, max_width=200)
         self.assertEqual(mime_tight, "image/jpeg")
         self.assertEqual(out_tight, tight_orig)
 
         # 7. max_width=0 disables resizing on wide low-color JPEG
         diag_raw_orig = diag_wide_jpg.read_bytes()
-        out_noresize, mime_noresize, _ = ea._optimize_image_bytes(diag_wide_jpg, quality=90, max_width=0)
+        out_noresize, mime_noresize, _ = iops._optimize_image_bytes(diag_wide_jpg, quality=90, max_width=0)
         self.assertEqual(mime_noresize, "image/jpeg")
         self.assertEqual(out_noresize, diag_raw_orig)
         self.assertEqual(pymupdf.Pixmap(out_noresize).width, 600)
@@ -1065,17 +1067,17 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         gray_diag_jpg.write_bytes(
             pymupdf.Pixmap(pymupdf.csGRAY, w, h, bytes(gray_diag_buf), False).tobytes("jpeg", jpg_quality=95)
         )
-        gd_tones, gd_alpha = ea._analyze_sample_grid(pymupdf.Pixmap(str(gray_diag_jpg)))
+        gd_tones, gd_alpha = iops._analyze_sample_grid(pymupdf.Pixmap(str(gray_diag_jpg)))
         self.assertLess(gd_tones, 200)
         self.assertFalse(gd_alpha)
-        out_gd, mime_gd, orig_gd_len = ea._optimize_image_bytes(gray_diag_jpg, quality=90, max_width=200)
+        out_gd, mime_gd, orig_gd_len = iops._optimize_image_bytes(gray_diag_jpg, quality=90, max_width=200)
         self.assertEqual(mime_gd, "image/jpeg")
         self.assertLess(len(out_gd), orig_gd_len)
         self.assertEqual(pymupdf.Pixmap(out_gd).width, 200)
 
         # 8. Missing image file raises FileNotFoundError
         with self.assertRaises(FileNotFoundError):
-            ea._optimize_image_bytes(self.tmp_dir / "missing.jpg")
+            iops._optimize_image_bytes(self.tmp_dir / "missing.jpg")
 
         # 9. End-to-end embed_images_and_package integrates wide low-color JPEG and grayscale PNG properly
         pkg_html = self.tmp_dir / "pkg_opt.html"
@@ -1090,7 +1092,7 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         )
         res_pkg, _ = pkg.embed_images_and_package(
             html_path=pkg_html,
-            optimize_image_bytes_fn=ea._optimize_image_bytes,
+            optimize_image_bytes_fn=iops._optimize_image_bytes,
             out_html_path=str(pkg_out),
             preserve_layout=True,
             quality=85,
@@ -1111,7 +1113,7 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "decompression-bomb"):
             iops.assert_safe_image_file(bomb_png)
         with self.assertRaisesRegex(ValueError, "decompression-bomb"):
-            ea._optimize_image_bytes(bomb_png)
+            iops._optimize_image_bytes(bomb_png)
 
         # 2. Oversized PDF MediaBox (10,000 x 10,000 pt) safely clamped in both render_pages and extract_images
         giant_pdf = self.tmp_dir / "giant_mediabox.pdf"
@@ -1125,14 +1127,14 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
             doc.save(giant_pdf)
 
         pages_dir = self.tmp_dir / "giant_pages"
-        rendered = ea.render_pages(giant_pdf, pages_dir, scale=2.5, pages="1")
+        rendered = iops.render_pages(giant_pdf, pages_dir, scale=2.5, pages="1")
         self.assertEqual(len(rendered), 1)
         r_pix = pymupdf.Pixmap(str(rendered[0]))
         self.assertLessEqual(max(r_pix.width, r_pix.height), iops.MAX_RENDER_DIM)
         self.assertLessEqual(r_pix.width * r_pix.height, iops.MAX_RENDER_PIXELS + 20000)
 
         figs_dir = self.tmp_dir / "giant_figs"
-        extracted = ea.extract_images(giant_pdf, figs_dir, dpi=180, write_meta=True)
+        extracted = fd.extract_images(giant_pdf, figs_dir, dpi=180, write_meta=True)
         self.assertEqual(len(extracted), 1)
         f_pix = pymupdf.Pixmap(str(extracted[0]))
         self.assertLessEqual(max(f_pix.width, f_pix.height), iops.MAX_RENDER_DIM)
@@ -1308,7 +1310,7 @@ class TestPathGuardsModule(unittest.TestCase):
         out_dir = self.tmp_dir / "out"
         res_html, _ = pkg.embed_images_and_package(
             html_path=draft,
-            optimize_image_bytes_fn=ea._optimize_image_bytes,
+            optimize_image_bytes_fn=iops._optimize_image_bytes,
             out_html_path=str(out_dir / "CON.html"),
             preserve_layout=True,
         )
@@ -1400,7 +1402,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
             with redirect_stdout(buf):
                 res_html, res_pdf = pkg.embed_images_and_package(
                     html_path=draft,
-                    optimize_image_bytes_fn=ea._optimize_image_bytes,
+                    optimize_image_bytes_fn=iops._optimize_image_bytes,
                     out_html_path=str(existing),
                     clean_dir="work",
                 )
@@ -1463,7 +1465,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         with redirect_stdout(StringIO()):
             res_path, _ = pkg.embed_images_and_package(
                 html_path=draft,
-                optimize_image_bytes_fn=ea._optimize_image_bytes,
+                optimize_image_bytes_fn=iops._optimize_image_bytes,
                 out_html_path=str(out_html),
             )
         packaged = res_path.read_text(encoding="utf-8")
@@ -1701,7 +1703,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r"Disallowed <script> tag\(s\)"):
             pkg.embed_images_and_package(
                 html_path=spoof_draft,
-                optimize_image_bytes_fn=ea._optimize_image_bytes,
+                optimize_image_bytes_fn=iops._optimize_image_bytes,
                 out_html_path=str(spoof_out),
             )
         self.assertFalse(spoof_out.exists())
@@ -1811,7 +1813,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         clean_draft.write_text("<!DOCTYPE html><html><head><title>T</title></head><body><p>Hello</p></body></html>", encoding="utf-8")
         norm_out, _ = pkg.embed_images_and_package(
             html_path=clean_draft,
-            optimize_image_bytes_fn=ea._optimize_image_bytes,
+            optimize_image_bytes_fn=iops._optimize_image_bytes,
             out_html_path=str(self.tmp_dir / "norm_csp.html"),
             preserve_layout=False,
         )
@@ -1822,7 +1824,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
 
         layout_out, _ = pkg.embed_images_and_package(
             html_path=clean_draft,
-            optimize_image_bytes_fn=ea._optimize_image_bytes,
+            optimize_image_bytes_fn=iops._optimize_image_bytes,
             out_html_path=str(self.tmp_dir / "layout_csp.html"),
             preserve_layout=True,
         )
