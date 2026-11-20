@@ -2,6 +2,10 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.11] - 2026-11-20
+### Fixed
+- Sửa lỗi thông tin về vắt trang gây hiểu nhầm ở 2 SI của luồng giữ layout;
+
 ## [1.1.10] - 2026-11-20
 ### Fixed
 - Chỉnh sửa SI dịch, ở nhánh bảo toàn layout, thuộc phần đặt dấu ngắt tại vị trí vắt trang;
