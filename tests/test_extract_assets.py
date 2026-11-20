@@ -19,10 +19,14 @@ if str(SRC_DIR) not in sys.path:
 
 import extract_assets as ea  # noqa: E402
 import figure_detector as fd  # noqa: E402
-import html_packager_core as hpc  # noqa: E402
+import html_qa as qa  # noqa: E402
 import image_ops as iops  # noqa: E402
 import manifest as mf  # noqa: E402
+import packager as pkg  # noqa: E402
 import path_guards as pg  # noqa: E402
+import pdf_export as pdfx  # noqa: E402
+import reader_shell as shell  # noqa: E402
+import transcript as tr  # noqa: E402
 
 
 class TestExtractAssetsTextAndClassification(unittest.TestCase):
@@ -1084,7 +1088,7 @@ class TestExtractAssetsFallbackAndOptimizer(unittest.TestCase):
             "</body></html>",
             encoding="utf-8",
         )
-        res_pkg, _ = hpc.embed_images_and_package(
+        res_pkg, _ = pkg.embed_images_and_package(
             html_path=pkg_html,
             optimize_image_bytes_fn=ea._optimize_image_bytes,
             out_html_path=str(pkg_out),
@@ -1302,7 +1306,7 @@ class TestPathGuardsModule(unittest.TestCase):
         draft = self.tmp_dir / "draft.html"
         draft.write_text("<!DOCTYPE html><html><head><title>S</title></head><body><p>OK</p></body></html>", encoding="utf-8")
         out_dir = self.tmp_dir / "out"
-        res_html, _ = hpc.embed_images_and_package(
+        res_html, _ = pkg.embed_images_and_package(
             html_path=draft,
             optimize_image_bytes_fn=ea._optimize_image_bytes,
             out_html_path=str(out_dir / "CON.html"),
@@ -1333,7 +1337,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
             json.dumps({"type": "USER_INPUT", "media": [{"uri": p2.as_uri(), "mime_type": "application/pdf"}]}),
         ]
         transcript.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        resolved = hpc.find_latest_pdf_in_transcript(transcript)
+        resolved = tr.find_latest_pdf_in_transcript(transcript)
         self.assertEqual(resolved, Path(os.path.abspath(p2)))
         self.assertTrue(os.path.samefile(resolved, p2))
 
@@ -1394,7 +1398,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         os.chdir(self.tmp_dir)
         try:
             with redirect_stdout(buf):
-                res_html, res_pdf = hpc.embed_images_and_package(
+                res_html, res_pdf = pkg.embed_images_and_package(
                     html_path=draft,
                     optimize_image_bytes_fn=ea._optimize_image_bytes,
                     out_html_path=str(existing),
@@ -1436,7 +1440,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
 
         pass_buf = StringIO()
         with redirect_stdout(pass_buf):
-            hpc.run_html_qa_check(valid_html)
+            qa.run_html_qa_check(valid_html)
         self.assertIn("Tables wrapped: 2/2", pass_buf.getvalue())
 
         # 2. Reader shell injection and <img> embedding skip HTML comments
@@ -1457,7 +1461,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
             encoding="utf-8",
         )
         with redirect_stdout(StringIO()):
-            res_path, _ = hpc.embed_images_and_package(
+            res_path, _ = pkg.embed_images_and_package(
                 html_path=draft,
                 optimize_image_bytes_fn=ea._optimize_image_bytes,
                 out_html_path=str(out_html),
@@ -1505,7 +1509,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         for bad_html, expected_rx in fail_cases:
             with self.subTest(expected=expected_rx, html=bad_html):
                 with self.assertRaisesRegex(ValueError, expected_rx):
-                    hpc.run_html_qa_check(bad_html)
+                    qa.run_html_qa_check(bad_html)
 
     def test_qa_security_whitelist_and_injection_blocks(self) -> None:
         from io import StringIO
@@ -1533,9 +1537,9 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
             '<!-- <script>evil()</script><iframe src="x"></iframe><img src="https://evil.example/p.png"> -->'
             "</body></html>"
         )
-        with_shell, _ = hpc.inject_reader_shell(safe_html)
+        with_shell, _ = shell.inject_reader_shell(safe_html)
         with redirect_stdout(StringIO()):
-            hpc.run_html_qa_check(with_shell, skip_table_wrapper_check=False)
+            qa.run_html_qa_check(with_shell, skip_table_wrapper_check=False)
 
         # PreserveLayout mode allows cdnjs MathJax v3 CDN without reader_shell, but forbids reader_shell inline script
         safe_pl = safe_html.replace(
@@ -1543,9 +1547,9 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
             "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js",
         )
         with redirect_stdout(StringIO()):
-            hpc.run_html_qa_check(safe_pl, skip_table_wrapper_check=True)
+            qa.run_html_qa_check(safe_pl, skip_table_wrapper_check=True)
         with self.assertRaisesRegex(ValueError, r"Disallowed <script> tag\(s\)"):
-            hpc.run_html_qa_check(with_shell, skip_table_wrapper_check=True)
+            qa.run_html_qa_check(with_shell, skip_table_wrapper_check=True)
 
         # 2. Security attack payloads must ALL be blocked
         sample_b64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -1684,7 +1688,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         for label, bad_html, expected_rx in security_fail_cases:
             with self.subTest(case=label):
                 with self.assertRaisesRegex(ValueError, expected_rx):
-                    hpc.run_html_qa_check(bad_html)
+                    qa.run_html_qa_check(bad_html)
 
         # 3. Spoofed reader_shell script in draft.html must fail embed_images_and_package before writing output
         spoof_draft = self.tmp_dir / "spoof_draft.html"
@@ -1695,7 +1699,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
             encoding="utf-8",
         )
         with self.assertRaisesRegex(ValueError, r"Disallowed <script> tag\(s\)"):
-            hpc.embed_images_and_package(
+            pkg.embed_images_and_package(
                 html_path=spoof_draft,
                 optimize_image_bytes_fn=ea._optimize_image_bytes,
                 out_html_path=str(spoof_out),
@@ -1716,7 +1720,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
             '<svg><defs><circle id="dot" r="2"/></defs><use href="#dot"/></svg>'
             "</body></html>"
         )
-        hpc.run_html_qa_check(good_html, skip_table_wrapper_check=True)
+        qa.run_html_qa_check(good_html, skip_table_wrapper_check=True)
 
         # 2. Red-team attacks must all be blocked by allowlist QA
         red_team_cases = [
@@ -1792,20 +1796,20 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         for label, bad_html, expected_rx in red_team_cases:
             with self.subTest(case=label):
                 with self.assertRaisesRegex(ValueError, expected_rx):
-                    hpc.run_html_qa_check(bad_html, skip_table_wrapper_check=True)
+                    qa.run_html_qa_check(bad_html, skip_table_wrapper_check=True)
 
         # 3. Direct html_to_pdf() must enforce Auto-QA and block malicious <script> HTML
         evil_html = self.tmp_dir / "evil_direct.html"
         evil_pdf = self.tmp_dir / "evil_direct.pdf"
         evil_html.write_text("<!DOCTYPE html><html><head></head><body><script>alert(1)</script></body></html>", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, r"Disallowed <script> tag\(s\)"):
-            hpc.html_to_pdf(evil_html, out_pdf_path=evil_pdf)
+            pdfx.html_to_pdf(evil_html, out_pdf_path=evil_pdf)
         self.assertFalse(evil_pdf.exists())
 
         # 4. Dynamic CSP injection: sha256 script hash in normal mode, script-src 'none' in PreserveLayout without MathJax
         clean_draft = self.tmp_dir / "csp_draft.html"
         clean_draft.write_text("<!DOCTYPE html><html><head><title>T</title></head><body><p>Hello</p></body></html>", encoding="utf-8")
-        norm_out, _ = hpc.embed_images_and_package(
+        norm_out, _ = pkg.embed_images_and_package(
             html_path=clean_draft,
             optimize_image_bytes_fn=ea._optimize_image_bytes,
             out_html_path=str(self.tmp_dir / "norm_csp.html"),
@@ -1816,7 +1820,7 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         self.assertIn("script-src 'sha256-", norm_txt)
         self.assertIn("object-src 'none'", norm_txt)
 
-        layout_out, _ = hpc.embed_images_and_package(
+        layout_out, _ = pkg.embed_images_and_package(
             html_path=clean_draft,
             optimize_image_bytes_fn=ea._optimize_image_bytes,
             out_html_path=str(self.tmp_dir / "layout_csp.html"),

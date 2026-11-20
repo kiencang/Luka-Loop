@@ -15,6 +15,7 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 
 ### Changed
 - Chuyển các hàm in manifest (`emit_compacted_manifest_stdout`, `limit_manifest_words`, `_sanitize_manifest_text`) từ `html_packager_core.py` sang module mới `tools/src/manifest.py` (chỉ dùng thư viện chuẩn): bộ tách hình không còn phải import bộ đóng gói. Chỉ di chuyển mã, không đổi hành vi.
+- Tách `html_packager_core.py` (~1.300 dòng) thành 6 module phẳng theo trách nhiệm, không có vòng phụ thuộc: `packager.py` (nhúng ảnh, điều phối Bước 4), `reader_shell.py` (vỏ đọc + CSP), `html_qa.py` (Auto-QA), `pdf_export.py` (Edge/Chrome headless), `output_paths.py` (đặt tên/đánh số đầu ra, dọn `work\` sau khi ghi) và `transcript.py` (tìm PDF trong transcript). Mã được chuyển nguyên văn; 5 hàm nội bộ dùng chéo giữa các module bỏ tiền tố `_`. README và `THIRD_PARTY_LICENSES.md` liệt kê đúng danh sách tệp nguồn (kể cả `manifest.py`).
 
 ## [1.1.12] - 2026-11-20
 ### Fixed

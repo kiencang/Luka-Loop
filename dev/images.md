@@ -49,7 +49,7 @@ flowchart TD
 ## Cách công cụ giảm dung lượng ảnh
 Đây là phần thông tin kỹ thuật, phục vụ mục đích bảo trì là chủ yếu, người dùng có thể bỏ qua nếu không quan tâm. 
 
-Ở Bước 4, [`html_packager.ps1`](./tools/html_packager.ps1) gọi `extract_assets.exe` ([`html_packager_core.py`](./tools/src/html_packager_core.py) & [`image_ops.py`](./tools/src/image_ops.py)) để tối ưu từng ảnh cục bộ ngay trong RAM trước khi mã hóa Base64 nhúng vào HTML:
+Ở Bước 4, [`html_packager.ps1`](./tools/html_packager.ps1) gọi `extract_assets.exe` ([`packager.py`](./tools/src/packager.py) & [`image_ops.py`](./tools/src/image_ops.py)) để tối ưu từng ảnh cục bộ ngay trong RAM trước khi mã hóa Base64 nhúng vào HTML:
 
 ```mermaid
 flowchart TD

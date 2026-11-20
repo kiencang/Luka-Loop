@@ -14,7 +14,13 @@ Tệp này dành cho người và AI agent khi **phát triển, sửa lỗi ho�
   - `extract_assets.py`: điểm vào CLI, phân luồng theo `--mode` (`extract`, `render-pages`, `crop-json`, `embed-images`, `html-to-pdf`).
   - `figure_detector.py`: tách hình/sơ đồ theo bố cục (pipeline 6 pha, ngưỡng gom trong `DetectorConfig`).
   - `image_ops.py`: render trang, cắt ảnh theo JSON, tối ưu ảnh.
-  - `html_packager_core.py`: nhúng ảnh Base64, gắn `reader_shell.html`, Auto-QA bảo mật, CSP, xuất PDF bằng Edge/Chrome headless.
+  - Bước 4 (đóng gói), tách theo trách nhiệm — `packager.py` → `reader_shell.py`, `html_qa.py`, `pdf_export.py`, `output_paths.py` (không có vòng phụ thuộc):
+    - `packager.py`: điểm vào `embed-images` — nhúng ảnh Base64 rồi điều phối các module dưới.
+    - `reader_shell.py`: gắn `tools\reader_shell.html` (CSS, thanh công cụ, script), lấy script tin cậy, tiêm CSP.
+    - `html_qa.py`: Auto-QA — bộ quét DOM & bảo mật một lượt (`_QADOMScanner`, `run_html_qa_check`).
+    - `pdf_export.py`: điểm vào `html-to-pdf` — xuất PDF bằng Edge/Chrome headless cô lập.
+    - `output_paths.py`: làm sạch tên tệp đầu ra, đánh số `_2`/`_3`, dọn `work\` sau khi đã có đầu ra.
+  - `transcript.py`: tìm PDF đính kèm mới nhất trong `transcript.jsonl` (Antigravity `-TranscriptPath`).
   - `manifest.py`: in bản rút gọn `manifest.json` ra stdout (chỉ dùng thư viện chuẩn, không import module nào khác của dự án — bộ tách hình không phụ thuộc bộ đóng gói).
   - `path_guards.py`: kiểm tra an toàn đường dẫn (UNC, NTFS ADS, symlink/junction, tên thiết bị Windows), dọn `work\` an toàn.
 - `tools\*.ps1` — wrapper PowerShell mỏng chuyển tiếp tham số vào exe; `tools\_path_guards.ps1` là tiện ích dùng chung.

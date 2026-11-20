@@ -17,7 +17,10 @@ CLI Entry Point & PyInstaller Build Source for `extract_assets.exe`.
 Dispatches all portable operations across dedicated modules:
   - `figure_detector.py`: Layout-aware figure/caption detection and extraction
   - `image_ops.py`: Lazy PyMuPDF loader, page rendering, JSON cropping, image optimization
-  - `html_packager_core.py`: Base64 embedding, reader shell injection, Auto-QA, headless PDF
+  - `packager.py`: Step 4 entry point — Base64 embedding, then reader shell, Auto-QA and optional PDF via:
+      `reader_shell.py` (shell + CSP injection), `html_qa.py` (Auto-QA scanner),
+      `pdf_export.py` (headless Edge/Chrome), `output_paths.py` (output naming & post-output cleanup)
+  - `transcript.py`: Latest PDF attachment lookup in transcript.jsonl (Antigravity)
   - `manifest.py`: Compacted manifest stdout output (stdlib only, no project imports)
   - `path_guards.py`: Path safety, UNC/reparse-point guards, and safe cleanup
 
@@ -41,18 +44,16 @@ from figure_detector import (
     collect_page_figures,
     extract_images,
 )
-from html_packager_core import (
-    embed_images_and_package,
-    find_latest_pdf_in_transcript,
-    html_to_pdf,
-)
 from image_ops import (
     _analyze_sample_grid,
     _optimize_image_bytes,
     crop_from_json,
     render_pages,
 )
+from packager import embed_images_and_package
 from path_guards import assert_local_no_unc_path
+from pdf_export import html_to_pdf
+from transcript import find_latest_pdf_in_transcript
 
 __all__ = [
     "_analyze_sample_grid",

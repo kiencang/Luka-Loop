@@ -1,4 +1,4 @@
-"""PDF export failure handling for html_packager_core (dev-only; stdlib unittest, no PyMuPDF/Edge required).
+"""PDF export failure handling for packager + pdf_export (dev-only; stdlib unittest, no PyMuPDF/Edge required).
 
 A fake headless browser stands in for Edge/Chrome so timeout, empty-PDF and success paths are deterministic.
 """
@@ -20,7 +20,9 @@ SRC_DIR = REPO_ROOT / "tools" / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-import html_packager_core as hpc  # noqa: E402
+import output_paths  # noqa: E402
+import packager as pkg  # noqa: E402
+import pdf_export as pdfx  # noqa: E402
 
 _DRAFT_HTML = (
     "<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'><title>T</title></head>"
@@ -78,9 +80,9 @@ class TestPdfExportResilience(unittest.TestCase):
         fake_exe = self.tmp / "fake_browser.exe"
         fake_exe.write_bytes(b"")
         self._patches = [
-            mock.patch.object(hpc, "find_headless_browser", return_value=str(fake_exe)),
-            mock.patch.object(hpc.subprocess, "Popen", _FakeBrowser),
-            mock.patch.object(hpc.subprocess, "run", return_value=None),
+            mock.patch.object(pdfx, "find_headless_browser", return_value=str(fake_exe)),
+            mock.patch.object(pdfx.subprocess, "Popen", _FakeBrowser),
+            mock.patch.object(pdfx.subprocess, "run", return_value=None),
         ]
         for p in self._patches:
             p.start()
@@ -94,7 +96,7 @@ class TestPdfExportResilience(unittest.TestCase):
     def _package(self) -> tuple[Path, Path | None, str]:
         buf = StringIO()
         with redirect_stdout(buf):
-            html, pdf = hpc.embed_images_and_package(
+            html, pdf = pkg.embed_images_and_package(
                 html_path=self.draft,
                 optimize_image_bytes_fn=lambda *_a: (_ for _ in ()).throw(AssertionError("no images expected")),
                 out_html_path=str(self.out / "doc_vi.html"),
@@ -111,7 +113,7 @@ class TestPdfExportResilience(unittest.TestCase):
         self.assertTrue(pdf.is_file())
         self.assertIn("Exported PDF ->", log)
         self.assertFalse(self.work.exists())
-        self.assertEqual(hpc.HEADLESS_VIRTUAL_TIME_BUDGET_MS, 7000)
+        self.assertEqual(pdfx.HEADLESS_VIRTUAL_TIME_BUDGET_MS, 7000)
         self.assertIn("--virtual-time-budget=7000", _FakeBrowser.calls[0])
 
     def _assert_degraded_to_html_only(self, html: Path, pdf: Path | None, log: str) -> None:
@@ -150,7 +152,7 @@ class TestPdfExportResilience(unittest.TestCase):
         _FakeBrowser.behaviour = "ok"
         with redirect_stdout(StringIO()):
             with self.assertRaisesRegex(ValueError, "Refusing to clean unsafe directory"):
-                hpc.embed_images_and_package(
+                pkg.embed_images_and_package(
                     html_path=self.draft,
                     optimize_image_bytes_fn=lambda *_a: (_ for _ in ()).throw(AssertionError("no images expected")),
                     out_html_path=str(self.out / "doc_vi.html"),
@@ -165,7 +167,7 @@ class TestPdfExportResilience(unittest.TestCase):
     def test_clean_dir_containing_output_fails_before_writing(self) -> None:
         with redirect_stdout(StringIO()):
             with self.assertRaisesRegex(ValueError, "resides inside it"):
-                hpc.embed_images_and_package(
+                pkg.embed_images_and_package(
                     html_path=self.draft,
                     optimize_image_bytes_fn=lambda *_a: (_ for _ in ()).throw(AssertionError("no images expected")),
                     out_html_path=str(self.work / "final_vi.html"),
@@ -177,7 +179,7 @@ class TestPdfExportResilience(unittest.TestCase):
     def test_cleanup_failure_after_outputs_only_warns(self) -> None:
         _FakeBrowser.behaviour = "ok"
         err = StringIO()
-        with mock.patch.object(hpc, "safe_clean_dir", side_effect=ValueError("junction appeared mid-run")):
+        with mock.patch.object(output_paths, "safe_clean_dir", side_effect=ValueError("junction appeared mid-run")):
             with mock.patch.object(sys, "stderr", err):
                 html, pdf, log = self._package()
         self.assertTrue(html.is_file())
@@ -190,7 +192,7 @@ class TestPdfExportResilience(unittest.TestCase):
         target = self.out / "solo.pdf"
         with redirect_stdout(StringIO()):
             with self.assertRaisesRegex(ValueError, "Refusing to clean unsafe directory"):
-                hpc.html_to_pdf(self.draft, out_pdf_path=str(target), clean_dir="output", timeout_seconds=6)
+                pdfx.html_to_pdf(self.draft, out_pdf_path=str(target), clean_dir="output", timeout_seconds=6)
         self.assertFalse(target.exists())
         self.assertEqual(_FakeBrowser.calls, [])
 
@@ -199,7 +201,7 @@ class TestPdfExportResilience(unittest.TestCase):
         target = self.out / "solo.pdf"
         with redirect_stdout(StringIO()):
             with self.assertRaises(RuntimeError):
-                hpc.html_to_pdf(self.draft, out_pdf_path=str(target), timeout_seconds=6)
+                pdfx.html_to_pdf(self.draft, out_pdf_path=str(target), timeout_seconds=6)
         self.assertFalse(target.exists())
         self.assertTrue(self.work.exists(), "standalone HtmlToPdf must not clean work/ on failure")
 
