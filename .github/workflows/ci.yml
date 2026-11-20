@@ -46,7 +46,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: tools/extract_assets
-          key: extractor-${{ runner.os }}-${{ hashFiles('tools/src/*.py', 'tools/src/requirements-build.txt', 'tools/build_extractor.ps1') }}
+          key: extractor-${{ runner.os }}-${{ hashFiles('tools/src/**/*.py', 'tools/src/requirements-build.txt', 'tools/build_extractor.ps1') }}
 
       - name: Build extract_assets.exe on cache miss
         if: steps.extractor-cache.outputs.cache-hit != 'true'

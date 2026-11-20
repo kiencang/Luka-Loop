@@ -16,6 +16,8 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 ### Changed
 - Chuyển các hàm in manifest (`emit_compacted_manifest_stdout`, `limit_manifest_words`, `_sanitize_manifest_text`) từ `html_packager_core.py` sang module mới `tools/src/manifest.py` (chỉ dùng thư viện chuẩn): bộ tách hình không còn phải import bộ đóng gói. Chỉ di chuyển mã, không đổi hành vi.
 - Tách `html_packager_core.py` (~1.300 dòng) thành 6 module phẳng theo trách nhiệm, không có vòng phụ thuộc: `packager.py` (nhúng ảnh, điều phối Bước 4), `reader_shell.py` (vỏ đọc + CSP), `html_qa.py` (Auto-QA), `pdf_export.py` (Edge/Chrome headless), `output_paths.py` (đặt tên/đánh số đầu ra, dọn `work\` sau khi ghi) và `transcript.py` (tìm PDF trong transcript). Mã được chuyển nguyên văn; 5 hàm nội bộ dùng chéo giữa các module bỏ tiền tố `_`. README và `THIRD_PARTY_LICENSES.md` liệt kê đúng danh sách tệp nguồn (kể cả `manifest.py`).
+- Tách `figure_detector.py` (~2.200 dòng) thành package `tools/src/figure_detector/` gồm 10 module phân tầng theo pha (`model`, `geometry`, `text`, `caption_match`, `raster`, `vector`, `captions`, `merge`, `pipeline`, `extract`), không có vòng phụ thuộc; các hàm khớp chú thích mà Pha 2–3 dùng tới được tách thành tầng `caption_match` riêng. 82 định nghĩa được chuyển nguyên văn; chỉ biến toàn cục `pymupdf` nạp trễ được thay bằng một proxy dùng chung (vẫn không nạp PyMuPDF khi import, tốc độ tách hình không đổi). `__init__.py` giữ nguyên các tên công khai cũ. Kết quả tách hình của 6 PDF mẫu trùng khớp tuyệt đối với golden.
+- `test_skill_contracts.py` quét mã nguồn `tools/src/` đệ quy và khóa cache exe trong CI dùng `tools/src/**/*.py`, để mã trong package vẫn được đối chiếu và vẫn kích hoạt build lại exe.
 
 ## [1.1.12] - 2026-11-20
 ### Fixed

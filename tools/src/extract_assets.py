@@ -15,7 +15,7 @@
 CLI Entry Point & PyInstaller Build Source for `extract_assets.exe`.
 
 Dispatches all portable operations across dedicated modules:
-  - `figure_detector.py`: Layout-aware figure/caption detection and extraction
+  - `figure_detector/`: Layout-aware figure/caption detection and extraction (package, one module per phase)
   - `image_ops.py`: Lazy PyMuPDF loader, page rendering, JSON cropping, image optimization
   - `packager.py`: Step 4 entry point — Base64 embedding, then reader shell, Auto-QA and optional PDF via:
       `reader_shell.py` (shell + CSP injection), `html_qa.py` (Auto-QA scanner),

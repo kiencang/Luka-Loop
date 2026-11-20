@@ -12,7 +12,7 @@ Tệp này dành cho người và AI agent khi **phát triển, sửa lỗi ho�
 
 - `tools\src\` — mã nguồn Python của `extract_assets.exe`:
   - `extract_assets.py`: điểm vào CLI, phân luồng theo `--mode` (`extract`, `render-pages`, `crop-json`, `embed-images`, `html-to-pdf`).
-  - `figure_detector.py`: tách hình/sơ đồ theo bố cục (pipeline 6 pha, ngưỡng gom trong `DetectorConfig`).
+  - `figure_detector\` (package): tách hình/sơ đồ theo bố cục (pipeline 6 pha, ngưỡng gom trong `DetectorConfig`). Phân tầng — mỗi module chỉ import từ module đứng trước: `model` (proxy `pymupdf` nạp trễ, `DetectorConfig`, regex chú thích, dataclass) → `geometry` → `text` (Pha 1) → `caption_match` (khớp chú thích, dùng chung cho Pha 2–6) → `raster` (Pha 2) → `vector` (Pha 3) → `captions` (Pha 4) → `merge` (Pha 5) → `pipeline` (chạy Pha 1–5 cho một trang) → `extract` (Pha 6, `extract_images`). `__init__.py` giữ nguyên các tên công khai cũ.
   - `image_ops.py`: render trang, cắt ảnh theo JSON, tối ưu ảnh.
   - Bước 4 (đóng gói), tách theo trách nhiệm — `packager.py` → `reader_shell.py`, `html_qa.py`, `pdf_export.py`, `output_paths.py` (không có vòng phụ thuộc):
     - `packager.py`: điểm vào `embed-images` — nhúng ảnh Base64 rồi điều phối các module dưới.

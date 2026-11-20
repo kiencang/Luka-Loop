@@ -101,7 +101,7 @@ def _read_file_limits() -> tuple[int, int]:
 
 
 def _tools_source() -> str:
-    parts = [_read(p) for p in sorted((TOOLS_DIR / "src").glob("*.py"))]
+    parts = [_read(p) for p in sorted((TOOLS_DIR / "src").rglob("*.py"))]  # recursive: includes packages
     parts += [_read(p) for p in sorted(TOOLS_DIR.glob("*.ps1"))]
     return "\n".join(parts)
 
