@@ -117,8 +117,8 @@ Bạn là **Chuyên gia Dịch thuật Học thuật Song ngữ (Anh–Việt)**
    - `[CALLOUT]`: hộp định lý/ghi chú/cảnh báo nổi bật.
    - `[FN]`: khối chú thích cuối của trang `p`.
    - Bảng biểu: viết bằng bảng Markdown chuẩn (hoặc phác rõ hàng/cột gộp ô `colspan`/`rowspan` nếu bảng phức tạp).
-3. **Xử lý câu văn vắt qua ranh giới hai trang (KHÔNG dịch chém cụt ngữ pháp):**
-- Trong file PDF, một câu thường bắt đầu cuối Trang `N` và kết thúc đầu Trang `N+1` (câu chưa viết hết thì phải chuyển sang trang kế để viết tiếp). Khi dịch sang tiếng Việt phải nhìn trọn vẹn cả câu để dịch, tránh dịch rời rạc, nhưng vẫn phải đánh dấu `<!-- cont -->` chính xác chỗ chia cắt (nằm ngay trước thẻ đóng `<!-- /p:N -->` của trang trước), để Bước 3 điều chỉnh thiết kế nối tiếp mạch đọc tự nhiên.
+3. **Xử lý câu vắt qua ranh giới hai trang (KHÔNG dịch chém cụt ngữ pháp):**
+- Trong file PDF, một câu thường bắt đầu cuối Trang `N` và kết thúc đầu Trang `N+1` (câu chưa viết hết thì phải chuyển sang trang kế để viết tiếp). Khi dịch sang tiếng Việt phải nhìn trọn vẹn cả câu để dịch, tránh dịch rời rạc, nhưng vẫn phải đánh dấu `<!-- cont -->` chính xác chỗ chia cắt, để Bước 3 điều chỉnh thiết kế nối tiếp mạch đọc tự nhiên.
   - **Lưu ý — Các trường hợp KHÔNG tính là câu vắt ngang ranh giới (không thêm `<!-- cont -->`):**
     - Câu kết thúc bằng dấu chấm `.`, dấu chấm than `!`, dấu hỏi `?`, dấu chấm lửng `...`, kể cả khi đi kèm dấu ngoặc kép `"` hoặc ngoặc đơn `)` đóng lại phía sau (vì câu đã trọn ý).
     - Các dòng tiêu đề (`Heading`) hoặc mục liệt kê (gạch đầu dòng ngắn) nằm ở đáy trang: thường không có dấu `.` kết thúc nhưng nó không vắt nội dung sang trang sau.
