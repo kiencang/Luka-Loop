@@ -104,6 +104,8 @@ _HEADLESS_ALLOWED_HOSTS_RULE = (
     "EXCLUDE fonts.googleapis.com, "
     "EXCLUDE fonts.gstatic.com"
 )
+# Virtual-time budget (ms) for headless print: network fetches do not consume it, but MathJax typesetting does.
+HEADLESS_VIRTUAL_TIME_BUDGET_MS = 7000
 _LIGHTBOX_IDS = frozenset({"rsfv-img-lightbox", "img-lightbox"})
 _HTML_VOID_TAGS = frozenset(
     {
@@ -1045,6 +1047,21 @@ def find_next_available_index(candidate_paths: list[Path]) -> int:
         idx += 1
 
 
+def _discard_partial_pdf(pdf_path: Path) -> None:
+    """Best-effort removal of an empty/partial PDF left behind by a failed headless export."""
+    for attempt in range(3):
+        try:
+            if not os.path.lexists(pdf_path) or is_reparse_point(pdf_path) or not os.path.isfile(pdf_path):
+                return
+            os.remove(pdf_path)
+            print(f"Removed incomplete PDF -> {pdf_path}")
+            return
+        except OSError:
+            if attempt < 2:
+                time.sleep(0.4)
+    print(f"WARNING: Could not remove incomplete PDF (file locked?): {pdf_path}", file=sys.stderr)
+
+
 def find_headless_browser() -> str | None:
     """Locate Microsoft Edge (preferred) or Google Chrome executable on Windows."""
     roots_and_subpaths = [
@@ -1139,7 +1156,7 @@ def html_to_pdf(
             "--disable-translate",
             f"--host-resolver-rules={_HEADLESS_ALLOWED_HOSTS_RULE}",
             "--run-all-compositor-stages-before-draw",
-            "--virtual-time-budget=4000",
+            f"--virtual-time-budget={HEADLESS_VIRTUAL_TIME_BUDGET_MS}",
             f"--user-data-dir={tmp_profile}",
             f"--print-to-pdf={dest_pdf}",
             uri,
@@ -1161,6 +1178,7 @@ def html_to_pdf(
                     proc.wait(timeout=5)
                 except OSError:
                     pass
+                _discard_partial_pdf(dest_pdf)
                 raise TimeoutError(f"Headless browser timed out after {timeout_seconds} s while exporting PDF: {dest_pdf}")
 
         if not dest_pdf.is_file() or dest_pdf.stat().st_size == 0:
@@ -1174,6 +1192,7 @@ def html_to_pdf(
             msg = f"Headless browser failed to export PDF (exit={proc.returncode}): {dest_pdf}"
             if err_detail:
                 msg += f" | Browser log: {err_detail}"
+            _discard_partial_pdf(dest_pdf)
             raise RuntimeError(msg)
 
         pdf_sz = dest_pdf.stat().st_size
@@ -1325,14 +1344,21 @@ def embed_images_and_package(
 
     exported_pdf: Path | None = None
     if want_pdf and pdf_protected is not None:
-        exported_pdf = html_to_pdf(
-            dest,
-            out_pdf_path=pdf_protected,
-            clean_dir="",
-            timeout_seconds=timeout_seconds,
-            _qa_verified=True,
-            shell_path=shell_path,
-        )
+        try:
+            exported_pdf = html_to_pdf(
+                dest,
+                out_pdf_path=pdf_protected,
+                clean_dir="",
+                timeout_seconds=timeout_seconds,
+                _qa_verified=True,
+                shell_path=shell_path,
+            )
+        except (RuntimeError, OSError) as exc:
+            # HTML is already written and QA-verified: degrade to HTML-only instead of failing the run,
+            # so agents do not re-run packaging and create duplicate `_2`, `_3` outputs.
+            reason = " ".join(str(exc).split())
+            print(f"WARNING: PDF export failed; HTML output is complete -> {dest} | Reason: {reason}")
+            exported_pdf = None
 
     if clean_dir and clean_dir.strip():
         protected = [dest] + ([exported_pdf] if exported_pdf is not None else [pdf_protected] if pdf_protected else [])

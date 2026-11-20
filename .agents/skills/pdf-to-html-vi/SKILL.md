@@ -67,7 +67,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\html_packager.ps1
 
 - **Contract `tools\html_packager.ps1`:**
   - **Action `EmbedImages`:**
-    - Tham số: `-HtmlPath` *(bắt buộc)*, `-OutHtmlPath` *(tùy chọn; bỏ trống sẽ cập nhật trực tiếp `-HtmlPath` theo UTF-8 không BOM)*, `-AlsoPdf` *(switch xuất PDF cùng tên bên cạnh HTML đích)*, `-OutPdfPath` *(tùy chọn chỉ định đường dẫn PDF đích; cũng tự bật xuất PDF)*, `-JpegQuality` *(mặc định `95`)*, `-MaxImageWidth` *(mặc định `1400` px)*, `-CleanDir` *(tùy chọn; truyền `'work'` để tự xóa thư mục tạm **chỉ sau khi** `[QA PASS]` và xuất PDF thành công, và từ chối xóa nếu thư mục đích chứa tệp đầu ra hoặc là thư mục gốc)*.
+    - Tham số: `-HtmlPath` *(bắt buộc)*, `-OutHtmlPath` *(tùy chọn; bỏ trống sẽ cập nhật trực tiếp `-HtmlPath` theo UTF-8 không BOM)*, `-AlsoPdf` *(switch xuất PDF cùng tên bên cạnh HTML đích)*, `-OutPdfPath` *(tùy chọn chỉ định đường dẫn PDF đích; cũng tự bật xuất PDF)*, `-JpegQuality` *(mặc định `95`)*, `-MaxImageWidth` *(mặc định `1400` px)*, `-CleanDir` *(tùy chọn; truyền `'work'` để tự xóa thư mục tạm **chỉ sau khi** `[QA PASS]` và HTML đã ghi xong (kể cả khi bước xuất PDF bị bỏ qua hoặc lỗi), và từ chối xóa nếu thư mục đích chứa tệp đầu ra hoặc là thư mục gốc)*.
     - **Tự động gắn lớp vỏ tương tác (`tools\reader_shell.html`):** Trước khi chạy Auto-QA, kiểm tra tệp HTML có đủ `<head>...</head>` và `<body>...</body>`, rồi bơm idempotent các mảnh còn thiếu (CSS vỏ `rsfv-*` trước `</head>`, thanh `.rsfv-toolbar` ngay sau `<body...>`, và `#rsfv-img-lightbox` + `<script>` trước `</body>`); bỏ qua nếu HTML đã có sẵn vỏ tương tác (kể cả định dạng cũ `.reader-toolbar` / `#img-lightbox`).
     - **Tối ưu ảnh:** Ảnh chụp nhiều màu không có kênh alpha (`>= 200` cụm màu mẫu) được thử nén JPEG theo `-JpegQuality` và chỉ giữ khi nhỏ hơn bản gốc (`<= 85%` nếu không resize); sơ đồ ít màu hoặc có độ trong suốt được giữ nguyên PNG.
     - **Cổng Auto-QA (chạy trước khi ghi tệp ra `output\` — ném lỗi dừng chạy nếu vi phạm bất kỳ điều kiện nào sau đây; khi fail sẽ không tạo/ghi đè tệp đích và giữ nguyên `work\` để sửa):**
@@ -78,6 +78,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\html_packager.ps1
       5. `0` liên kết nội bộ `href="#..."` bị gãy (đều có `id="..."` tương ứng trong DOM thật).
       6. **An toàn HTML/DOM & CSP:** Chỉ cho phép `<script>` MathJax CDN hợp lệ trong `<head>` (và đúng script tin cậy của `tools\reader_shell.html`); chặn mọi `<script>` tự viết/giả mạo, thẻ nhúng/SVG động/chuyển hướng (`<iframe>`, `<object>`, `<embed>`, `<applet>`, `<base>`, `<form>`, `<foreignObject>`, `<animate*>`, `<set>`, `<template>`, `<noscript>`, `<meta http-equiv="refresh">`), DOM clobbering `MathJax`, thuộc tính sự kiện `on*`/`srcdoc`/`ping`, URI ngoài allowlist (`<a href>` chỉ cho `#`/`http(s)://`/`mailto:`, chặn `javascript:`, `file:`, `ms-*`, `search-ms:`, `\\UNC`...), macro LaTeX nguy hiểm (`\href{javascript:...}`, `\style{...url(...)}`), và CSS `url()`/`image-set()`/tài nguyên ngoài Google Fonts; đồng thời tự tiêm `<meta http-equiv="Content-Security-Policy">` khóa SHA-256 script ở tầng trình duyệt.
       - *Phục hồi khi QA fail:* Đọc thông báo lỗi từ stdout/stderr, mở sửa trực tiếp `work\draft.html` rồi chạy lại đúng lệnh Bước 4.
+      - *Khi chỉ riêng bước PDF lỗi:* Nếu stdout có dòng `WARNING: PDF export failed; HTML output is complete -> ...`, lệnh vẫn **thành công** (HTML đã đạt QA, đã ghi vào `output\` và `work\` đã được dọn). **KHÔNG** sửa `work\draft.html` và **KHÔNG** chạy lại Bước 4 (sẽ tạo bản trùng `_2`); chuyển thẳng sang phản hồi với dòng PDF dành cho trường hợp lỗi.
   - **Action `HtmlToPdf`** *(xuất PDF độc lập từ tệp HTML đã đóng gói trọn vẹn / self-contained)*:
     - CLI: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\html_packager.ps1' -Action HtmlToPdf -HtmlPath '<in.html>' [-OutPdfPath '<out.pdf>'] [-CleanDir '<dir>']`
     - Bắt buộc chạy Auto-QA bảo mật trước khi gọi Microsoft Edge/Chrome headless cô lập mạng (DNS whitelist chỉ 4 host MathJax/Google Fonts) để in PDF. Nếu bỏ trống `-OutPdfPath`, xuất cùng thư mục với đuôi `.pdf`. Nếu máy không có Edge/Chrome, xuất cảnh báo `Write-Warning` và bỏ qua xuất PDF.
@@ -87,8 +88,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\html_packager.ps1
     - `Output collision avoided; auto-numbered -> <đường_dẫn>` *(nếu tệp cũ đã tồn tại)*
     - `Embedded images into HTML -> <đường_dẫn>.html (<bytes> bytes)`
     - `Exported PDF -> <đường_dẫn>.pdf (<bytes> bytes)`
+    - `WARNING: PDF export failed; HTML output is complete -> <đường_dẫn>.html | Reason: ...` *(thay cho dòng `Exported PDF` khi Edge/Chrome quá thời gian hoặc không tạo được PDF; tệp PDF dở dang đã tự xóa)*
     - `Cleaned temp directory -> <đường_dẫn>\work` *(khi dùng `-CleanDir`)*
-- Xác nhận từ stdout lệnh trên đã có `[QA PASS]`, `Injected reader shell` (hoặc `already present`), `Embedded images into HTML`, `Exported PDF` và `Cleaned temp directory` (không cần gọi thêm lệnh kiểm tra `output\` hay xóa `work\` riêng).
+- Xác nhận từ stdout lệnh trên đã có `[QA PASS]`, `Injected reader shell` (hoặc `already present`), `Embedded images into HTML`, `Exported PDF` (hoặc dòng `WARNING: PDF export failed ...`) và `Cleaned temp directory` (không cần gọi thêm lệnh kiểm tra `output\` hay xóa `work\` riêng).
 - **Quy tắc phản hồi sau khi hoàn tất:** Lấy **đúng tên tệp thực tế** in ở `Embedded images into HTML -> ...` và `Exported PDF -> ...` trên stdout (kể cả khi tự đánh số `_2`, `_3`...), chỉ trả về liên kết tới các tệp đầu ra theo đúng mẫu thân thiện với người dùng cuối bên dưới (**tránh dùng các cụm từ kỹ thuật** như `"tự chứa"`, `"Self-contained"`, `"Base64"`, `"QA PASS"`, hay nhắc thư mục tạm `work/`; **tuyệt đối không tự ý viết bản tóm tắt hay lặp lại nội dung tài liệu đã dịch** trừ khi người dùng yêu cầu rõ):
 
   ```markdown
@@ -98,7 +100,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\html_packager.ps1
 
   **Trạng thái kiểm định:** Đạt chuẩn (đã tích hợp đủ <N> ảnh vào HTML, <M>/<M> bảng hiển thị chuẩn, 0 liên kết gãy).
   ```
-  *(Lưu ý biến thể ngắn gọn cho dòng kiểm định & PDF: điều chỉnh phần tóm tắt trong ngoặc theo số liệu thực tế từ Auto-QA — vd bổ sung `công thức toán đầy đủ` nếu bài có LaTeX, hoặc lược ý ảnh / ghi `0 ảnh` nếu tài liệu chỉ có chữ; nếu máy thiếu Microsoft Edge/Chrome nên bỏ qua xuất PDF, thay dòng PDF thành: `- **PDF:** Chưa xuất được do máy không có sẵn Microsoft Edge hoặc Chrome (bạn vẫn có thể mở tệp HTML bằng trình duyệt rồi In → Lưu thành PDF).`)*
+  *(Lưu ý biến thể ngắn gọn cho dòng kiểm định & PDF: điều chỉnh phần tóm tắt trong ngoặc theo số liệu thực tế từ Auto-QA — vd bổ sung `công thức toán đầy đủ` nếu bài có LaTeX, hoặc lược ý ảnh / ghi `0 ảnh` nếu tài liệu chỉ có chữ; nếu máy thiếu Microsoft Edge/Chrome nên bỏ qua xuất PDF, thay dòng PDF thành: `- **PDF:** Chưa xuất được do máy không có sẵn Microsoft Edge hoặc Chrome (bạn vẫn có thể mở tệp HTML bằng trình duyệt rồi In → Lưu thành PDF).`; nếu stdout có `WARNING: PDF export failed`, thay dòng PDF thành: `- **PDF:** Chưa xuất được do trình duyệt gặp lỗi khi tạo tệp PDF (bạn vẫn có thể mở tệp HTML bằng trình duyệt rồi In → Lưu thành PDF).`)*
 
 ---
 
