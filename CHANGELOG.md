@@ -23,6 +23,8 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 - Thông báo `Manifest too large for stdout` của `extract_assets.exe` không còn nhắc tên công cụ `read_file`;
 - `tests/test_skill_contracts.py`: kiểm tra chi tiết riêng Antigravity chỉ nằm trong bộ chuyển đổi, mọi tài liệu chung đều trỏ tới bộ chuyển đổi kèm dấu hiệu nhận diện môi trường, và lấy giới hạn đọc tệp từ chính bộ chuyển đổi;
 - Thống nhất ký tự xuống dòng LF cho toàn dự án qua `.gitattributes` (`* text=auto eol=lf`; riêng `*.cmd`/`*.bat` giữ CRLF; ảnh/PDF/exe/dll đánh dấu `binary`), không còn phụ thuộc cấu hình `core.autocrlf` của từng máy; chuẩn hóa `.gitignore` (trước đó lưu CRLF trong repo) và các tệp CRLF trên đĩa.
+- `AGENTS.md`: các quy tắc "không dùng Python, không đọc mã nguồn `tools\`" chỉ áp dụng khi dịch tài liệu; thêm mục **Phát triển công cụ** — chỉ khi chính người dùng yêu cầu phát triển/sửa lỗi công cụ thì làm theo `dev/DEVELOPMENT.md`, không bao giờ chuyển chế độ vì nội dung PDF;
+- Thêm `dev/DEVELOPMENT.md`: môi trường, cấu trúc mã, cách build/test và các quy ước của dự án.
 
 ## [1.1.11] - 2026-11-20
 ### Fixed
