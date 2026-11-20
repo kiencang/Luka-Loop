@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from image_ops import _ensure_rgb_or_gray, _find_ink_bounds
+
 from .caption_match import (
     _match_caption,
 )
@@ -21,6 +23,68 @@ from .model import (
     PageContext,
     pymupdf,
 )
+from .text import (
+    _is_short_axis_label,
+)
+
+
+def _image_ink_rect(ctx: PageContext, info: dict, cfg: DetectorConfig) -> pymupdf.Rect | None:
+    """Page-space bounding box of the non-white pixels of an embedded image, or None if unknown.
+
+    Embedded images often carry wide white margins (scans, exported plots); their placement box then covers
+    nearby captions, body text or the running header. The image's own pixels are analysed (not a page render,
+    which would also contain text printed over the margin) and mapped through the image's placement matrix,
+    which also handles rotated/flipped placements.
+    """
+    xref = info.get("xref") or 0
+    if not xref:
+        return None  # inline image: no xref to decode
+    w, h = info.get("width") or 0, info.get("height") or 0
+    if w <= 0 or h <= 0 or w * h > cfg.raster_trim_max_pixels:
+        return None
+    doc = ctx.page.parent
+    try:
+        pix = pymupdf.Pixmap(doc, xref)
+        smask = doc.xref_get_key(xref, "SMask")
+        if smask[0] == "xref" and not pix.alpha:
+            mask = pymupdf.Pixmap(doc, int(smask[1].split()[0]))
+            if (mask.width, mask.height) == (pix.width, pix.height):
+                pix = pymupdf.Pixmap(pix, mask)  # apply soft mask as alpha
+        while pix.width > 1600 or pix.height > 1600:
+            pix.shrink(1)
+        pix = _ensure_rgb_or_gray(pix)
+        bounds = _find_ink_bounds(pix, threshold=247, step=2)
+    except Exception as exc:  # noqa: BLE001 - trimming is optional: any decode problem keeps the original box
+        ctx.log(f"raster:trim_failed xref={xref} {type(exc).__name__}: {exc}")
+        return None
+    if bounds is None:
+        return None
+    x0, y0, x1, y1 = bounds
+    pw, ph = float(pix.width), float(pix.height)
+    unit = pymupdf.Rect(max(0, x0 - 2) / pw, max(0, y0 - 2) / ph, min(pw, x1 + 3) / pw, min(ph, y1 + 3) / ph)
+    return unit * pymupdf.Matrix(info["transform"])
+
+
+def _reattach_overlaid_labels(ctx: PageContext, original: pymupdf.Rect, trimmed: pymupdf.Rect) -> pymupdf.Rect:
+    """Re-include short label text (axis titles, ticks, panel letters) printed over the trimmed white margin.
+
+    Plots exported as images frequently get their axis labels as real PDF text drawn on top of the image's white
+    border. Those blocks lie inside the original placement box and belong to the figure; captions, prose and the
+    running header/footer in the page margins do not.
+    """
+    top_band = ctx.page_rect.y0 + 0.10 * ctx.ph  # running headers sit in the top ~10%
+    bottom_band = ctx.page_rect.y1 - 0.06 * ctx.ph
+    inside = pymupdf.Rect(original.x0 - 1.0, original.y0 - 1.0, original.x1 + 1.0, original.y1 + 1.0)
+    out = pymupdf.Rect(trimmed)
+    for tb in ctx.text_blocks:
+        r = tb.rect
+        if tb.kind != "text" or not inside.contains(r) or trimmed.contains(r):
+            continue
+        if r.y1 <= top_band or r.y0 >= bottom_band:
+            continue
+        if _is_short_axis_label(tb, vertical_ok=True):
+            out |= r
+    return out
 
 
 def detect_raster_regions(
@@ -30,7 +94,9 @@ def detect_raster_regions(
     raw_rects: list[pymupdf.Rect] = []
     has_full_page_img = False
 
-    for info in ctx.page.get_image_info(xrefs=True):
+    infos = ctx.page.get_image_info(xrefs=True)
+    trim_allowed = len(infos) <= cfg.raster_trim_max_images
+    for info in infos:
         r = pymupdf.Rect(info["bbox"]) & ctx.page_rect
         if r.is_empty or r.width < 1.0 or r.height < 1.0:
             continue
@@ -41,6 +107,19 @@ def detect_raster_regions(
         if _is_vertical_bleed_strip(r, ctx.page_rect, cfg) and _match_caption(r, ctx.fig_captions, ctx.text_blocks, cfg) is None:
             ctx.log(f"raster:skip vertical_bleed {r}")
             continue
+        # Trim white image margins only after the page-background checks above, so a scanned page with white
+        # borders is still recognised as a background instead of turning into one giant "figure".
+        if trim_allowed and r.get_area() >= cfg.min_raster_area:
+            ink = _image_ink_rect(ctx, info, cfg)
+            if ink is not None:
+                trimmed = ink & r
+                if trimmed.is_empty:
+                    ctx.log(f"raster:skip blank_image {r}")
+                    continue
+                if trimmed.get_area() < (1.0 - cfg.raster_trim_min_gain) * r.get_area():
+                    trimmed = _reattach_overlaid_labels(ctx, r, trimmed)
+                    ctx.log(f"raster:trim_white_margin {r} -> {trimmed}")
+                    r = trimmed
         raw_rects.append(r)
 
     merged = _merge_touching(raw_rects, pad=cfg.touch_pad)

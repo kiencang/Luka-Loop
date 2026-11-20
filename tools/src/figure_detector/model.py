@@ -53,6 +53,16 @@ class DetectorConfig:
     min_strip_short_dim: float = 16.0
     min_strip_long_dim: float = 100.0
     min_strip_area: float = 1800.0
+    # Phase 2: White-margin trimming of embedded images
+    raster_trim_max_images: int = 40           # skip trimming on pages tiled with many images
+    raster_trim_max_pixels: int = 60_000_000   # skip decoding absurdly large images
+    raster_trim_min_gain: float = 0.03         # apply only when the box shrinks by >= 3% of its area
+    # Phase 6: Line-level label attachment (max gap per side, pt; max growth per side from the original box)
+    label_gap_left: float = 28.0
+    label_gap_right: float = 20.0
+    label_gap_top: float = 18.0
+    label_gap_bottom: float = 26.0
+    label_max_growth: float = 60.0
     # Phase 3: Vector clustering & text density
     cluster_tol_x: float = 5.0
     cluster_tol_y: float = 5.0

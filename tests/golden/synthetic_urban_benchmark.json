@@ -97,12 +97,12 @@
         "drawings": 12,
         "placement": "figure",
         "box": [
-          0.21,
+          0.167,
           0.149,
           0.767,
           0.322
         ],
-        "width_px": 850,
+        "width_px": 913,
         "height_px": 385,
         "caption": "Figure 4: Per-category segmentation recall (%) and relative latency trend across five urban scene classes evaluated in the synthetic test suite.",
         "context": null
@@ -241,12 +241,12 @@
         "drawings": 12,
         "placement": "figure",
         "box": [
-          0.21,
+          0.167,
           0.149,
           0.767,
           0.322
         ],
-        "width_px": 850,
+        "width_px": 913,
         "height_px": 385,
         "caption": "Figure 4: Per-category segmentation recall (%) and relative latency trend across five urban scene classes evaluated in the synthetic test...",
         "context": null
@@ -293,7 +293,7 @@
     "fig_p4_1.png": "86c3a5db6f5f3dc2f14eed7d5ac525be28a7e683c15a1232d2d2bd66b6f59d1a",
     "fig_p4_2.png": "a9a18022e52b36cbdefe3e38c306176e95da7abb824cf211d8523dcdad7934dd",
     "fig_p4_3.png": "0d412c8685567c0303f3049106b29f93f61a8ff48ffa53531077306b88112610",
-    "fig_p5_1.png": "2b04e341b7a2404818beea24cd990a066576aca2a09800732dde7e59a3f8f5f7",
+    "fig_p5_1.png": "010584736d6c107a8ded5967998c61ddcb42a556f7954ef9a7af59eb1f2c2950",
     "fig_p5_2.png": "f56e0fb56e7f655575b3b4cec2c0063f396c7cbfcd5b5de8e3958d386325e655",
     "fig_p5_3.png": "2f2eed8bb0d298b29460cc1b8549bee5e74450eae266bc3cb378f7ee764a8ac1"
   }
