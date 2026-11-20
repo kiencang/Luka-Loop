@@ -240,10 +240,14 @@ def _is_simple_box_drawing(dr: dict) -> bool:
     return False
 
 
-def _has_non_grid_detail(drawings: list[dict] | None, rect: pymupdf.Rect, min_count: int = 12) -> bool:
-    """Return True if `drawings` inside `rect` contain >= `min_count` true curves/diagonals (ignoring card corners)."""
+def _count_non_grid_detail(drawings: list[dict] | None, rect: pymupdf.Rect, limit: int = 12) -> int:
+    """Count true curves/diagonals of `drawings` inside `rect` (ignoring card corners), stopping at `limit`.
+
+    The result is exact below `limit` and equals `limit` once reached, so `count >= k` answers
+    "at least k curves?" for every k <= limit in a single pass.
+    """
     if not drawings:
-        return False
+        return 0
     count = 0
     for dr in drawings:
         if not rect.contains(dr["rect"]):
@@ -258,6 +262,6 @@ def _has_non_grid_detail(drawings: list[dict] | None, rect: pymupdf.Rect, min_co
                 p0, p1 = item[1], item[2]
                 if abs(p0.x - p1.x) > 2.0 and abs(p0.y - p1.y) > 2.0:
                     count += 1
-            if count >= min_count:
-                return True
-    return False
+            if count >= limit:
+                return limit
+    return count
