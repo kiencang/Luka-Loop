@@ -48,16 +48,20 @@ pwsh -NoProfile -File .\tests\run_tests.ps1 # test PowerShell 7
 
 ```powershell
 python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune                       # đo trên tập hiệu chỉnh
+python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune --gallery 8              # + trang minh họa lỗi nặng
 python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune --limit 500 --overlays 20  # mẫu nhỏ + ảnh chồng trang lỗi
 python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune --disable-rule _reject_too_small  # đo đóng góp một quy tắc
 ```
 
 - **Các tập:** `tune` = train trừ hold-out (xem lỗi, chỉnh quy tắc ở đây); `holdout` = ~20% **tài liệu** của train, chọn bằng hash cố định trong script — chỉ để đo, công cụ cấm `--overlays` trên tập này; `val`/`test` = bộ mà bộ phát hiện từng được hiệu chỉnh trước đây (không còn là thước đo khách quan).
 - **Tọa độ:** hộp DocLayNet là `[x, y, w, h]` trên ảnh 1025×1025 bị kéo giãn → quy đổi riêng từng trục về kích thước trang thật.
-- **Chấm điểm:** khớp một-một; `strict` = IoU ≥ 0,5; `lenient` thêm trường hợp hộp dự đoán phủ ≥ 90% hộp nhãn và không lớn quá 2 lần (bù phần nới nhãn trục). Mỗi hộp không khớp được phân loại: nhãn `missed`/`partial`/`split`/`merged`, dự đoán `merge`/`fragment`/`fp_<lớp>` (nằm trên Table/Formula/Text… đã gán nhãn) hoặc `fp_unlabeled`.
-- **Nhiễu nhãn:** DocLayNet có trang thiếu nhãn `Picture`; `fp_unlabeled` cần xem ảnh chồng trước khi coi là lỗi thật.
-- **Đầu ra:** mặc định trong `%TEMP%\luka_doclaynet_eval\` — kết quả từng trang lưu đệm theo dấu vân tay mã nguồn bộ phát hiện (`pages\<fingerprint>.jsonl`, đổi mã là tự chạy lại), mỗi lần chạy có `runs\<tên>\summary.json`, `worst_pages.json` và `overlays\` (xanh lá = nhãn, đỏ = dự đoán).
-- **Quy trình cải tiến:** chọn một nhóm lỗi trên `tune` → sửa/thêm quy tắc → đo lại `tune` → kiểm tra `holdout` không tụt → chạy test, sinh lại golden nếu kết quả mẫu đổi có chủ đích và xem kỹ diff.
+- **Chỉ số chính — mức độ nghiêm trọng với bản dịch** (`severity`, không phụ thuộc cách gộp/tách panel; ảnh được xét đúng như khi xuất, tức đã nới lề 4 pt):
+  - *Hình bị cắt thiếu* (`clipped`): chữ thuộc hình (nhãn trục, số chia, chú giải — lấy từ `pdf_cells` của hộp `Picture`) nằm ngoài mọi ảnh đã tách, hoặc > 10% diện tích hình bị cắt; *bỏ sót* (`missed`): phủ < 50%.
+  - *Ảnh lấn chữ* (`intrusion`): ô chữ của nội dung được gán nhãn ngoài hình (Caption, Text, Formula, Table, Page-header…) lọt vào ảnh; *gộp lệch* (`bad_merge`): một ảnh bao nhiều hình **và** lấn chữ. Ảnh bao nhiều hình mà không lấn chữ là `merge_ok` — chấp nhận được.
+- **Chỉ số phụ — khớp theo quy ước DocLayNet** (`matching`): khớp một-một; `strict` = IoU ≥ 0,5; `lenient` thêm trường hợp hộp phủ ≥ 90% hộp nhãn và không lớn quá 2 lần. Hộp không khớp được phân loại `missed`/`partial`/`split`/`merged`, `merge`/`fragment`/`fp_<lớp>`/`fp_unlabeled`. DocLayNet vẽ một `Picture` cho mỗi chú thích ở ~99% trường hợp, nên split/merge chủ yếu phản ánh cách gom panel — ít ảnh hưởng tới bản dịch.
+- **Nhiễu nhãn:** DocLayNet có trang thiếu hoặc lệch nhãn; xem ảnh minh họa trước khi coi một nhóm lỗi là thật.
+- **Đầu ra:** mặc định trong `%TEMP%\luka_doclaynet_eval\` — kết quả bộ phát hiện từng trang lưu đệm theo dấu vân tay mã nguồn (`pages\<fingerprint>.jsonl`, đổi mã là tự chạy lại); nhãn lưu đệm riêng (`ground_truth_v1.jsonl`) và việc chấm điểm luôn tính lại, nên đổi cách chấm không phải chạy lại bộ phát hiện. Mỗi lần chạy có `runs\<tên>\summary.json`, `worst_pages.json`, `overlays\` (`--overlays N`) và `gallery.html` (`--gallery N`: N ví dụ mỗi loại lỗi nặng, ảnh cắt sát vùng hình; chấm cam = chữ lọt vào ảnh, chấm xanh dương = chữ của hình bị cắt).
+- **Quy trình cải tiến:** chọn một nhóm lỗi nặng trên `tune` → sửa/thêm quy tắc → đo lại `tune` → kiểm tra `holdout` không tụt → chạy test, sinh lại golden nếu kết quả mẫu đổi có chủ đích và xem kỹ diff.
 
 ## Quy ước
 

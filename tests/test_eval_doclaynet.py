@@ -87,20 +87,79 @@ class TestEvaluatePage(unittest.TestCase):
         self.assertEqual(r["pred_outcomes"], {"0": "fp_Table", "1": "fp_Formula", "2": "fp_unlabeled"})
 
     def test_summary_precision_recall(self) -> None:
-        page = {
-            "preds": [(0, 0, 10, 10), (50, 50, 60, 60)],
-            "gts": [(0, 0, 10, 10)],
-            "eval": ev.evaluate_page([(0, 0, 10, 10), (50, 50, 60, 60)], [(0, 0, 10, 10)], []),
+        result = {
+            "preds": [[0, 0, 10, 10], [50, 50, 60, 60]],
             "pred_meta": [{"source": "vector", "captioned": True}, {"source": "raster", "captioned": False}],
             "seconds": 0.2,
         }
-        s = ev.summarize([page, {"error": "boom", "seconds": 0.0}])
+        gt = {"w": 100.0, "h": 100.0, "boxes": [["Picture", [0, 0, 10, 10], []]]}
+        s = ev.summarize([ev.score(result, gt), {"error": "boom", "seconds": 0.0}])
         self.assertEqual(s["pages"], 2)
         self.assertEqual(s["page_errors"], 1)
-        self.assertEqual(s["lenient"], {"precision": 0.5, "recall": 1.0, "f1": 0.6667})
-        self.assertEqual(s["precision_by_source"]["vector+caption"]["tp"], 1)
-        self.assertEqual(s["precision_by_source"]["raster"]["tp"], 0)
-        self.assertEqual(s["matched_iou_mean"], 1.0)
+        m = s["matching"]
+        self.assertEqual(m["lenient"], {"precision": 0.5, "recall": 1.0, "f1": 0.6667})
+        self.assertEqual(m["precision_by_source"]["vector+caption"]["tp"], 1)
+        self.assertEqual(m["precision_by_source"]["raster"]["tp"], 0)
+        self.assertEqual(m["matched_iou_mean"], 1.0)
+        self.assertEqual(s["severity"]["figures_ok"], 1)
+        self.assertEqual(s["severity"]["images_orphan"], 1)
+
+
+PAGE = (0.0, 0.0, 600.0, 800.0)
+
+
+class TestSeverity(unittest.TestCase):
+    def test_union_coverage_is_exact_for_overlapping_covers(self) -> None:
+        target = (0, 0, 100, 100)
+        self.assertAlmostEqual(ev.union_coverage(target, [(0, 0, 60, 100), (40, 0, 100, 50)]), 0.8)
+        self.assertAlmostEqual(ev.union_coverage(target, [(-10, -10, 200, 200)]), 1.0)
+        self.assertEqual(ev.union_coverage(target, [(200, 200, 300, 300)]), 0.0)
+
+    def test_figure_split_into_panels_is_not_a_severe_error(self) -> None:
+        pic = ("Picture", (100, 100, 300, 200), [(110, 195), (290, 195)])  # x-axis labels at the bottom
+        preds = [(100, 100, 198, 200), (202, 100, 300, 200)]  # two panels, together covering everything
+        sev = ev.severity_page(preds, [pic], [], PAGE)
+        self.assertEqual(sev["figures"][0]["status"], "ok")
+        self.assertFalse(sev["severe"])
+
+    def test_cut_axis_labels_make_a_figure_clipped(self) -> None:
+        pic = ("Picture", (100, 100, 300, 220), [(200, 214)])  # axis title 14 pt below the plot frame
+        sev = ev.severity_page([(100, 100, 300, 200)], [pic], [], PAGE)  # + 4 pt padding still misses it
+        self.assertEqual(sev["figures"][0]["status"], "clipped")
+        self.assertEqual(sev["figures"][0]["cut_cells"], 1)
+        self.assertTrue(sev["severe"])
+
+    def test_missed_and_area_clipped(self) -> None:
+        pic = ("Picture", (100, 100, 300, 300), [])
+        self.assertEqual(ev.severity_page([], [pic], [], PAGE)["figures"][0]["status"], "missed")
+        half = ev.severity_page([(100, 100, 300, 260)], [pic], [], PAGE)["figures"][0]
+        self.assertEqual(half["status"], "clipped")
+
+    def test_caption_inside_image_is_an_intrusion(self) -> None:
+        pic = ("Picture", (100, 100, 300, 200), [])
+        caption = ("Caption", (100, 210, 300, 230), [(150, 220), (250, 220)])
+        sev = ev.severity_page([(100, 100, 300, 232)], [pic], [caption], PAGE)
+        self.assertEqual(sev["preds"][0]["status"], "intrusion")
+        self.assertEqual(sev["preds"][0]["intruded_classes"], {"Caption": 1})
+        self.assertEqual(sev["intrusions"][0]["cells"], 2)
+        self.assertTrue(sev["severe"])
+
+    def test_padding_counts_and_text_inside_figures_is_not_an_intrusion(self) -> None:
+        pic = ("Picture", (100, 100, 300, 200), [])
+        near = ("Text", (100, 202, 300, 214), [(200, 203)])  # 3 pt below the box: inside the 4 pt padding
+        inside_label = ("Text", (150, 150, 200, 160), [(175, 155)])  # annotated text inside the picture
+        sev = ev.severity_page([(100, 100, 300, 200)], [pic], [near, inside_label], PAGE)
+        self.assertEqual(sev["preds"][0]["status"], "intrusion")
+        self.assertEqual(sev["preds"][0]["intruded_cells"], 1, "only the cell under the padding, not the label")
+
+    def test_bad_merge_versus_acceptable_merge(self) -> None:
+        pics = [("Picture", (100, 100, 280, 200), []), ("Picture", (320, 100, 500, 200), [])]
+        ok = ev.severity_page([(100, 100, 500, 200)], pics, [], PAGE)
+        self.assertEqual(ok["preds"][0]["status"], "merge_ok")
+        self.assertFalse(ok["severe"])
+        between = ("Caption", (100, 205, 280, 215), [(190, 210)])
+        bad = ev.severity_page([(100, 100, 500, 400)], pics, [between], PAGE)
+        self.assertEqual(bad["preds"][0]["status"], "bad_merge")
 
 
 if __name__ == "__main__":

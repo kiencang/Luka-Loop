@@ -2,29 +2,42 @@
 
 DocLayNet v1.2 (Hugging Face parquet) embeds a one-page PDF per annotated page, so the real detector
 (`figure_detector`, the same code that ships in extract_assets.exe) runs on the original vector/text content
-and its figure boxes are compared with the human-annotated `Picture` boxes.
+and its figure boxes are compared with the human-annotated layout boxes.
+
+Two families of metrics:
+  severity   what hurts a translated document, independent of how panels are grouped:
+             - figure CLIPPED: text inside the annotated Picture (axis labels, legends) or > 10% of its area
+               falls outside every extracted image; MISSED: less than half of it is covered
+             - TEXT INTRUSION: annotated content outside any Picture (captions, body text, formulas, tables...)
+               ends up inside an extracted image (as rendered, i.e. including the 4 pt padding)
+             - BAD MERGE: one image covers several Pictures AND swallows text in between
+  matching   DocLayNet-convention box matching (precision/recall/F1, split/merge counts); kept for reference.
+             DocLayNet draws one Picture per caption in ~99% of cases, so split/merge mostly measure grouping.
 
 Splits used here:
   tune     DocLayNet train, documents NOT in the hold-out  -> look at errors, tune rules here
-  holdout  ~20% of train documents, chosen by a fixed hash -> measure only; never inspect pages (no overlays)
+  holdout  ~20% of train documents, chosen by a fixed hash -> measure only; never inspect pages
   val/test DocLayNet val/test                              -> the detector was historically tuned on these
 
 Examples (system Python with pyarrow + PyMuPDF; the dataset never enters the repository):
   python dev\\eval_doclaynet.py --data D:\\PdfSamples --subset tune
+  python dev\\eval_doclaynet.py --data D:\\PdfSamples --subset tune --gallery 8
   python dev\\eval_doclaynet.py --data D:\\PdfSamples --subset tune --limit 500 --overlays 20
-  python dev\\eval_doclaynet.py --data D:\\PdfSamples --subset val --subset test
   python dev\\eval_doclaynet.py --data D:\\PdfSamples --subset tune --disable-rule _reject_too_small
 
-Per-page results are cached per detector fingerprint (hash of tools\\src\\figure_detector\\*.py, image_ops.py and
-the disabled rules), so a re-run after a code change recomputes everything and a re-run without changes is instant.
+Caching (default under %TEMP%\\luka_doclaynet_eval): detector output per page is keyed by a fingerprint of
+tools\\src\\figure_detector\\*.py, image_ops.py and the disabled rules; ground truth is cached separately and
+scoring is always recomputed, so changing a metric never re-runs the detector.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import collections
 import concurrent.futures as cf
 import hashlib
+import html
 import json
 import os
 import random
@@ -49,14 +62,21 @@ SCIENTIFIC = "scientific_articles"
 HOLDOUT_SALT = "luka-loop/doclaynet-holdout/v1"
 HOLDOUT_PERCENT = 20
 
-# Matching thresholds. Our boxes are deliberately larger than the annotation (4 pt render padding is NOT
-# included here, but axis-label/tick expansion is), hence the lenient criterion next to plain IoU >= 0.5.
+# Matching thresholds (DocLayNet convention). Our boxes are deliberately larger than the annotation (axis-label
+# expansion), hence the lenient criterion next to plain IoU >= 0.5.
 STRICT_IOU = 0.5
 LENIENT_GT_COVER = 0.9       # prediction covers >= 90% of the ground-truth box ...
 LENIENT_MAX_GROWTH = 2.0     # ... and is at most 2x its area
 PART_COVER = 0.5             # "mostly inside" for merge/split/fragment attribution
 
+# Severity thresholds.
+RENDER_PAD = 4.0             # extract_images renders each box with 4 pt padding on every side
+MISS_BELOW = 0.5             # Picture area covered by extracted images below this -> missed
+AREA_OK = 0.9                # ... below this (but not missed) -> graphic area clipped
+
 Box = tuple[float, float, float, float]
+Point = tuple[float, float]
+GtBox = tuple[str, Box, list[Point]]  # (class name, box, centres of the PDF text cells inside it)
 
 
 # ==============================================================================
@@ -103,6 +123,37 @@ def coverage(inner: Box, outer: Box) -> float:
     return intersection(inner, outer) / a if a > 0 else 0.0
 
 
+def expand(b: Box, pad: float, page: Box) -> Box:
+    return (max(page[0], b[0] - pad), max(page[1], b[1] - pad), min(page[2], b[2] + pad), min(page[3], b[3] + pad))
+
+
+def contains_point(b: Box, p: Point) -> bool:
+    return b[0] <= p[0] <= b[2] and b[1] <= p[1] <= b[3]
+
+
+def union_coverage(target: Box, covers: list[Box]) -> float:
+    """Exact fraction of `target`'s area covered by the union of `covers` (coordinate compression)."""
+    a = area(target)
+    if a <= 0:
+        return 0.0
+    clipped = []
+    for c in covers:
+        x0, y0, x1, y1 = max(c[0], target[0]), max(c[1], target[1]), min(c[2], target[2]), min(c[3], target[3])
+        if x1 > x0 and y1 > y0:
+            clipped.append((x0, y0, x1, y1))
+    if not clipped:
+        return 0.0
+    xs = sorted({v for c in clipped for v in (c[0], c[2])})
+    ys = sorted({v for c in clipped for v in (c[1], c[3])})
+    covered = 0.0
+    for xa, xb in zip(xs, xs[1:]):
+        for ya, yb in zip(ys, ys[1:]):
+            cx, cy = (xa + xb) / 2, (ya + yb) / 2
+            if any(c[0] <= cx <= c[2] and c[1] <= cy <= c[3] for c in clipped):
+                covered += (xb - xa) * (yb - ya)
+    return covered / a
+
+
 def is_strict_match(pred: Box, gt: Box) -> bool:
     return iou(pred, gt) >= STRICT_IOU
 
@@ -129,13 +180,10 @@ def greedy_match(preds: list[Box], gts: list[Box], accept) -> list[tuple[int, in
 
 
 def evaluate_page(preds: list[Box], gts: list[Box], others: list[tuple[str, Box]]) -> dict:
-    """Score one page. `others` are the non-Picture ground-truth boxes as (class name, box).
+    """DocLayNet-convention matching for one page. `others` are the non-Picture boxes as (class name, box).
 
-    Returns strict/lenient TP counts plus one outcome per unmatched box:
-      GT:   'merged' (one prediction swallowed it together with another picture), 'split' (>= 2 predictions
-            inside it), 'partial' (one prediction too small/off), 'missed' (nothing overlaps)
-      pred: 'merge' (covers >= 2 pictures), 'fragment' (lies inside a picture), 'fp_<class>' (mostly inside
-            a Table/Formula/Text/... box), 'fp_unlabeled' (on nothing annotated)
+    Unmatched GT: 'merged' / 'split' / 'partial' / 'missed'; unmatched prediction: 'merge' / 'fragment' /
+    'fp_<class>' (mostly inside an annotated Table/Formula/Text... box) / 'fp_unlabeled'.
     """
     strict = greedy_match(preds, gts, is_strict_match)
     lenient = greedy_match(preds, gts, is_lenient_match)
@@ -186,6 +234,70 @@ def evaluate_page(preds: list[Box], gts: list[Box], others: list[tuple[str, Box]
     }
 
 
+def severity_page(preds: list[Box], pictures: list[GtBox], others: list[GtBox], page: Box) -> dict:
+    """Translation-oriented errors on one page, independent of how panels are grouped into images.
+
+    Every prediction is taken as rendered (padded by RENDER_PAD, clipped to the page). Per Picture:
+    'missed' (< MISS_BELOW of its area covered by the union of images), 'clipped' (some of its text cells
+    -- axis labels, legends -- or more than 1 - AREA_OK of its area outside every image) or 'ok'.
+    Per prediction: 'bad_merge' (covers >= 2 Pictures and swallows outside text), 'intrusion' (swallows text
+    cells of annotated non-Picture content), 'merge_ok', 'orphan' (touches no Picture) or 'ok'.
+    """
+    imgs = [expand(p, RENDER_PAD, page) for p in preds]
+    pic_boxes = [b for _, b, _ in pictures]
+
+    figures = []
+    for _, g, cells in pictures:
+        cov = union_coverage(g, imgs)
+        cut = [c for c in cells if not any(contains_point(im, c) for im in imgs)] if cov >= MISS_BELOW else []
+        status = "missed" if cov < MISS_BELOW else ("clipped" if cut or cov < AREA_OK else "ok")
+        figures.append({"status": status, "coverage": round(cov, 3), "cut_cells": len(cut), "cells": len(cells),
+                        "cut_points": [[round(v, 1) for v in c] for c in cut]})
+
+    intruded_cells = [0] * len(preds)
+    intruded_classes: list[collections.Counter] = [collections.Counter() for _ in preds]
+    intrusions = []
+    for cls, b, cells in others:
+        hits = collections.Counter()
+        points = []
+        for c in cells:
+            if any(contains_point(g, c) for g in pic_boxes):
+                continue  # text that belongs to a figure is not an intrusion
+            for i, im in enumerate(imgs):
+                if contains_point(im, c):
+                    hits[i] += 1
+                    points.append(c)
+                    break
+        if hits:
+            for i, n in hits.items():
+                intruded_cells[i] += n
+                intruded_classes[i][cls] += 1
+            intrusions.append({"class": cls, "cells": sum(hits.values()), "of": len(cells),
+                               "points": [[round(v, 1) for v in c] for c in points]})
+
+    pred_status = []
+    for i, im in enumerate(imgs):
+        covered = [k for k, g in enumerate(pic_boxes) if coverage(g, im) >= PART_COVER]
+        touches = any(intersection(im, g) > 0 for g in pic_boxes)
+        if len(covered) >= 2 and intruded_cells[i]:
+            status = "bad_merge"
+        elif intruded_cells[i]:
+            status = "intrusion"
+        elif len(covered) >= 2:
+            status = "merge_ok"
+        elif not touches:
+            status = "orphan"
+        else:
+            status = "ok"
+        pred_status.append({"status": status, "intruded_cells": intruded_cells[i],
+                            "intruded_classes": dict(intruded_classes[i])})
+
+    severe = any(f["status"] != "ok" for f in figures) or any(
+        p["status"] in ("intrusion", "bad_merge") for p in pred_status
+    )
+    return {"figures": figures, "preds": pred_status, "intrusions": intrusions, "severe": severe}
+
+
 def prf(tp: int, n_pred: int, n_gt: int) -> dict:
     precision = tp / n_pred if n_pred else 1.0
     recall = tp / n_gt if n_gt else 1.0
@@ -193,12 +305,18 @@ def prf(tp: int, n_pred: int, n_gt: int) -> dict:
     return {"precision": round(precision, 4), "recall": round(recall, 4), "f1": round(f1, 4)}
 
 
+def _rate(n: int, d: int) -> float:
+    return round(n / d, 4) if d else 0.0
+
+
 def summarize(results: list[dict]) -> dict:
-    ok = [r for r in results if "error" not in r]
+    ok = [r for r in results if "error" not in r and "eval" in r]
     tot = collections.Counter()
     gt_out, pred_out = collections.Counter(), collections.Counter()
     by_source = collections.defaultdict(collections.Counter)
     matched_ious: list[float] = []
+    fig_status, pred_status, intr_cls = collections.Counter(), collections.Counter(), collections.Counter()
+    cut_cells = intr_cells = severe_pages = clipped_by_labels = 0
     for r in ok:
         ev = r["eval"]
         tot.update({k: ev[k] for k in ("n_pred", "n_gt", "tp_strict", "tp_lenient")})
@@ -210,26 +328,71 @@ def summarize(results: list[dict]) -> dict:
             key = meta["source"] + ("+caption" if meta["captioned"] else "")
             by_source[key]["pred"] += 1
             by_source[key]["tp"] += i in matched_p
-    pages_with_gt = sum(1 for r in ok if r["eval"]["n_gt"])
+        sev = r.get("sev")
+        if sev:
+            severe_pages += sev["severe"]
+            for f in sev["figures"]:
+                fig_status[f["status"]] += 1
+                cut_cells += f["cut_cells"]
+                clipped_by_labels += f["status"] == "clipped" and f["cut_cells"] > 0
+            for p in sev["preds"]:
+                pred_status[p["status"]] += 1
+            for it in sev["intrusions"]:
+                intr_cls[it["class"]] += 1
+                intr_cells += it["cells"]
+    n_fig, n_pred = sum(fig_status.values()), sum(pred_status.values())
     return {
         "pages": len(results),
         "page_errors": len(results) - len(ok),
-        "pages_with_pictures": pages_with_gt,
-        "pages_without_pictures_but_predictions": sum(1 for r in ok if not r["eval"]["n_gt"] and r["eval"]["n_pred"]),
-        "gt_pictures": tot["n_gt"],
-        "predictions": tot["n_pred"],
-        "strict_iou50": prf(tot["tp_strict"], tot["n_pred"], tot["n_gt"]),
-        "lenient": prf(tot["tp_lenient"], tot["n_pred"], tot["n_gt"]),
-        "matched_iou_mean": round(sum(matched_ious) / len(matched_ious), 4) if matched_ious else None,
-        "matched_iou_below_0_8": sum(1 for v in matched_ious if v < 0.8),
-        "unmatched_gt": dict(gt_out.most_common()),
-        "unmatched_pred": dict(pred_out.most_common()),
-        "precision_by_source": {
-            k: {"pred": v["pred"], "tp": v["tp"], "precision": round(v["tp"] / v["pred"], 4)}
-            for k, v in sorted(by_source.items())
+        "pages_with_pictures": sum(1 for r in ok if r["eval"]["n_gt"]),
+        "severity": {
+            "pages_with_severe_error": severe_pages,
+            "figures": n_fig,
+            "figures_ok": fig_status["ok"],
+            "figures_ok_rate": _rate(fig_status["ok"], n_fig),
+            "figures_clipped": fig_status["clipped"],
+            "figures_clipped_labels_cut": clipped_by_labels,
+            "figure_text_cells_cut": cut_cells,
+            "figures_missed": fig_status["missed"],
+            "images": n_pred,
+            "images_clean_rate": _rate(pred_status["ok"] + pred_status["merge_ok"], n_pred),
+            "images_with_text_intrusion": pred_status["intrusion"] + pred_status["bad_merge"],
+            "images_bad_merge": pred_status["bad_merge"],
+            "images_merge_ok": pred_status["merge_ok"],
+            "images_orphan": pred_status["orphan"],
+            "intruded_boxes_by_class": dict(intr_cls.most_common()),
+            "intruded_text_cells": intr_cells,
+        },
+        "matching": {
+            "gt_pictures": tot["n_gt"],
+            "predictions": tot["n_pred"],
+            "strict_iou50": prf(tot["tp_strict"], tot["n_pred"], tot["n_gt"]),
+            "lenient": prf(tot["tp_lenient"], tot["n_pred"], tot["n_gt"]),
+            "matched_iou_mean": round(sum(matched_ious) / len(matched_ious), 4) if matched_ious else None,
+            "matched_iou_below_0_8": sum(1 for v in matched_ious if v < 0.8),
+            "unmatched_gt": dict(gt_out.most_common()),
+            "unmatched_pred": dict(pred_out.most_common()),
+            "precision_by_source": {
+                k: {"pred": v["pred"], "tp": v["tp"], "precision": round(v["tp"] / v["pred"], 4)}
+                for k, v in sorted(by_source.items())
+            },
         },
         "seconds_per_page": round(sum(r.get("seconds", 0.0) for r in results) / max(1, len(results)), 3),
     }
+
+
+def score(result: dict, gt: dict) -> dict:
+    """Attach ground truth plus matching and severity scores to one cached detector result."""
+    if "error" in result:
+        return result
+    pictures = [(c, tuple(b), [tuple(p) for p in cells]) for c, b, cells in gt["boxes"] if c == "Picture"]
+    others = [(c, tuple(b), [tuple(p) for p in cells]) for c, b, cells in gt["boxes"] if c != "Picture"]
+    preds = [tuple(p) for p in result["preds"]]
+    out = dict(result)
+    out["gts"] = [list(b) for _, b, _ in pictures]
+    out["eval"] = evaluate_page(preds, [b for _, b, _ in pictures], [(c, b) for c, b, _ in others])
+    out["sev"] = severity_page(preds, pictures, others, (0.0, 0.0, gt["w"], gt["h"]))
+    return out
 
 
 # ==============================================================================
@@ -276,6 +439,51 @@ def build_index(data_root: Path, cache_dir: Path) -> list[dict]:
     return index
 
 
+def _read_gt_group(file: str, rg: int, entries: list[dict]) -> list[tuple[str, dict]]:
+    """Ground-truth boxes (PDF points) with text-cell centres for the requested rows of one row group."""
+    import pyarrow.parquet as pq
+
+    rows = pq.ParquetFile(file).read_row_group(rg, columns=["metadata", "bboxes", "category_id", "pdf_cells"]).to_pylist()
+    out = []
+    for e in entries:
+        rec = rows[e["row"]]
+        m = rec["metadata"]
+        cw, ch, pw, ph = m["coco_width"], m["coco_height"], m["original_width"], m["original_height"]
+        boxes = []
+        cells_per_box = rec["pdf_cells"] or [[] for _ in rec["bboxes"]]
+        for b, c, cells in zip(rec["bboxes"], rec["category_id"], cells_per_box):
+            centres = []
+            for cell in cells or []:
+                x0, y0, x1, y1 = coco_to_pdf(cell["bbox"], cw, ch, pw, ph)
+                centres.append([round((x0 + x1) / 2, 1), round((y0 + y1) / 2, 1)])
+            boxes.append([CLASS_NAMES.get(c, str(c)), [round(v, 2) for v in coco_to_pdf(b, cw, ch, pw, ph)], centres])
+        out.append((e["page_hash"], {"w": pw, "h": ph, "boxes": boxes}))
+    return out
+
+
+def load_ground_truth(entries: list[dict], workers: int, cache_dir: Path) -> dict[str, dict]:
+    path = cache_dir / "ground_truth_v1.jsonl"
+    gt: dict[str, dict] = {}
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                h, v = json.loads(line)
+                gt[h] = v
+    todo = collections.defaultdict(list)
+    for e in entries:
+        if e["page_hash"] not in gt:
+            todo[(e["file"], e["rg"])].append(e)
+    if todo:
+        print(f"Reading ground truth for {sum(len(v) for v in todo.values())} pages ...", flush=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh, cf.ProcessPoolExecutor(max_workers=workers) as pool:
+            for fut in cf.as_completed([pool.submit(_read_gt_group, f, g, es) for (f, g), es in todo.items()]):
+                for h, v in fut.result():
+                    gt[h] = v
+                    fh.write(json.dumps([h, v]) + "\n")
+    return gt
+
+
 def _worker_init(disabled_rules: list[str]) -> None:
     if str(SRC_DIR) not in sys.path:
         sys.path.insert(0, str(SRC_DIR))
@@ -287,43 +495,29 @@ def _worker_init(disabled_rules: list[str]) -> None:
 
 
 def _run_group(file: str, rg: int, entries: list[dict]) -> list[dict]:
-    """Evaluate the requested rows of one parquet row group (runs in a worker process)."""
+    """Run the detector on the requested rows of one parquet row group (worker process)."""
     import pyarrow.parquet as pq
     import pymupdf
     from figure_detector.extract import _detect_table_placement
     from figure_detector.pipeline import _run_page_pipeline
 
-    table = pq.ParquetFile(file).read_row_group(rg, columns=["metadata", "bboxes", "category_id", "pdf"])
-    rows = table.to_pylist()
+    rows = pq.ParquetFile(file).read_row_group(rg, columns=["pdf"]).to_pylist()
     out = []
     for e in entries:
-        rec = rows[e["row"]]
         res = {k: e[k] for k in ("split", "subset", "file", "rg", "row", "doc", "page_no", "page_hash")}
         t0 = time.perf_counter()
         try:
-            m = rec["metadata"]
-            with pymupdf.open(stream=rec["pdf"], filetype="pdf") as doc:
+            with pymupdf.open(stream=rows[e["row"]]["pdf"], filetype="pdf") as doc:
                 page = doc[0]
-                pr = page.rect
-                conv = [coco_to_pdf(b, m["coco_width"], m["coco_height"], pr.width, pr.height) for b in rec["bboxes"]]
-                conv = [(b[0] + pr.x0, b[1] + pr.y0, b[2] + pr.x0, b[3] + pr.y0) for b in conv]
-                gts = [b for b, c in zip(conv, rec["category_id"]) if c == PICTURE]
-                others = [(CLASS_NAMES.get(c, str(c)), b) for b, c in zip(conv, rec["category_id"]) if c != PICTURE]
                 ctx, candidates, is_scanned = _run_page_pipeline(page)
                 tables = [t.rect for t in ctx.get_page_tables()] if any(c.caption_idx is None for c in candidates) else []
-                preds = [tuple(c.rect) for c in candidates]
+                res["preds"] = [[round(v, 2) for v in c.rect] for c in candidates]
                 res["pred_meta"] = [
-                    {
-                        "source": c.source,
-                        "captioned": c.caption_idx is not None,
-                        "placement": _detect_table_placement(candidates, k, ctx, tables),
-                    }
+                    {"source": c.source, "captioned": c.caption_idx is not None,
+                     "placement": _detect_table_placement(candidates, k, ctx, tables)}
                     for k, c in enumerate(candidates)
                 ]
-                res["preds"] = [[round(v, 2) for v in p] for p in preds]
-                res["gts"] = [[round(v, 2) for v in g] for g in gts]
                 res["is_scanned"] = is_scanned
-                res["eval"] = evaluate_page(preds, gts, others)
         except Exception as exc:  # noqa: BLE001 - one broken page must not stop a 12k-page run
             res["error"] = f"{type(exc).__name__}: {exc}"
             res["traceback"] = traceback.format_exc(limit=3)
@@ -358,43 +552,156 @@ def run_pages(entries: list[dict], disabled: list[str], workers: int, cache_file
                     fh.write(json.dumps(r, ensure_ascii=False) + "\n")
                     done += 1
                 fh.flush()
-                rate = done / max(1e-6, time.time() - t0)
-                print(f"  {done}/{len(todo)} pages ({rate:.1f} pages/s)", flush=True)
+                print(f"  {done}/{len(todo)} pages ({done / max(1e-6, time.time() - t0):.1f} pages/s)", flush=True)
     return [cached[e["page_hash"]] for e in entries]
+
+
+# ==============================================================================
+# Visual review: overlays and the severity gallery
+# ==============================================================================
 
 
 def _error_weight(r: dict) -> int:
     if "error" in r:
         return 1000
-    ev = r["eval"]
-    return len(ev["gt_outcomes"]) + len(ev["pred_outcomes"])
+    sev = r.get("sev") or {}
+    weight = sum(1 for f in sev.get("figures", []) if f["status"] != "ok")
+    weight += sum(2 for p in sev.get("preds", []) if p["status"] in ("intrusion", "bad_merge"))
+    return weight
 
 
-def write_overlays(results: list[dict], out_dir: Path, limit: int) -> list[Path]:
-    """Render the `limit` worst pages with GT pictures (green) and predictions (red) for visual review."""
+def _render_marked(r: dict, scale: float, crop: bool) -> tuple[bytes, int, int]:
+    """Render the page (or a crop around its figures) with GT (green), images (red), intruded/cut text (dots)."""
     import pyarrow.parquet as pq
     import pymupdf
 
-    worst = sorted((r for r in results if _error_weight(r) and "error" not in r), key=_error_weight, reverse=True)[:limit]
+    rec = pq.ParquetFile(r["file"]).read_row_group(r["rg"], columns=["pdf"]).to_pylist()[r["row"]]
+    with pymupdf.open(stream=rec["pdf"], filetype="pdf") as doc:
+        page = doc[0]
+        pr = (page.rect.x0, page.rect.y0, page.rect.x1, page.rect.y1)
+        sev = r["sev"]
+        for g, f in zip(r["gts"], sev["figures"]):
+            page.draw_rect(pymupdf.Rect(g), color=(0, 0.62, 0), width=2.2)
+            page.insert_text((g[0] + 3, g[1] + 10), f"Nhan: {f['status']}", fontsize=8, color=(0, 0.5, 0))
+            for x, y in f["cut_points"]:
+                page.draw_circle((x, y), 2.6, color=(0, 0.35, 1), fill=(0, 0.35, 1))
+        for p, ps in zip(r["preds"], sev["preds"]):
+            im = expand(tuple(p), RENDER_PAD, pr)
+            page.draw_rect(pymupdf.Rect(im), color=(0.88, 0, 0), width=1.4, dashes="[4] 0")
+            page.insert_text((im[0] + 3, im[3] - 4), f"Anh: {ps['status']}", fontsize=8, color=(0.85, 0, 0))
+        for it in sev["intrusions"]:
+            for x, y in it["points"]:
+                page.draw_circle((x, y), 2.6, color=(1, 0.5, 0), fill=(1, 0.5, 0))
+        clip = None
+        if crop:
+            boxes = [pymupdf.Rect(b) for b in r["gts"]] + [pymupdf.Rect(expand(tuple(p), RENDER_PAD, pr)) for p in r["preds"]]
+            if boxes:
+                region = boxes[0]
+                for b in boxes[1:]:
+                    region |= b
+                clip = (region + (-36, -30, 36, 60)) & page.rect
+        pix = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), clip=clip)
+        return pix.tobytes("jpeg" if crop else "png", **({"jpg_quality": 82} if crop else {})), pix.width, pix.height
+
+
+def write_overlays(results: list[dict], out_dir: Path, limit: int) -> list[Path]:
+    worst = sorted((r for r in results if "sev" in r and _error_weight(r)), key=_error_weight, reverse=True)[:limit]
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
     for rank, r in enumerate(worst, 1):
-        rec = pq.ParquetFile(r["file"]).read_row_group(r["rg"], columns=["pdf"]).to_pylist()[r["row"]]
-        with pymupdf.open(stream=rec["pdf"], filetype="pdf") as doc:
-            page = doc[0]
-            for j, g in enumerate(r["gts"]):
-                outcome = r["eval"]["gt_outcomes"].get(str(j), "tp")
-                page.draw_rect(pymupdf.Rect(g), color=(0, 0.6, 0), width=2.2)
-                page.insert_text((g[0] + 2, g[1] + 9), f"GT {outcome}", fontsize=7, color=(0, 0.5, 0))
-            for i, p in enumerate(r["preds"]):
-                outcome = r["eval"]["pred_outcomes"].get(str(i), "tp")
-                meta = r["pred_meta"][i]
-                page.draw_rect(pymupdf.Rect(p), color=(0.85, 0, 0), width=1.2, dashes="[3] 0")
-                page.insert_text((p[0] + 2, p[3] - 3), f"P{i} {outcome} {meta['source']}", fontsize=7, color=(0.8, 0, 0))
-            path = out_dir / f"{rank:03d}_{Path(r['doc']).stem}_p{r['page_no']}.png"
-            page.get_pixmap(matrix=pymupdf.Matrix(1.4, 1.4)).save(path)
-            written.append(path)
+        data, _, _ = _render_marked(r, 1.4, crop=False)
+        path = out_dir / f"{rank:03d}_{Path(r['doc']).stem}_p{r['page_no']}.png"
+        path.write_bytes(data)
+        written.append(path)
     return written
+
+
+GALLERY_CATEGORIES = [
+    ("caption_in_image", "Ảnh chứa cả chú thích",
+     "Dòng chú thích (Caption) nằm trong ảnh: chữ tiếng Anh không dịch được và lặp lại phần chú thích đã dịch bên ngoài.",
+     lambda r: any(it["class"] == "Caption" for it in r["sev"]["intrusions"])),
+    ("text_in_image", "Ảnh chứa văn bản, công thức hoặc bảng xung quanh",
+     "Nội dung được gán nhãn ngoài hình (đoạn văn, công thức, bảng, tiêu đề...) lọt vào ảnh.",
+     lambda r: any(it["class"] != "Caption" for it in r["sev"]["intrusions"])),
+    ("bad_merge", "Gộp lệch",
+     "Một ảnh bao nhiều hình và nuốt cả chữ nằm giữa / quanh chúng.",
+     lambda r: any(p["status"] == "bad_merge" for p in r["sev"]["preds"])),
+    ("labels_cut", "Cắt thiếu nhãn trục / chú giải",
+     "Chữ thuộc hình (nhãn trục, số chia, chú giải — chấm xanh dương) nằm ngoài mọi ảnh đã tách.",
+     lambda r: any(f["status"] == "clipped" and f["cut_cells"] for f in r["sev"]["figures"])),
+    ("area_cut", "Cắt thiếu một phần hình",
+     "Hơn 10% diện tích hình nằm ngoài mọi ảnh đã tách (không kèm chữ bị cắt).",
+     lambda r: any(f["status"] == "clipped" and not f["cut_cells"] for f in r["sev"]["figures"])),
+    ("missed", "Bỏ sót hình",
+     "Chưa tới một nửa diện tích hình nằm trong ảnh nào.",
+     lambda r: any(f["status"] == "missed" for f in r["sev"]["figures"])),
+]
+
+
+def write_gallery(results: list[dict], summary: dict, path: Path, per_category: int, seed: int) -> None:
+    """Self-contained local HTML page: examples per severity category, one page per document."""
+    rng = random.Random(seed)
+    scored = [r for r in results if "sev" in r]
+    sections, nav = [], []
+    sev = summary["severity"]
+    for key, title, note, pred in GALLERY_CATEGORIES:
+        cands = [r for r in scored if pred(r)]
+        n_pages, n_docs = len(cands), len({r["doc"] for r in cands})
+        rng.shuffle(cands)
+        picked, seen = [], set()
+        for r in cands:
+            if r["doc"] not in seen:
+                seen.add(r["doc"])
+                picked.append(r)
+            if len(picked) == per_category:
+                break
+        cards = []
+        for r in picked:
+            data, w, h = _render_marked(r, 1.8, crop=True)
+            states = collections.Counter(f["status"] for f in r["sev"]["figures"])
+            imgs = collections.Counter(p["status"] for p in r["sev"]["preds"])
+            info = (f"hình: {', '.join(f'{v} {k}' for k, v in states.items()) or '0'} · "
+                    f"ảnh: {', '.join(f'{v} {k}' for k, v in imgs.items()) or '0'}")
+            cards.append(
+                f'<figure class="card"><img loading="lazy" width="{w}" height="{h}" '
+                f'src="data:image/jpeg;base64,{base64.b64encode(data).decode()}" alt="{html.escape(r["doc"])}">'
+                f'<figcaption><b>{html.escape(r["doc"])}</b>, trang {r["page_no"]}<br>{html.escape(info)}</figcaption></figure>'
+            )
+        nav.append(f'<a href="#{key}">{html.escape(title)} ({n_pages})</a>')
+        sections.append(
+            f'<section id="{key}"><h2>{html.escape(title)} <span class="n">{n_pages} trang / {n_docs} tài liệu</span></h2>'
+            f'<p class="note">{html.escape(note)}</p><div class="grid">{"".join(cards)}</div></section>'
+        )
+    stats = (f"{sev['figures']} hình: {sev['figures_ok']} ổn ({sev['figures_ok_rate']:.1%}), "
+             f"{sev['figures_clipped']} cắt thiếu, {sev['figures_missed']} bỏ sót · {sev['images']} ảnh: "
+             f"{sev['images_with_text_intrusion']} lấn chữ (trong đó {sev['images_bad_merge']} gộp lệch), "
+             f"{sev['images_merge_ok']} gộp đúng")
+    page = f"""<!doctype html><html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Lỗi nặng của bộ tách hình</title>
+<style>
+:root {{ --bg:#f6f7f9; --fg:#1d2330; --muted:#5b6475; --card:#fff; --line:#dfe3ea; }}
+@media (prefers-color-scheme: dark) {{ :root {{ --bg:#14171d; --fg:#e7eaf0; --muted:#a3abba; --card:#1d2129; --line:#2d333e; }} }}
+body {{ margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 system-ui, "Segoe UI", sans-serif; }}
+header, main {{ max-width:1300px; margin:auto; padding:0 20px; }} header {{ padding-top:22px; }}
+h1 {{ font-size:22px; margin:0 0 6px; }} h2 {{ font-size:18px; margin:28px 0 4px; }}
+.n {{ font-size:13px; color:var(--muted); font-weight:400; }} .note {{ color:var(--muted); margin:0 0 12px; max-width:920px; }}
+.legend b {{ margin-right:4px; }} .g {{ color:#169c16; }} .r {{ color:#d81b1b; }} .o {{ color:#f08000; }} .b {{ color:#1f63ff; }}
+nav {{ position:sticky; top:0; background:var(--bg); padding:8px 20px; border-bottom:1px solid var(--line); z-index:2; }}
+nav a {{ margin-right:14px; color:inherit; font-size:14px; }}
+.grid {{ display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:14px; padding-bottom:10px; }}
+.card {{ margin:0; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }}
+.card img {{ display:block; width:100%; height:auto; background:#fff; cursor:zoom-in; }}
+.card figcaption {{ padding:8px 10px; font-size:13px; color:var(--muted); }} .card figcaption b {{ color:var(--fg); }}
+@media (max-width:480px) {{ .grid {{ grid-template-columns:1fr; }} }}
+</style></head><body>
+<header><h1>Lỗi nặng của bộ tách hình — DocLayNet, {html.escape(' + '.join(summary['subsets']))}</h1>
+<p class="note">{html.escape(stats)}</p>
+<p class="legend"><b class="g">▭ xanh lá</b>hình do người gán nhãn &nbsp; <b class="r">▭ đỏ nét đứt</b>ảnh ta xuất ra (đã gồm lề 4 pt)
+&nbsp; <b class="o">● cam</b>chữ ngoài hình bị lọt vào ảnh &nbsp; <b class="b">● xanh dương</b>chữ của hình bị cắt mất</p></header>
+<nav>{''.join(nav)}</nav><main>{''.join(sections)}</main>
+<script>document.querySelectorAll('.card img').forEach(i => i.addEventListener('click', () => window.open(i.src)));</script>
+</body></html>"""
+    path.write_text(page, encoding="utf-8")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -406,13 +713,14 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--disable-rule", action="append", default=[], help="Ablation: drop a _VECTOR_CLUSTER_RULES entry")
     ap.add_argument("--overlays", type=int, default=0, help="Render the N worst pages (not allowed on holdout)")
+    ap.add_argument("--gallery", type=int, default=0, help="HTML page with N examples per severity category")
     ap.add_argument("--cache-dir", type=Path, default=Path(tempfile.gettempdir()) / "luka_doclaynet_eval")
     ap.add_argument("--out", type=Path, default=None, help="Run folder (default: <cache-dir>/runs/<name>)")
     args = ap.parse_args(argv)
 
     subsets = args.subset or ["tune"]
-    if args.overlays and "holdout" in subsets:
-        ap.error("--overlays is not allowed on the holdout subset: inspecting it would turn it into tuning data")
+    if (args.overlays or args.gallery) and "holdout" in subsets:
+        ap.error("--overlays/--gallery are not allowed on the holdout subset: inspecting it would turn it into tuning data")
     if args.disable_rule:
         sys.path.insert(0, str(SRC_DIR))
         import figure_detector.vector as vec
@@ -428,7 +736,9 @@ def main(argv: list[str] | None = None) -> None:
         entries = sorted(random.Random(args.seed).sample(entries, args.limit), key=lambda e: (e["file"], e["rg"], e["row"]))
 
     fp = detector_fingerprint(args.disable_rule)
-    results = run_pages(entries, args.disable_rule, args.workers, args.cache_dir / "pages" / f"{fp}.jsonl")
+    raw = run_pages(entries, args.disable_rule, args.workers, args.cache_dir / "pages" / f"{fp}.jsonl")
+    gt = load_ground_truth(entries, args.workers, args.cache_dir)
+    results = [score(r, gt[r["page_hash"]]) for r in raw]
 
     name = "+".join(subsets) + (f"-n{args.limit}s{args.seed}" if args.limit else "") + f"-{fp}"
     out = args.out or args.cache_dir / "runs" / name
@@ -437,17 +747,21 @@ def main(argv: list[str] | None = None) -> None:
         "subsets": subsets, "limit": args.limit, "seed": args.seed, "detector_fingerprint": fp,
         "disabled_rules": args.disable_rule, **summarize(results),
     }
-    (out / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
+    (out / "summary.json").write_text(json.dumps(summary, indent=1, ensure_ascii=False), encoding="utf-8")
     worst = sorted(results, key=_error_weight, reverse=True)[:50]
     (out / "worst_pages.json").write_text(json.dumps([
         {k: r.get(k) for k in ("subset", "doc", "page_no", "page_hash", "error")}
-        | ({"gt": r["eval"]["gt_outcomes"], "pred": r["eval"]["pred_outcomes"]} if "eval" in r else {})
+        | ({"figures": [f["status"] for f in r["sev"]["figures"]], "images": [p["status"] for p in r["sev"]["preds"]]}
+           if "sev" in r else {})
         for r in worst
     ], indent=1, ensure_ascii=False), encoding="utf-8")
-    print(json.dumps(summary, indent=1))
+    print(json.dumps(summary, indent=1, ensure_ascii=False))
     if args.overlays:
         paths = write_overlays(results, out / "overlays", args.overlays)
         print(f"Wrote {len(paths)} overlay(s) -> {out / 'overlays'}")
+    if args.gallery:
+        write_gallery(results, summary, out / "gallery.html", args.gallery, args.seed)
+        print(f"Wrote gallery -> {out / 'gallery.html'}")
     print(f"Run folder -> {out}")
 
 
