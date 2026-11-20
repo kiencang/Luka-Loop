@@ -10,7 +10,11 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 
 ### Added
 - `path_guards.validate_clean_dir()`: chạy đủ các kiểm tra an toàn của `safe_clean_dir` mà không xóa gì;
-- Test: `-CleanDir` sai không tạo tệp nào trong `output\` và không khởi động trình duyệt, lỗi dọn dẹp sau khi ghi chỉ cảnh báo, `RenderPages` với `-OutDir` có khoảng trắng + `\` cuối.
+- Test: `-CleanDir` sai không tạo tệp nào trong `output\` và không khởi động trình duyệt, lỗi dọn dẹp sau khi ghi chỉ cảnh báo, `RenderPages` với `-OutDir` có khoảng trắng + `\` cuối;
+- `tests/test_golden_extraction.py` + `tests/golden/`: chụp kết quả tách hình (manifest, manifest rút gọn trên stdout, SHA-256 từng PNG) của 6 PDF mẫu làm chuẩn so sánh cho các bước tái cấu trúc.
+
+### Changed
+- Chuyển các hàm in manifest (`emit_compacted_manifest_stdout`, `limit_manifest_words`, `_sanitize_manifest_text`) từ `html_packager_core.py` sang module mới `tools/src/manifest.py` (chỉ dùng thư viện chuẩn): bộ tách hình không còn phải import bộ đóng gói. Chỉ di chuyển mã, không đổi hành vi.
 
 ## [1.1.12] - 2026-11-20
 ### Fixed

@@ -15,6 +15,7 @@ Tệp này dành cho người và AI agent khi **phát triển, sửa lỗi ho�
   - `figure_detector.py`: tách hình/sơ đồ theo bố cục (pipeline 6 pha, ngưỡng gom trong `DetectorConfig`).
   - `image_ops.py`: render trang, cắt ảnh theo JSON, tối ưu ảnh.
   - `html_packager_core.py`: nhúng ảnh Base64, gắn `reader_shell.html`, Auto-QA bảo mật, CSP, xuất PDF bằng Edge/Chrome headless.
+  - `manifest.py`: in bản rút gọn `manifest.json` ra stdout (chỉ dùng thư viện chuẩn, không import module nào khác của dự án — bộ tách hình không phụ thuộc bộ đóng gói).
   - `path_guards.py`: kiểm tra an toàn đường dẫn (UNC, NTFS ADS, symlink/junction, tên thiết bị Windows), dọn `work\` an toàn.
 - `tools\*.ps1` — wrapper PowerShell mỏng chuyển tiếp tham số vào exe; `tools\_path_guards.ps1` là tiện ích dùng chung.
 - `tools\extract_assets\` — kết quả build (không đưa vào git; gói phát hành do CI build).

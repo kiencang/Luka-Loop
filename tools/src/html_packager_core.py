@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import copy
 import hashlib
 import json
 import os
@@ -95,7 +94,6 @@ _CSS_IMAGE_SET_RX = re.compile(r"""(?is)(?:-webkit-)?image-set\s*\(([^)]*)\)""")
 _CSS_QUOTED_STR_RX = re.compile(r"""(?:"([^"]*)"|'([^']*)')""")
 _LATEX_HREF_URL_RX = re.compile(r"""\\(?:href|url)\s*\{([^{}]*)\}""", re.IGNORECASE)
 _LATEX_STYLE_RX = re.compile(r"""\\style\s*\{([^{}]*)\}""", re.IGNORECASE)
-_MANIFEST_MARKER_RX = re.compile(r"===\s*MANIFEST\s+JSON\s+(?:START|END)\s*===", re.IGNORECASE)
 _CSP_META_TAG_RX = re.compile(r"""(?is)<meta\b[^>]*\bdata-luka-csp\s*=\s*["']1["'][^>]*>\s*""")
 _HEADLESS_ALLOWED_HOSTS_RULE = (
     "MAP * ~NOTFOUND, "
@@ -233,55 +231,6 @@ def find_latest_pdf_in_transcript(transcript_path: str | Path) -> Path:
                 raise FileNotFoundError(f"Resolved PDF file does not exist: {found}")
             return Path(os.path.abspath(found))
     raise RuntimeError(f"No PDF attachment found in USER_INPUT entries of transcript: {abs_transcript}")
-
-
-def _sanitize_manifest_text(text: str) -> str:
-    """Strip control characters and neutralize stdout manifest delimiter spoofing."""
-    cleaned = re.sub(r"[\x00-\x1F\x7F]+", " ", str(text)).strip()
-    return _MANIFEST_MARKER_RX.sub("[manifest-marker]", cleaned)
-
-
-def limit_manifest_words(text: str | None, max_words: int = 20) -> str:
-    """Truncate caption/context text cleanly to `max_words` words for compact stdout output."""
-    if text is None:
-        return ""
-    normalized = _sanitize_manifest_text(str(text))
-    if not normalized or max_words <= 0:
-        return normalized
-    words = normalized.split()
-    if len(words) <= max_words:
-        return " ".join(words)
-    return " ".join(words[:max_words]) + "..."
-
-
-def emit_compacted_manifest_stdout(
-    manifest_dict: dict,
-    manifest_path: Path,
-    max_words: int = 20,
-    max_bytes: int = 16384,
-) -> None:
-    """Print compacted manifest JSON to stdout when within `max_bytes`, otherwise print disk path."""
-    compacted = copy.deepcopy(manifest_dict)
-    if compacted.get("pdf") is not None:
-        compacted["pdf"] = _sanitize_manifest_text(str(compacted["pdf"]))
-    for fig in compacted.get("figures", []):
-        if isinstance(fig, dict):
-            if fig.get("caption") is not None:
-                fig["caption"] = limit_manifest_words(str(fig["caption"]), max_words=max_words)
-            if fig.get("context") is not None:
-                fig["context"] = limit_manifest_words(str(fig["context"]), max_words=max_words)
-
-    stdout_json = json.dumps(compacted, ensure_ascii=False, indent=2)
-    stdout_bytes = len(stdout_json.encode("utf-8"))
-    if stdout_bytes <= max_bytes:
-        print("=== MANIFEST JSON START ===")
-        print(stdout_json)
-        print("=== MANIFEST JSON END ===")
-    else:
-        print(
-            f"Manifest too large for stdout ({stdout_bytes:,} bytes > {max_bytes:,} limit); "
-            f"read the file in parts -> {os.path.abspath(str(manifest_path))}"
-        )
 
 
 def _get_img_src_value(src_match: re.Match[str]) -> str:

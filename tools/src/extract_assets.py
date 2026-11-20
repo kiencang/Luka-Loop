@@ -18,6 +18,7 @@ Dispatches all portable operations across dedicated modules:
   - `figure_detector.py`: Layout-aware figure/caption detection and extraction
   - `image_ops.py`: Lazy PyMuPDF loader, page rendering, JSON cropping, image optimization
   - `html_packager_core.py`: Base64 embedding, reader shell injection, Auto-QA, headless PDF
+  - `manifest.py`: Compacted manifest stdout output (stdlib only, no project imports)
   - `path_guards.py`: Path safety, UNC/reparse-point guards, and safe cleanup
 
 Build target:

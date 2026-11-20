@@ -19,8 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from html_packager_core import emit_compacted_manifest_stdout
 from image_ops import MAX_RENDER_DIM, MAX_RENDER_PIXELS, compute_safe_render_zoom, ensure_pymupdf
+from manifest import emit_compacted_manifest_stdout
 from path_guards import assert_local_no_unc_path, resolve_safe_out_directory
 
 if TYPE_CHECKING:
