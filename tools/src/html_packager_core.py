@@ -22,12 +22,12 @@ from path_guards import (
     assert_local_no_unc_path,
     assert_safe_output_path,
     file_uri_to_local_path,
-    get_repo_root,
     get_tools_dir,
     is_reparse_point,
     resolve_safe_sub_image_path,
     safe_clean_dir,
     sanitize_output_filename,
+    validate_clean_dir,
 )
 
 MAX_INPUT_HTML_BYTES = 256 * 1024 * 1024  # 256 MB sanity ceiling for raw input HTML
@@ -1062,6 +1062,19 @@ def _discard_partial_pdf(pdf_path: Path) -> None:
     print(f"WARNING: Could not remove incomplete PDF (file locked?): {pdf_path}", file=sys.stderr)
 
 
+def _clean_dir_after_outputs(clean_dir: str, protected_paths: list[Path]) -> None:
+    """Clean `clean_dir` once outputs exist, warning instead of failing so agents never re-run packaging.
+
+    `clean_dir` was already validated before any output was written; a failure here (e.g. a junction
+    planted mid-run) must not turn a finished run into a reported failure that creates `_2` duplicates.
+    """
+    try:
+        safe_clean_dir(clean_dir, protected_paths=protected_paths)
+    except (ValueError, OSError) as exc:
+        reason = " ".join(str(exc).split())
+        print(f"WARNING: Skipped cleaning temp directory; outputs are complete | Reason: {reason}", file=sys.stderr)
+
+
 def find_headless_browser() -> str | None:
     """Locate Microsoft Edge (preferred) or Google Chrome executable on Windows."""
     roots_and_subpaths = [
@@ -1127,6 +1140,10 @@ def html_to_pdf(
         dest_pdf = assert_safe_output_path(get_indexed_file_path(dest_pdf, pdf_idx), label="-OutPdfPath", is_directory=False)
         assert dest_pdf is not None
         print(f"Output collision avoided; auto-numbered -> {dest_pdf}")
+
+    has_clean_dir = bool(clean_dir and clean_dir.strip())
+    if has_clean_dir:
+        validate_clean_dir(clean_dir, protected_paths=[dest_pdf])
 
     dest_pdf.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1197,8 +1214,8 @@ def html_to_pdf(
 
         pdf_sz = dest_pdf.stat().st_size
         print(f"Exported PDF -> {dest_pdf} ({pdf_sz:,} bytes)")
-        if clean_dir and clean_dir.strip():
-            safe_clean_dir(clean_dir, protected_paths=[dest_pdf])
+        if has_clean_dir:
+            _clean_dir_after_outputs(clean_dir, protected_paths=[dest_pdf])
         return dest_pdf
     finally:
         time.sleep(0.2)
@@ -1325,6 +1342,11 @@ def embed_images_and_package(
                     get_indexed_file_path(pdf_protected, pdf_idx), label="-OutPdfPath", is_directory=False
                 )
 
+    # Validate -CleanDir before writing anything: a bad value must fail while output\ is still untouched.
+    has_clean_dir = bool(clean_dir and clean_dir.strip())
+    if has_clean_dir:
+        validate_clean_dir(clean_dir, protected_paths=[dest] + ([pdf_protected] if pdf_protected else []))
+
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(updated, encoding="utf-8", newline="\n")
     sz = dest.stat().st_size
@@ -1360,8 +1382,8 @@ def embed_images_and_package(
             print(f"WARNING: PDF export failed; HTML output is complete -> {dest} | Reason: {reason}")
             exported_pdf = None
 
-    if clean_dir and clean_dir.strip():
+    if has_clean_dir:
         protected = [dest] + ([exported_pdf] if exported_pdf is not None else [pdf_protected] if pdf_protected else [])
-        safe_clean_dir(clean_dir, protected_paths=protected)
+        _clean_dir_after_outputs(clean_dir, protected_paths=protected)
 
     return dest, exported_pdf

@@ -146,6 +146,54 @@ class TestPdfExportResilience(unittest.TestCase):
         self.assertEqual(pdf2.name, "doc_vi_2.pdf")
         self.assertFalse((self.out / "doc_vi.pdf").exists(), "no orphan empty PDF from the failed run")
 
+    def test_unsafe_clean_dir_fails_before_any_output_is_written(self) -> None:
+        _FakeBrowser.behaviour = "ok"
+        with redirect_stdout(StringIO()):
+            with self.assertRaisesRegex(ValueError, "Refusing to clean unsafe directory"):
+                hpc.embed_images_and_package(
+                    html_path=self.draft,
+                    optimize_image_bytes_fn=lambda *_a: (_ for _ in ()).throw(AssertionError("no images expected")),
+                    out_html_path=str(self.out / "doc_vi.html"),
+                    also_pdf=True,
+                    clean_dir="output",
+                    timeout_seconds=6,
+                )
+        self.assertEqual(list(self.out.iterdir()), [], "output/ must stay untouched so a re-run never creates _2")
+        self.assertEqual(_FakeBrowser.calls, [], "browser must not start when -CleanDir is invalid")
+        self.assertTrue(self.draft.is_file())
+
+    def test_clean_dir_containing_output_fails_before_writing(self) -> None:
+        with redirect_stdout(StringIO()):
+            with self.assertRaisesRegex(ValueError, "resides inside it"):
+                hpc.embed_images_and_package(
+                    html_path=self.draft,
+                    optimize_image_bytes_fn=lambda *_a: (_ for _ in ()).throw(AssertionError("no images expected")),
+                    out_html_path=str(self.work / "final_vi.html"),
+                    clean_dir="work",
+                    timeout_seconds=6,
+                )
+        self.assertFalse((self.work / "final_vi.html").exists())
+
+    def test_cleanup_failure_after_outputs_only_warns(self) -> None:
+        _FakeBrowser.behaviour = "ok"
+        err = StringIO()
+        with mock.patch.object(hpc, "safe_clean_dir", side_effect=ValueError("junction appeared mid-run")):
+            with mock.patch.object(sys, "stderr", err):
+                html, pdf, log = self._package()
+        self.assertTrue(html.is_file())
+        self.assertIsNotNone(pdf)
+        self.assertIn("WARNING: Skipped cleaning temp directory; outputs are complete", err.getvalue())
+        self.assertIn("junction appeared mid-run", err.getvalue())
+
+    def test_standalone_html_to_pdf_rejects_unsafe_clean_dir_before_export(self) -> None:
+        _FakeBrowser.behaviour = "ok"
+        target = self.out / "solo.pdf"
+        with redirect_stdout(StringIO()):
+            with self.assertRaisesRegex(ValueError, "Refusing to clean unsafe directory"):
+                hpc.html_to_pdf(self.draft, out_pdf_path=str(target), clean_dir="output", timeout_seconds=6)
+        self.assertFalse(target.exists())
+        self.assertEqual(_FakeBrowser.calls, [])
+
     def test_standalone_html_to_pdf_still_raises_and_leaves_no_pdf(self) -> None:
         _FakeBrowser.behaviour = "empty"
         target = self.out / "solo.pdf"

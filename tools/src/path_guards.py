@@ -492,14 +492,19 @@ def _assert_no_reparse_points_in_tree(root_work_dir: str, target_dir: str) -> No
                     queue.append(entry.path)
 
 
-def safe_clean_dir(
+def validate_clean_dir(
     target_dir: str | Path | None,
     protected_paths: list[str | Path] | None = None,
     repo_root: Path | None = None,
-) -> None:
-    """Safely remove `work/` or a subdirectory inside `work/`, tolerating cloud/AV file locks with warning."""
+) -> str | None:
+    """Run every `safe_clean_dir` safety check without deleting anything.
+
+    Returns the absolute directory to remove, or None when there is nothing to clean (empty value or
+    missing directory). Raises ValueError for an unsafe target. Callers that write output files should
+    call this before writing, so a bad `-CleanDir` fails the run while the output folder is still untouched.
+    """
     if not target_dir or not str(target_dir).strip():
-        return
+        return None
     raw = str(target_dir).strip()
     _validate_non_fs_prefix(raw, "-CleanDir")
     assert_local_no_unc_path(raw, "-CleanDir")
@@ -517,13 +522,6 @@ def safe_clean_dir(
             f"Refusing to clean unsafe directory (only 'work' or subdirectories inside 'work\\' are allowed): {abs_target}"
         )
 
-    if not os.path.lexists(abs_target):
-        return
-    if is_reparse_point(abs_target):
-        raise ValueError(f"Refusing to clean reparse point (symlink/junction): {abs_target}")
-    if not os.path.isdir(abs_target):
-        raise ValueError(f"Refusing to clean non-directory path: {abs_target}")
-
     for p in protected_paths or []:
         if not p:
             continue
@@ -532,7 +530,26 @@ def safe_clean_dir(
         if p_lower == target_lower or p_lower.startswith(target_lower + os.sep):
             raise ValueError(f"Refusing to clean '{abs_target}' because output file '{abs_p}' resides inside it.")
 
+    if not os.path.lexists(abs_target):
+        return None
+    if is_reparse_point(abs_target):
+        raise ValueError(f"Refusing to clean reparse point (symlink/junction): {abs_target}")
+    if not os.path.isdir(abs_target):
+        raise ValueError(f"Refusing to clean non-directory path: {abs_target}")
+
     _assert_no_reparse_points_in_tree(matched_work_root, abs_target)
+    return abs_target
+
+
+def safe_clean_dir(
+    target_dir: str | Path | None,
+    protected_paths: list[str | Path] | None = None,
+    repo_root: Path | None = None,
+) -> None:
+    """Safely remove `work/` or a subdirectory inside `work/`, tolerating cloud/AV file locks with warning."""
+    abs_target = validate_clean_dir(target_dir, protected_paths=protected_paths, repo_root=repo_root)
+    if abs_target is None:
+        return
 
     last_err: Exception | None = None
     for attempt in range(3):

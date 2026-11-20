@@ -712,6 +712,7 @@ try {
             # Refuses unsafe CleanDir outside work\
             $rUnsafe = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', 'work\draft.html', '-OutHtmlPath', 'output\unsafe_vi.html', '-CleanDir', 'output')
             Assert-True ($rUnsafe.ExitCode -ne 0 -and $rUnsafe.Output -match 'Refusing to clean unsafe directory') "Should refuse CleanDir output: $($rUnsafe.Output)"
+            Assert-True (-not (Test-Path -LiteralPath (Join-Path $outDir 'unsafe_vi.html'))) 'Invalid -CleanDir must fail before any output is written (a re-run would otherwise create _2)'
 
             # Full packaging with -AlsoPdf and -CleanDir work
             $rOk = Invoke-CliPs1 $packPs1 @('-Action', 'EmbedImages', '-HtmlPath', 'work\draft.html', '-OutHtmlPath', 'output\e2e_vi.html', '-AlsoPdf', '-CleanDir', 'work')

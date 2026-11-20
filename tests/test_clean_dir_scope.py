@@ -48,6 +48,18 @@ class TestCleanDirScope(unittest.TestCase):
                 pg.safe_clean_dir("work", repo_root=self.fake_repo)
         self.assertTrue((self.cwd_dir / "work" / "sub").is_dir(), "unrelated work/ must survive")
 
+    def test_validate_clean_dir_checks_without_deleting(self) -> None:
+        target = pg.validate_clean_dir("work", repo_root=self.fake_repo)
+        self.assertEqual(target.lower(), str(self.cwd_dir / "work").lower())
+        self.assertTrue((self.cwd_dir / "work" / "sub").is_dir(), "validation must never delete")
+        self.assertIsNone(pg.validate_clean_dir("", repo_root=self.fake_repo))
+        self.assertIsNone(pg.validate_clean_dir("work\\missing", repo_root=self.fake_repo))
+
+    def test_validate_clean_dir_rejects_output_inside_even_before_it_exists(self) -> None:
+        future_output = self.cwd_dir / "work" / "later" / "doc_vi.html"
+        with self.assertRaisesRegex(ValueError, "resides inside it"):
+            pg.validate_clean_dir("work", protected_paths=[future_output], repo_root=self.fake_repo)
+
     def test_workspace_work_always_allowed(self) -> None:
         (self.fake_repo / "work" / "x").mkdir(parents=True)
         with mock.patch.object(pg, "_is_within_system_temp", return_value=False):
