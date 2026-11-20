@@ -11,7 +11,11 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 
 ### Added
 - `tests/test_skill_contracts.py`: tự động đối chiếu `AGENTS.md` + các `SKILL.md` với mã thật — lệnh mẫu gọi đúng script/tham số/`-Action`, giá trị mặc định khớp `param()`, các dòng stdout được nhắc tới thực sự được in ra, liên kết và đường dẫn `tools\` tồn tại, file SI đọc 1 lần nằm trong giới hạn `read_file` và khớp kích thước ghi trong SKILL;
-- CI chạy cả khi `.agents/**` hoặc `AGENTS.md` thay đổi.
+- CI chạy cả khi `.agents/**` hoặc `AGENTS.md` thay đổi;
+- Thêm `.editorconfig` (UTF-8, LF) để trình soạn thảo tạo tệp mới đúng chuẩn.
+
+### Changed
+- Thống nhất ký tự xuống dòng LF cho toàn dự án qua `.gitattributes` (`* text=auto eol=lf`; riêng `*.cmd`/`*.bat` giữ CRLF; ảnh/PDF/exe/dll đánh dấu `binary`), không còn phụ thuộc cấu hình `core.autocrlf` của từng máy; chuẩn hóa `.gitignore` (trước đó lưu CRLF trong repo) và các tệp CRLF trên đĩa.
 
 ## [1.1.11] - 2026-11-20
 ### Fixed
