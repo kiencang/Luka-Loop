@@ -2,6 +2,10 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Added
+- `dev/eval_doclaynet.py`: công cụ phát triển đánh giá bộ tách hình trên DocLayNet v1.2 (phần `scientific_articles`, dùng PDF gốc nhúng trong parquet). Chia train thành `tune` và `holdout` (~20% tài liệu, hash cố định, cấm xem ảnh chồng), chạy song song, lưu đệm kết quả theo dấu vân tay mã bộ phát hiện, báo precision/recall/F1 (IoU ≥ 0,5 và tiêu chí nới), IoU trung bình, phân loại từng lỗi (`missed`/`split`/`merged`/`fragment`/`fp_<lớp>`…), độ chính xác theo nguồn hình, hỗ trợ tắt từng quy tắc để đo đóng góp và xuất ảnh chồng các trang tệ nhất. Thêm `tests/test_eval_doclaynet.py` (logic chấm điểm, chỉ dùng thư viện chuẩn) và hướng dẫn trong `dev/DEVELOPMENT.md`.
+
 ## [1.1.13] - 2026-11-21
 ### Fixed
 - Windows PowerShell 5.1 (và PowerShell 7.0–7.2) làm hỏng tham số đường dẫn có khoảng trắng và kết thúc bằng `\` (vd `-OutDir 'C:\my dir\'`): dấu `\` cuối bị hiểu là escape cho dấu `"` đóng, nuốt mọi tham số phía sau. `Invoke-ExtractAssetsExe` nay nhân đôi các `\` cuối trước khi gọi `extract_assets.exe` khi host dùng kiểu truyền tham số cũ;

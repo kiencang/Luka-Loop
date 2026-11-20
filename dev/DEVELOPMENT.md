@@ -38,9 +38,26 @@ pwsh -NoProfile -File .\tests\run_tests.ps1 # test PowerShell 7
 
 - **Build lại exe sau mọi thay đổi trong `tools\src\`** trước khi chạy test PowerShell: các wrapper và test PowerShell gọi exe, không gọi mã Python.
 - Chạy nhanh riêng test Python: `$env:PYTHONUTF8='1'; python -m unittest discover -s tests -p "test_*.py"`.
-- Ba tệp test chỉ cần thư viện chuẩn (không cần PyMuPDF/Edge): `test_skill_contracts.py`, `test_pdf_export_resilience.py`, `test_clean_dir_scope.py`.
+- Các tệp test chỉ cần thư viện chuẩn (không cần PyMuPDF/Edge): `test_skill_contracts.py`, `test_pdf_export_resilience.py`, `test_clean_dir_scope.py`, `test_cli.py`, `test_eval_doclaynet.py`.
 - Test chỉ ghi vào thư mục tạm của hệ thống, không ghi vào `work\` hay `output\` của dự án.
 - CI (`.github\workflows\ci.yml`) chạy khi đổi `tools/**`, `tests/**`, `.agents/**` hoặc `AGENTS.md`; quy trình phát hành (`release.yml`) chạy khi đẩy tag `v*`.
+
+## Đánh giá bộ tách hình trên DocLayNet
+
+`dev\eval_doclaynet.py` chạy chính mã `figure_detector` (giống trong exe) trên PDF gốc nhúng trong **DocLayNet v1.2** (bản parquet trên Hugging Face, có cột `pdf`) và so với hộp `Picture` do người gán nhãn — chỉ lấy `doc_category = scientific_articles`. Cần Python hệ thống có thêm `pyarrow`; bộ dữ liệu (~37 GB) để ngoài repo, truyền đường dẫn qua `--data`.
+
+```powershell
+python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune                       # đo trên tập hiệu chỉnh
+python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune --limit 500 --overlays 20  # mẫu nhỏ + ảnh chồng trang lỗi
+python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune --disable-rule _reject_too_small  # đo đóng góp một quy tắc
+```
+
+- **Các tập:** `tune` = train trừ hold-out (xem lỗi, chỉnh quy tắc ở đây); `holdout` = ~20% **tài liệu** của train, chọn bằng hash cố định trong script — chỉ để đo, công cụ cấm `--overlays` trên tập này; `val`/`test` = bộ mà bộ phát hiện từng được hiệu chỉnh trước đây (không còn là thước đo khách quan).
+- **Tọa độ:** hộp DocLayNet là `[x, y, w, h]` trên ảnh 1025×1025 bị kéo giãn → quy đổi riêng từng trục về kích thước trang thật.
+- **Chấm điểm:** khớp một-một; `strict` = IoU ≥ 0,5; `lenient` thêm trường hợp hộp dự đoán phủ ≥ 90% hộp nhãn và không lớn quá 2 lần (bù phần nới nhãn trục). Mỗi hộp không khớp được phân loại: nhãn `missed`/`partial`/`split`/`merged`, dự đoán `merge`/`fragment`/`fp_<lớp>` (nằm trên Table/Formula/Text… đã gán nhãn) hoặc `fp_unlabeled`.
+- **Nhiễu nhãn:** DocLayNet có trang thiếu nhãn `Picture`; `fp_unlabeled` cần xem ảnh chồng trước khi coi là lỗi thật.
+- **Đầu ra:** mặc định trong `%TEMP%\luka_doclaynet_eval\` — kết quả từng trang lưu đệm theo dấu vân tay mã nguồn bộ phát hiện (`pages\<fingerprint>.jsonl`, đổi mã là tự chạy lại), mỗi lần chạy có `runs\<tên>\summary.json`, `worst_pages.json` và `overlays\` (xanh lá = nhãn, đỏ = dự đoán).
+- **Quy trình cải tiến:** chọn một nhóm lỗi trên `tune` → sửa/thêm quy tắc → đo lại `tune` → kiểm tra `holdout` không tụt → chạy test, sinh lại golden nếu kết quả mẫu đổi có chủ đích và xem kỹ diff.
 
 ## Quy ước
 
