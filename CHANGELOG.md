@@ -11,6 +11,8 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 - Sửa lỗi gõ `ingput/` → `input/` trong README.
 
 ### Added
+- Hỗ trợ **Claude Code**: `CLAUDE.md` nạp `AGENTS.md` và bộ chuyển đổi `.agents/adapters/claude-code.md` (chạy lệnh nguyên văn, lấy PDF theo đường dẫn, đọc PDF dài theo cụm trang và tự chuyển sang `RenderPages` khi máy thiếu `pdftoppm`, ánh xạ sang `Read`/`Write`/`Edit`); `.claude/skills/` chứa 2 skill trỏ đường tới skill gốc; `.claude/settings.json` cho phép sẵn đúng 3 lệnh `tools\*.ps1` (PowerShell tool và Bash); gói phát hành kèm `CLAUDE.md` và `.claude/` (không kèm `settings.local.json`); README thêm mục "Dùng với Claude Code";
+- `tests/test_skill_contracts.py`: kiểm tra skill trỏ đường khớp tên/mô tả với skill gốc, `CLAUDE.md` nhập đúng `AGENTS.md` và bộ chuyển đổi, quy tắc cấp quyền chỉ cho phép 3 script công cụ và khớp với mọi lệnh mẫu trong tài liệu;
 - `tests/test_skill_contracts.py`: tự động đối chiếu `AGENTS.md` + các `SKILL.md` với mã thật — lệnh mẫu gọi đúng script/tham số/`-Action`, giá trị mặc định khớp `param()`, các dòng stdout được nhắc tới thực sự được in ra, liên kết và đường dẫn `tools\` tồn tại, file SI đọc 1 lần nằm trong giới hạn `read_file` và khớp kích thước ghi trong SKILL;
 - CI chạy cả khi `.agents/**` hoặc `AGENTS.md` thay đổi;
 - Thêm `.editorconfig` (UTF-8, LF) để trình soạn thảo tạo tệp mới đúng chuẩn.

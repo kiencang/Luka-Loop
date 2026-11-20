@@ -51,10 +51,10 @@ jobs:
           $stageDir = Join-Path $stageParent 'luka-loop'
           New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
 
-          foreach ($file in @('AGENTS.md', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD_PARTY_LICENSES.md')) {
+          foreach ($file in @('AGENTS.md', 'CLAUDE.md', 'README.md', 'CHANGELOG.md', 'LICENSE', 'THIRD_PARTY_LICENSES.md')) {
             Copy-Item -LiteralPath $file -Destination (Join-Path $stageDir $file) -Force
           }
-          foreach ($dir in @('.agents', 'input', 'licenses', 'tools')) {
+          foreach ($dir in @('.agents', '.claude', 'input', 'licenses', 'tools')) {
             Copy-Item -LiteralPath $dir -Destination (Join-Path $stageDir $dir) -Recurse -Force
           }
 
@@ -82,8 +82,13 @@ jobs:
           try {
             $hasExe = $zr.Entries | Where-Object { $_.FullName -eq 'luka-loop/tools/extract_assets/extract_assets.exe' }
             $hasSkill = $zr.Entries | Where-Object { $_.FullName -eq 'luka-loop/.agents/skills/pdf-to-html-vi/SKILL.md' }
-            if (-not $hasExe -or -not $hasSkill) {
-              throw 'Packaged ZIP verification failed: missing extract_assets.exe or .agents/skills.'
+            $hasClaude = $zr.Entries | Where-Object { $_.FullName -eq 'luka-loop/.claude/skills/pdf-to-html-vi/SKILL.md' }
+            $hasLocalSettings = $zr.Entries | Where-Object { $_.FullName -eq 'luka-loop/.claude/settings.local.json' }
+            if (-not $hasExe -or -not $hasSkill -or -not $hasClaude) {
+              throw 'Packaged ZIP verification failed: missing extract_assets.exe, .agents/skills or .claude/skills.'
+            }
+            if ($hasLocalSettings) {
+              throw 'Packaged ZIP must not contain personal .claude/settings.local.json.'
             }
           } finally {
             $zr.Dispose()

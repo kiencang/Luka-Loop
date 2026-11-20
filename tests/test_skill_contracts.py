@@ -7,6 +7,7 @@ silently when tools/ changes. These tests read the Markdown and verify every suc
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -19,7 +20,13 @@ ADAPTERS_DIR = REPO_ROOT / ".agents" / "adapters"
 ANTIGRAVITY_ADAPTER = ADAPTERS_DIR / "antigravity.md"
 
 GENERIC_DOCS = [REPO_ROOT / "AGENTS.md", *sorted(SKILLS_DIR.glob("*/SKILL.md"))]
-INSTRUCTION_DOCS = [*GENERIC_DOCS, *sorted(ADAPTERS_DIR.glob("*.md"))]
+CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
+CLAUDE_SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
+CLAUDE_SETTINGS = REPO_ROOT / ".claude" / "settings.json"
+CLAUDE_POINTERS = sorted(CLAUDE_SKILLS_DIR.glob("*/SKILL.md"))
+INSTRUCTION_DOCS = [*GENERIC_DOCS, *sorted(ADAPTERS_DIR.glob("*.md")), CLAUDE_MD, *CLAUDE_POINTERS]
+WRAPPER_SCRIPTS = ("extract_pdf_assets.ps1", "pdf_fallback_tools.ps1", "html_packager.ps1")
+_CMD_PREFIX_RX = re.compile(r"powershell\.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\\([A-Za-z0-9_]+\.ps1)' ")
 SI_DOCS = sorted(SKILLS_DIR.glob("*/si_*.md"))
 PS_HOST_PARAMS = {"NoProfile", "ExecutionPolicy", "File", "Command", "NonInteractive"}
 
@@ -77,6 +84,12 @@ def _ps_params(script: Path) -> dict[str, dict[str, object]]:
             params[pm.group(1)] = {"default": default, "set": pending_set}
             pending_set = None
     return params
+
+
+def _frontmatter(text: str) -> str:
+    if not text.startswith("---\n"):
+        raise AssertionError("SKILL.md must start with YAML frontmatter")
+    return text[: text.index("\n---\n", 4) + len("\n---\n")]
 
 
 def _read_file_limits() -> tuple[int, int]:
@@ -224,6 +237,48 @@ class TestSkillContracts(unittest.TestCase):
                 self.assertTrue(linked, "must link the Antigravity adapter")
                 self.assertTrue("`<user_information>`" in text, "must state the environment-detection signal")
                 self.assertTrue("`appDataDir`" in text, "must state the environment-detection signal")
+
+
+    def test_claude_pointer_skills_mirror_shared_skills(self) -> None:
+        shared = {p.parent.name: p for p in SKILLS_DIR.glob("*/SKILL.md")}
+        pointers = {p.parent.name: p for p in CLAUDE_POINTERS}
+        self.assertEqual(sorted(pointers), sorted(shared), "every .agents skill needs a .claude/skills pointer (and vice versa)")
+        for name, pointer in pointers.items():
+            with self.subTest(skill=name):
+                text = _read(pointer)
+                self.assertEqual(_frontmatter(text), _frontmatter(_read(shared[name])), "name/description must match the shared SKILL.md")
+                self.assertTrue(f".agents/skills/{name}/SKILL.md" in text, "pointer must name the shared SKILL.md")
+                self.assertTrue(".agents/adapters/claude-code.md" in text, "pointer must name the Claude Code adapter")
+                self.assertLess(len(text) - len(_frontmatter(text)), 1500, "pointer must stay a pointer, not a copy of the workflow")
+
+    def test_claude_md_imports_agents_md_and_adapter(self) -> None:
+        text = _read(CLAUDE_MD)
+        outside_code = re.sub(r"```.*?```|`[^`\n]*`", "", text, flags=re.S)
+        imports = re.findall(r"(?m)^@(\S+)\s*$", outside_code)
+        self.assertIn("AGENTS.md", imports, "CLAUDE.md must import AGENTS.md (Claude Code skips AGENTS.md once CLAUDE.md exists)")
+        self.assertIn(".agents/adapters/claude-code.md", imports)
+        for imp in imports:
+            with self.subTest(imp=imp):
+                self.assertTrue((REPO_ROOT / imp).is_file(), f"import target missing: {imp}")
+
+    def test_claude_settings_preapprove_only_wrapper_commands_used_in_docs(self) -> None:
+        rules = json.loads(CLAUDE_SETTINGS.read_text(encoding="utf-8"))["permissions"]["allow"]
+        rule_rx = re.compile(r"^(PowerShell|Bash)\((powershell\.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\\([A-Za-z0-9_]+\.ps1)') \*\)$")
+        allowed: dict[str, set[str]] = {}
+        for rule in rules:
+            with self.subTest(rule=rule):
+                m = rule_rx.match(rule)
+                self.assertTrue(m, "allow rules may only pre-approve the tools\\*.ps1 wrapper commands")
+                self.assertIn(m.group(3), WRAPPER_SCRIPTS)
+                allowed.setdefault(m.group(3), set()).add(m.group(1))
+        for script in WRAPPER_SCRIPTS:
+            with self.subTest(script=script):
+                self.assertEqual(allowed.get(script), {"PowerShell", "Bash"}, "each wrapper needs both a PowerShell and a Bash rule")
+        for doc, text in self.docs.items():
+            for cmd in _PS_COMMAND_RX.findall(text):
+                with self.subTest(doc=doc.name, cmd=cmd[:80]):
+                    m = _CMD_PREFIX_RX.match(cmd)
+                    self.assertTrue(m and m.group(1) in allowed, "documented command would not match the pre-approved rule prefix")
 
 
 if __name__ == "__main__":

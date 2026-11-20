@@ -24,6 +24,14 @@ Dung lượng file: Nếu bạn tải file lên từ khung chat, giới hạn c�
 - Khi làm việc với Antigravity, bạn có thể chọn chế độ **Turbo** (thay vì mặc định Request Review) để tránh phải xác nhận lặp lại các lệnh đóng gói; tuy nhiên **chỉ nên dùng Turbo với tài liệu PDF từ nguồn tin cậy** *(với PDF lạ, nên giữ Request Review để kiểm soát lệnh thực thi)*.
 - Nếu đặt thư mục `luka-loop` bên trong vùng đồng bộ đám mây (OneDrive, Google Drive, Dropbox...), hãy bật tùy chọn giữ tệp ngoại tuyến trên máy (*Always keep on this device* / *Mirror files* / *Available offline*) để `extract_assets.exe` nạp đủ các thư viện đi kèm và tránh lồng đường dẫn quá sâu vượt giới hạn ký tự trên Windows.
 
+## Dùng với Claude Code
+Ngoài Antigravity, bạn có thể dùng công cụ với **Claude Code** (tab Code trong ứng dụng Claude desktop, hoặc lệnh `claude` trong terminal) trên Windows:
+
+- Mở thư mục `luka-loop` trong Claude Code. Lần đầu mở, hãy chấp nhận hộp thoại tin cậy thư mục (workspace trust) để các quyền chạy sẵn trong [`.claude/settings.json`](./.claude/settings.json) có hiệu lực.
+- Gõ yêu cầu kèm đường dẫn tệp PDF, ví dụ `Dịch input/bao-cao.pdf sang tiếng Việt.` (hoặc thêm `và bảo toàn thiết kế/layout.`). Bạn cũng có thể gọi trực tiếp `/pdf-to-html-vi` hoặc `/pdf-to-html-vi-layout`.
+- Với PDF trên 10 trang, Claude Code cần chương trình `pdftoppm` (poppler) để đọc theo cụm trang. Nếu máy không có, công cụ tự chuyển sang dựng ảnh từng trang bằng `extract_assets.exe` có sẵn — chậm hơn nhưng không cần cài thêm gì.
+- [`.claude/settings.json`](./.claude/settings.json) cho phép Claude Code chạy 3 script công cụ trong `tools\` mà không hỏi lại mỗi lần. Nếu muốn được hỏi trước mỗi lệnh, xóa các dòng trong `permissions.allow`.
+
 ## Yêu cầu hệ thống
 - **Hệ điều hành:** Windows 10 hoặc Windows 11 **64-bit (x64)** *(bộ công cụ `extract_assets.exe` hiện biên dịch ở kiến trúc x64, chưa hỗ trợ Windows 32-bit), hầu hết các máy tính hiện nay trên thị trường đều là bản 64-bit*.
 - **PowerShell:** Hỗ trợ cả **Windows PowerShell 5.1** (có sẵn mặc định trên Windows 10/11) lẫn **PowerShell 7+** (`pwsh.exe`), không yêu cầu cấu hình thêm.
@@ -38,6 +46,7 @@ Luka-Loop sử dụng agent Gemini thông qua Antigravity, và hoàn toàn dùng
 - [`AGENTS.md`](./AGENTS.md) — Quy tắc điều phối dành cho AI Agent trong workspace.
 - [`.agents/skills/pdf-to-html-vi/`](./.agents/skills/pdf-to-html-vi/) — Skill mặc định `pdf-to-html-vi` (giao diện 1 cột) gồm quy trình 4 bước ([`SKILL.md`](./.agents/skills/pdf-to-html-vi/SKILL.md)) và bộ dịch thuật học thuật / dàn trang ([`si_academic_html.md`](./.agents/skills/pdf-to-html-vi/si_academic_html.md)).
 - [`.agents/skills/pdf-to-html-vi-layout/`](./.agents/skills/pdf-to-html-vi-layout/) — Skill tùy chọn `pdf-to-html-vi-layout` (kích hoạt khi yêu cầu bảo toàn thiết kế/layout) gồm quy trình tách pha tiết kiệm token ([`SKILL.md`](./.agents/skills/pdf-to-html-vi-layout/SKILL.md)), bộ quy chuẩn chuyên dịch ([`si_translation.md`](./.agents/skills/pdf-to-html-vi-layout/si_translation.md)) và bộ quy chuẩn thiết kế từng trang ([`si_layout.md`](./.agents/skills/pdf-to-html-vi-layout/si_layout.md)).
+- [`CLAUDE.md`](./CLAUDE.md), [`.claude/`](./.claude/) và [`.agents/adapters/claude-code.md`](./.agents/adapters/claude-code.md) — Hỗ trợ Claude Code: `CLAUDE.md` nạp `AGENTS.md` cùng bộ chuyển đổi riêng; `.claude/skills/` chỉ là lối vào trỏ tới skill gốc trong `.agents/skills/` (không sao chép quy trình); `.claude/settings.json` cho phép sẵn đúng 3 lệnh công cụ.
 - [`.agents/adapters/antigravity.md`](./.agents/adapters/antigravity.md) — Bộ chuyển đổi riêng cho Antigravity: gom mọi chi tiết phụ thuộc vào Antigravity (lấy PDF kéo-thả vào khung chat, tên tệp tạm, ánh xạ sang công cụ `read_file`...). `AGENTS.md` và các `SKILL.md` viết trung lập để có thể dùng với agent khác (Codex, Cursor...); khi Antigravity thay đổi cách vận hành, chỉ cần sửa tệp này.
 - [`tools/`](./tools/) — Bộ công cụ thực thi portable (`extract_assets.exe`) cùng các script PowerShell bọc CLI mỏng:
   - [`extract_pdf_assets.ps1`](./tools/extract_pdf_assets.ps1) gọi `tools/extract_assets/extract_assets.exe` để phân giải tệp PDF (qua `-PdfPath` hoặc `-TranscriptPath`), tách ảnh/sơ đồ, xuất `manifest.json` và thu gọn tóm tắt trên stdout.
