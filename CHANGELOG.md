@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.12] - 2026-11-20
 ### Fixed
 - Xuất PDF lỗi (Edge/Chrome quá thời gian hoặc tạo PDF rỗng) không còn làm cả lệnh `-Action EmbedImages` báo thất bại: HTML đã đạt QA vẫn được giữ, `work\` vẫn được dọn, tệp PDF dở dang tự xóa và stdout in `WARNING: PDF export failed; HTML output is complete -> ...` — tránh việc Agent chạy lại Bước 4 tạo bản trùng `_2`, `_3`;
 - Tăng `--virtual-time-budget` của trình duyệt headless từ `4000` lên `7000` ms để MathJax kịp dàn công thức trước khi in PDF;
