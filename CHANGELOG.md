@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.13] - 2026-11-21
 ### Fixed
 - Windows PowerShell 5.1 (và PowerShell 7.0–7.2) làm hỏng tham số đường dẫn có khoảng trắng và kết thúc bằng `\` (vd `-OutDir 'C:\my dir\'`): dấu `\` cuối bị hiểu là escape cho dấu `"` đóng, nuốt mọi tham số phía sau. `Invoke-ExtractAssetsExe` nay nhân đôi các `\` cuối trước khi gọi `extract_assets.exe` khi host dùng kiểu truyền tham số cũ;
 - `-CleanDir` không hợp lệ (ngoài `work\`, hoặc chứa tệp đầu ra) trước đây chỉ bị phát hiện **sau khi** HTML/PDF đã ghi ra `output\`, khiến lệnh báo thất bại và Agent chạy lại tạo bản trùng `_2`. Nay `EmbedImages` và `HtmlToPdf` kiểm tra `-CleanDir` trước khi ghi tệp hoặc mở trình duyệt; lỗi dọn dẹp phát sinh sau khi đầu ra đã hoàn tất chỉ in `WARNING: Skipped cleaning temp directory; outputs are complete` (stderr) thay vì làm hỏng cả lệnh;
