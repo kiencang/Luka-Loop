@@ -38,7 +38,7 @@ pwsh -NoProfile -File .\tests\run_tests.ps1 # test PowerShell 7
 
 - **Build lại exe sau mọi thay đổi trong `tools\src\`** trước khi chạy test PowerShell: các wrapper và test PowerShell gọi exe, không gọi mã Python.
 - Chạy nhanh riêng test Python: `$env:PYTHONUTF8='1'; python -m unittest discover -s tests -p "test_*.py"`.
-- Các tệp test chỉ cần thư viện chuẩn (không cần PyMuPDF/Edge): `test_skill_contracts.py`, `test_pdf_export_resilience.py`, `test_clean_dir_scope.py`, `test_cli.py`, `test_eval_doclaynet.py`.
+- Các tệp test chỉ cần thư viện chuẩn (không cần PyMuPDF/Edge): `test_skill_contracts.py`, `test_pdf_export_resilience.py`, `test_clean_dir_scope.py`, `test_cli.py`, `test_eval_doclaynet.py`, `test_ab_judge.py`.
 - Test chỉ ghi vào thư mục tạm của hệ thống, không ghi vào `work\` hay `output\` của dự án.
 - CI (`.github\workflows\ci.yml`) chạy khi đổi `tools/**`, `tests/**`, `.agents/**` hoặc `AGENTS.md`; quy trình phát hành (`release.yml`) chạy khi đẩy tag `v*`.
 
@@ -61,7 +61,21 @@ python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune --disabl
 - **Chỉ số phụ — khớp theo quy ước DocLayNet** (`matching`): khớp một-một; `strict` = IoU ≥ 0,5; `lenient` thêm trường hợp hộp phủ ≥ 90% hộp nhãn và không lớn quá 2 lần. Hộp không khớp được phân loại `missed`/`partial`/`split`/`merged`, `merge`/`fragment`/`fp_<lớp>`/`fp_unlabeled`. DocLayNet vẽ một `Picture` cho mỗi chú thích ở ~99% trường hợp, nên split/merge chủ yếu phản ánh cách gom panel — ít ảnh hưởng tới bản dịch.
 - **Nhiễu nhãn:** DocLayNet có trang thiếu hoặc lệch nhãn; xem ảnh minh họa trước khi coi một nhóm lỗi là thật.
 - **Đầu ra:** mặc định trong `%TEMP%\luka_doclaynet_eval\` — kết quả bộ phát hiện từng trang lưu đệm theo dấu vân tay mã nguồn (`pages\<fingerprint>.jsonl`, đổi mã là tự chạy lại); nhãn lưu đệm riêng (`ground_truth_v1.jsonl`) và việc chấm điểm luôn tính lại, nên đổi cách chấm không phải chạy lại bộ phát hiện. Mỗi lần chạy có `runs\<tên>\summary.json`, `worst_pages.json`, `overlays\` (`--overlays N`) và `gallery.html` (`--gallery N`: N ví dụ mỗi loại lỗi nặng, ảnh cắt sát vùng hình; chấm cam = chữ lọt vào ảnh, chấm xanh dương = chữ của hình bị cắt; kèm **ảnh xuất ra thực tế** để đối chiếu — ảnh chồng dễ gây hiểu lầm vì chữ bị cắt thường nằm sát ngay ngoài đường viền).
-- **Quy trình cải tiến:** chọn một nhóm lỗi nặng trên `tune` → sửa/thêm quy tắc → đo lại `tune` → kiểm tra `holdout` không tụt → chạy test, sinh lại golden nếu kết quả mẫu đổi có chủ đích và xem kỹ diff.
+- **Quy trình cải tiến:** chọn một nhóm lỗi nặng trên `tune` → sửa/thêm quy tắc → đo lại `tune` → kiểm tra `holdout` không tụt → chạy test, sinh lại golden nếu kết quả mẫu đổi có chủ đích và xem kỹ diff → **chấm mù trái/phải** (mục dưới) trước khi commit.
+
+### Chấm mù trái/phải (A/B)
+
+Chỉ số DocLayNet có thể đánh lừa: chẳng hạn `pdf_cells` nằm trên chữ ẩn, hay ảnh chồng che mất chữ bị cắt. Vì vậy mỗi thay đổi bộ tách hình còn được chấm bằng mắt. `dev\ab_judge.py` lấy các hình mà hai bản cho ảnh xuất ra khác nhau, xuất đúng ảnh exe sẽ ghi (lề 4 pt) và xáo ngẫu nhiên bên trái/phải. Kết quả là một trang HTML cục bộ. Người chấm chọn Trái/Phải/Như nhau/Cả hai tệ, rồi dán lại mã dạng `AB5:LREX…`.
+
+```powershell
+python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune      # chạy cho cả bản cũ lẫn bản mới để có pages\<fp>.jsonl
+python -X utf8 dev\ab_judge.py build --old <fp_cũ> --new <fp_mới> --n 50 --seed 5 --code AB5
+python -X utf8 dev\ab_judge.py score AB5:LREX...
+```
+
+- Trang và khóa nằm ở `%TEMP%\luka_doclaynet_eval\ab\`. Chỉ lấy trang `tune`, **không bao giờ** lấy `holdout`. Trang chứa ảnh cắt từ bài báo của bên thứ ba, nên không đăng công khai.
+- `score` giải mã bằng khóa, in số thắng/thua kèm sign test và khoảng tin cậy Wilson, liệt kê các hình "cũ tốt hơn"/"cả hai tệ" để xem lại. Lệnh cũng lưu đợt chấm (không kèm ảnh) vào `dev\ab_history\`. Đợt sau tự bỏ qua các tài liệu đã chấm (`--allow-repeat-docs` để tắt).
+- Xem từng ca thua trước khi kết luận. Mỗi lần chỉ đổi một quy tắc: nhiều quy tắc cùng lúc dễ che lỗi của nhau (xem `dev\experiments\`).
 
 ## Quy ước
 

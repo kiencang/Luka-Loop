@@ -2,6 +2,10 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Added
+- `dev/ab_judge.py`: công cụ chấm mù trái/phải giữa hai bản bộ tách hình trên trang `tune` của DocLayNet, trước đây chỉ là script tạm. `build` tạo trang HTML cục bộ; `score` giải mã mã kết quả, tính sign test và khoảng tin cậy Wilson, rồi lưu đợt chấm vào `dev/ab_history/`. Thư mục này lưu kết quả AB1–AB4, không kèm ảnh. Thêm `dev/experiments/` chứa bản vá bị AB4 loại, kèm phân tích, và `tests/test_ab_judge.py`.
+
 ## [1.1.14] - 2026-11-21
 ### Added
 - `dev/eval_doclaynet.py`: công cụ phát triển đánh giá bộ tách hình trên DocLayNet v1.2 (phần `scientific_articles`, dùng PDF gốc nhúng trong parquet). Chia train thành `tune` và `holdout` (~20% tài liệu, hash cố định, cấm xem ảnh chồng), chạy song song, lưu đệm kết quả theo dấu vân tay mã bộ phát hiện, báo precision/recall/F1 (IoU ≥ 0,5 và tiêu chí nới), IoU trung bình, phân loại từng lỗi (`missed`/`split`/`merged`/`fragment`/`fp_<lớp>`…), độ chính xác theo nguồn hình, hỗ trợ tắt từng quy tắc để đo đóng góp và xuất ảnh chồng các trang tệ nhất. Thêm `tests/test_eval_doclaynet.py` (logic chấm điểm, chỉ dùng thư viện chuẩn) và hướng dẫn trong `dev/DEVELOPMENT.md`.
