@@ -13,8 +13,11 @@
 
 ## 2. Lấy tệp PDF
 
-- Claude Code làm việc với đường dẫn tệp: người dùng nêu tên/đường dẫn, nhắc tệp bằng `@`, hoặc kéo tệp vào cửa sổ để dán đường dẫn. Luôn đi theo **Trường hợp 2** của Bước 1 (`-PdfPath`) và giữ tên gốc của tệp khi đặt tên đầu ra.
-- Nếu người dùng chỉ dán ảnh/nội dung mà không có tệp PDF trên đĩa, đề nghị họ đặt tệp PDF vào thư mục `input\` của dự án.
+Người dùng đưa tệp PDF theo một trong hai cách; cả hai đều dùng lệnh `-PdfPath` của Bước 1 (Trường hợp 2):
+
+- **Tải lên tệp** (kéo thả vào khung chat hoặc bấm nút thêm tệp `+`): ứng dụng chèn vào tin nhắn đường dẫn gốc của tệp dạng `@"<đường dẫn>"` và tự đọc nội dung PDF. Dùng đúng đường dẫn đó cho `-PdfPath`, không đọc lại tệp PDF.
+- **Nêu đường dẫn bằng lời:** nếu người dùng nhắc tệp bằng `@` hoặc ghi đủ đường dẫn, dùng ngay đường dẫn đó. Nếu chỉ mô tả vị trí (vd "file PDF trong thư mục input"), tìm tệp `.pdf` trong đúng thư mục đó **một lần**; có nhiều tệp thì hỏi người dùng chọn tệp nào, không tự đoán.
+- Nếu không lấy được đường dẫn tệp trên đĩa (vd người dùng chỉ dán ảnh hoặc chữ), đề nghị họ đặt tệp PDF vào thư mục `input\` của dự án.
 
 ## 3. Đọc nội dung PDF
 

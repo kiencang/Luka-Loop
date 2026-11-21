@@ -17,7 +17,7 @@ Tên công cụ dưới đây theo tài liệu Antigravity (trang Hooks) và b�
 
 - **Giới hạn hiện tại của `view_file`:** khoảng 800 dòng / 46 KB mỗi lần gọi; lần đầu mở một tệp, Antigravity luôn trả 800 dòng đầu dù có truyền `StartLine`/`EndLine`. Các tệp SI (`si_academic_html.md`, `si_translation.md`, `si_layout.md`) đều nằm trong giới hạn này nên đọc trọn được trong 1 lần.
 
-## 2. PDF kéo-thả vào khung chat
+## 2. Tải lên tệp (kéo thả vào khung chat hoặc bấm nút thêm tệp `+`)
 
 - **Dấu hiệu:** tin nhắn của người dùng đã có sẵn nội dung OCR/ảnh từng trang PDF và người dùng **không** nêu đường dẫn tệp `.pdf` trên đĩa.
 - **Lấy tệp PDF thật:** **không** dùng `read_file` mở `transcript.jsonl`; chạy thẳng lệnh sau ở Bước 1 (thay `<appDataDir>` và `<conversation-id>` bằng giá trị có sẵn trong `<user_information>`), giữ nguyên các tham số còn lại như lệnh Bước 1 trong `SKILL.md`:
@@ -29,5 +29,5 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\extract_pdf_asset
   - `-TranscriptPath` tự đọc ngược transcript, tìm lượt `USER_INPUT` gần nhất có đính kèm `.pdf`, và in `Resolved PDF -> <đường_dẫn_PDF_thực>`. Dùng đúng đường dẫn này cho `-PdfPath` ở các lệnh sau (vd `RenderPages` trong phụ lục fallback).
   - Nếu lệnh báo không tìm thấy transcript hoặc không tìm thấy PDF (Antigravity có thể đã đổi cấu trúc thư mục nội bộ), **không đoán đường dẫn khác**: đề nghị người dùng đặt tệp PDF vào thư mục `input\` của dự án rồi làm lại Bước 1 với `-PdfPath`.
 - **Đọc nội dung PDF:** nội dung và ảnh từng trang đã có trong tin nhắn đầu vào — **không** đọc lại tệp PDF lần 2.
-- **Tên tệp tạm `media_<id>.pdf`:** tệp kéo-thả được Antigravity lưu với tên tạm, tên gốc trên máy người dùng không được giữ lại. Khi đặt tên đầu ra ở Bước 4: **không** dùng `media_...`, **không** tìm ngược tên gốc trên máy; đặt theo tiêu đề chính ngắn gọn của tài liệu (ASCII `snake_case`, không dấu) kèm hậu tố của skill (`_vi` hoặc `_layout_vi`), trừ khi người dùng chỉ định tên.
+- **Tên tệp tạm `media_<id>.pdf`:** Antigravity sao chép tệp tải lên vào thư mục của phiên (`<appDataDir>\brain\<conversation-id>\.user_uploaded\media_<id>.pdf`, chính là đường dẫn in ở dòng `Resolved PDF -> ...`) và đổi sang tên tạm; tên gốc trên máy người dùng không được giữ lại. Khi đặt tên đầu ra ở Bước 4: **không** dùng `media_...`, **không** tìm ngược tên gốc trên máy; đặt theo tiêu đề chính ngắn gọn của tài liệu (ASCII `snake_case`, không dấu) kèm hậu tố của skill (`_vi` hoặc `_layout_vi`), trừ khi người dùng chỉ định tên.
 - **Giới hạn tải lên:** khung chat Antigravity nhận tệp tối đa khoảng 10 MB. PDF lớn hơn cần được đặt vào `input\` và xử lý như tệp trên đĩa.
