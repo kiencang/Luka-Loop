@@ -62,6 +62,12 @@ python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune --disabl
 - **Nhiễu nhãn:** DocLayNet có trang thiếu hoặc lệch nhãn; xem ảnh minh họa trước khi coi một nhóm lỗi là thật.
 - **Đầu ra:** mặc định trong `%TEMP%\luka_doclaynet_eval\` — kết quả bộ phát hiện từng trang lưu đệm theo dấu vân tay mã nguồn (`pages\<fingerprint>.jsonl`, đổi mã là tự chạy lại); nhãn lưu đệm riêng (`ground_truth_v1.jsonl`) và việc chấm điểm luôn tính lại, nên đổi cách chấm không phải chạy lại bộ phát hiện. Mỗi lần chạy có `runs\<tên>\summary.json`, `worst_pages.json`, `overlays\` (`--overlays N`) và `gallery.html` (`--gallery N`: N ví dụ mỗi loại lỗi nặng, ảnh cắt sát vùng hình; chấm cam = chữ lọt vào ảnh, chấm xanh dương = chữ của hình bị cắt; kèm **ảnh xuất ra thực tế** để đối chiếu — ảnh chồng dễ gây hiểu lầm vì chữ bị cắt thường nằm sát ngay ngoài đường viền).
 - **Quy trình cải tiến:** chọn một nhóm lỗi nặng trên `tune` → sửa/thêm quy tắc → đo lại `tune` → kiểm tra `holdout` không tụt → chạy test, sinh lại golden nếu kết quả mẫu đổi có chủ đích và xem kỹ diff → **chấm mù trái/phải** (mục dưới) trước khi commit.
+- **Giới hạn tốc độ:** ưu tiên chất lượng hơn tốc độ. Một thay đổi được chậm hơn nếu cho kết quả tốt hơn, miễn là bộ tách hình (đo bằng cột `seconds` của `pages\<fp>.jsonl`) vẫn nằm trong ba giới hạn:
+  - trung bình ≤ 0,5 s/trang;
+  - 99% số trang dưới 10 s;
+  - không trang nào được phép chạy quá 30 s: quá ngưỡng thì bỏ các bước phân tích nặng và giữ kết quả đơn giản đã có.
+
+  Mốc v1.1.14: trung bình 0,43 s, 99% dưới 5,4 s, trang chậm nhất 178 s. Riêng giới hạn 30 s/trang hiện **chưa được thực thi**.
 
 ### Chấm mù trái/phải (A/B)
 
