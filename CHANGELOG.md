@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.15] - 2026-11-21
 ### Security
 - Auto-QA nay từ chối `<style>`, `<script>`, `<textarea>`, `<title>`… nằm trong `<svg>`/`<math>`: trình duyệt đọc nội dung các thẻ này như HTML thật, nên trước đây thẻ độc hại giấu bên trong (vd `<img onerror>`, `<script href>`) lọt qua QA.
 - CSP chỉ cho phép đúng thư mục MathJax (vd `https://cdn.jsdelivr.net/npm/mathjax@3/es5/`) thay vì cả tên miền `cdn.jsdelivr.net`/`cdnjs.cloudflare.com`.
