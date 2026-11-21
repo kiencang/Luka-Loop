@@ -236,7 +236,7 @@ pre code { background: transparent; padding: 0; }
 
 - **Thuần HTML + CSS (ZERO Script ngoài MathJax):**
   - **TUYỆT ĐỐI KHÔNG** chèn thanh công cụ đọc, lightbox JS, nút chuyển Dark/Light hay bất kỳ `<script>` tự viết nào (chỉ duy nhất thẻ `<script id="MathJax-script" ...>` nếu bài có LaTeX). Không dùng `<iframe>`, `<form>`, `onclick`, `onload`.
-- **Rà lại `work\draft.html` trước khi chạy `tools\html_packager.ps1 ... -PreserveLayout -AlsoPdf -CleanDir "work"`:**
+- **Rà lại `work\draft.html` trước khi chạy `tools\html_packager.ps1 ... -PreserveLayout -AlsoPdf -CleanDir 'work'`:**
   1. Đã hoàn chỉnh cấu trúc `<!DOCTYPE html><html><head>...</head><body>...</body></html>`, dùng font `'Inter'` (cỡ thân bài `18px`), mỗi trang nằm gọn trong `<section id="pdf-page-N" class="pdf-page">` có chiều cao `auto` (không bị `overflow: hidden` cắt chữ) và chiều rộng `--page-width` trong `740px–1000px`?
   2. Luồng chữ 2–3 cột liên tục đã dùng `.multi-column-flow` (không chặt đôi khiến cột 1 hụt chân)? Không dùng `<table>` để chia cột trang?
   3. Đã chuyển **đủ 100%** nội dung từ `work\translated.md` (không sót câu/trang, nối mượt `<!-- cont -->`, chú thích chân trang đặt đúng trang, không lọt tạp âm scan) và **không còn sót tag trung gian thô** (`[FIG:]`, `[CALLOUT]`, `[DIAGRAM-A]`, `<!-- p:... -->`...)?

@@ -131,7 +131,7 @@ Chỉ sử dụng khi Bước 1 phát hiện trang scan (`scanned_pages` khác r
    ```powershell
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\pdf_fallback_tools.ps1' -Action RenderPages -PdfPath '<input.pdf>' -OutDir 'work\pages' -Pages '<trang_can_render>'
    ```
-   - Tham số: `-PdfPath`, `-OutDir` *(mặc định `.`)*, `-Pages` *(vd `"2"`, `"2,5"`, `"2-4"` — bỏ trống sẽ render toàn bộ trang; nếu PDF được lấy qua bộ chuyển đổi môi trường, lấy `<input.pdf>` từ dòng `Resolved PDF -> ...` ở Bước 1)*, `-Scale <double>` *(`0.5–10.0`, mặc định `2.5`; bề rộng tối thiểu `800` px)*. Đầu ra: `work\pages\page_<p>.png`.
+   - Tham số: `-PdfPath`, `-OutDir` *(mặc định `.`)*, `-Pages` *(vd `'2'`, `'2,5'`, `'2-4'` — bỏ trống sẽ render toàn bộ trang; nếu PDF được lấy qua bộ chuyển đổi môi trường, lấy `<input.pdf>` từ dòng `Resolved PDF -> ...` ở Bước 1)*, `-Scale <double>` *(`0.5–10.0`, mặc định `2.5`; bề rộng tối thiểu `800` px)*. Đầu ra: `work\pages\page_<p>.png`.
 2. **Cắt ảnh theo tọa độ JSON (`CropFromJson`):**
    ```powershell
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\pdf_fallback_tools.ps1' -Action CropFromJson -SpecJson 'work\crop_spec.json' -OutDir 'work\assets'

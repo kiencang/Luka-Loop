@@ -26,7 +26,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\extract_pdf_asset
 ```
 
 - **Contract `tools\extract_pdf_assets.ps1`** *(cổng gọi CLI duy nhất ở Bước 1; bên trong tự gọi portable `extract_assets.exe`, Agent không chạy trực tiếp `.exe`)*:
-  - **Tham số:** `-PdfPath "<input.pdf>"` **hoặc** `-TranscriptPath` *(chỉ dùng trong Antigravity — xem [antigravity.md](../../adapters/antigravity.md))*, cùng `-OutDir` *(mặc định `work\assets`)*, `-Dpi <int>` *(mặc định `180`; tăng `250`–`300` với sơ đồ chữ nhỏ)*, `-Meta` *(switch xuất `manifest.json`)*, `-MaxMetaBytes <int>` *(mặc định `16384` = 16 KB: ngưỡng tối đa in bản rút gọn ra stdout)*, và `-MaxMetaWords <int>` *(mặc định `20`: giới hạn số từ `caption`/`context` khi in ra `stdout` — tệp `manifest.json` trên đĩa vẫn giữ nguyên bản đầy đủ; đặt `0` để in nguyên văn)*.
+  - **Tham số:** `-PdfPath '<input.pdf>'` **hoặc** `-TranscriptPath` *(chỉ dùng trong Antigravity — xem [antigravity.md](../../adapters/antigravity.md))*, cùng `-OutDir` *(mặc định `work\assets`)*, `-Dpi <int>` *(mặc định `180`; tăng `250`–`300` với sơ đồ chữ nhỏ)*, `-Meta` *(switch xuất `manifest.json`)*, `-MaxMetaBytes <int>` *(mặc định `16384` = 16 KB: ngưỡng tối đa in bản rút gọn ra stdout)*, và `-MaxMetaWords <int>` *(mặc định `20`: giới hạn số từ `caption`/`context` khi in ra `stdout` — tệp `manifest.json` trên đĩa vẫn giữ nguyên bản đầy đủ; đặt `0` để in nguyên văn)*.
   - **Hành vi:** Tự động trích cả ảnh bitmap lẫn sơ đồ vector kèm nhãn chữ (mở rộng lề `4.0` pt mỗi cạnh), gộp cụm hình theo chú thích, tách riêng ảnh trong bảng và bỏ qua bảng biểu/tiêu đề lề/highlight.
   - **Đầu ra tệp:**
     - Các ảnh PNG đặt tên `fig_p<trang>_<stt>.png` trong thư mục `-OutDir` (số trang bắt đầu từ `1`).
