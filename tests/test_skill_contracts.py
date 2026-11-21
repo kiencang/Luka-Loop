@@ -34,6 +34,7 @@ PS_HOST_PARAMS = {"NoProfile", "ExecutionPolicy", "File", "Command", "NonInterac
 # They must live in .agents/adapters/antigravity.md, never in AGENTS.md, SKILL.md or SI files.
 # The environment-detection signal (`<user_information>` / `appDataDir`) is allowed everywhere.
 ANTIGRAVITY_ONLY_TOKENS = (
+    "view_file",
     "read_file",
     "StartLine",
     "EndLine",

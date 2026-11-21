@@ -9,6 +9,7 @@
 - Chạy **nguyên văn** các lệnh PowerShell gọi script `tools\*.ps1` được ghi trong `SKILL.md` (giữ nguyên phần đầu lệnh, chỉ thay các giá trị trong `<...>`), bằng công cụ shell sẵn có (PowerShell tool, hoặc Bash qua Git Bash — cả hai đều chạy được lệnh này).
   - `.claude/settings.json` của dự án cho phép sẵn đúng dạng lệnh này với 3 script `tools\extract_pdf_assets.ps1`, `tools\pdf_fallback_tools.ps1`, `tools\html_packager.ps1`. Viết khác đi (vd `& .\tools\html_packager.ps1 ...`, đổi thứ tự tham số đầu) sẽ khiến Claude Code phải hỏi lại người dùng.
   - **Mỗi lệnh chạy riêng một lần gọi**, không nối nhiều lệnh bằng `;`, `&&` hay `|`.
+  - **Đường dẫn có dấu `'`** (vd `O'Brien 2024.pdf`): chạy lệnh bằng **PowerShell tool**, không dùng Bash. Quy tắc viết `'` thành `''` trong `SKILL.md` là cú pháp PowerShell; Bash đọc `'...''...'` thành hai chuỗi nối liền và làm mất dấu `'`, nên công cụ báo `PDF not found`.
 
 ## 2. Lấy tệp PDF
 
@@ -18,13 +19,7 @@
 ## 3. Đọc nội dung PDF
 
 - **PDF tới 10 trang:** đọc cả tệp bằng `Read`.
-- **PDF trên 10 trang:** `Read` chỉ đọc theo cụm trang (tham số `pages`, tối đa 20 trang mỗi lần, vd `"1-10"`). Cách đọc này cần chương trình `pdftoppm` (poppler) trên máy. Nếu `Read` báo `pdftoppm is not installed`, **không tự cài phần mềm**; thay vào đó render từng cụm 5–10 trang bằng công cụ có sẵn rồi mở xem các ảnh trang:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\pdf_fallback_tools.ps1' -Action RenderPages -PdfPath '<input.pdf>' -OutDir 'work\pages' -Pages '1-8'
-```
-
-  Ảnh nằm ở `work\pages\page_<p>.png` và được dọn cùng `work\` ở Bước 4. Đọc lần lượt từng cụm, dịch xong cụm này mới render cụm tiếp theo để giữ ngữ cảnh gọn.
+- **PDF trên 10 trang:** `Read` chỉ đọc theo cụm trang (tham số `pages`, tối đa 20 trang mỗi lần, vd `"1-10"`). Cách đọc này cần chương trình `pdftoppm` (poppler) trên máy. Nếu `Read` báo `pdftoppm is not installed`, **không tự cài phần mềm**; coi như agent không đọc trực tiếp được PDF và làm theo mục **"Agent không đọc trực tiếp được PDF"** trong `SKILL.md` (render từng cụm trang bằng `RenderPages` rồi mở xem các ảnh trang).
 
 ## 4. Ánh xạ thao tác trong `SKILL.md` sang công cụ Claude Code
 

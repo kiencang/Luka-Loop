@@ -40,6 +40,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\extract_pdf_asset
    - **PDF thuần văn bản (`0` hình):** Nếu Bước 1 báo `Extracted 0 figures` (`"figures": []` và `"scanned_pages": []`) và kiểm tra PDF xác nhận không sót hình minh họa → bỏ qua bước xem ảnh và fallback, dịch thẳng sang `work\translated.md`.
    - **Dùng `manifest.json` trên stdout:** Nếu Bước 1 đã in khối `=== MANIFEST JSON START === ... === MANIFEST JSON END ===`, dùng ngay (không đọc lại `work\assets\manifest.json`; chỉ đọc tệp đó theo từng đoạn khi stdout báo vượt ngưỡng 16 KB). **CẢNH BÁO:** chuỗi `caption`/`context` rút gọn 20 từ (`...`) trên stdout chỉ dùng định vị — khi dịch phải lấy toàn văn từ PDF gốc hoặc đọc đĩa.
    - **Đọc PDF:** Nếu nội dung và ảnh từng trang PDF đã có sẵn trong tin nhắn đầu (môi trường agent tự đính kèm) — **không đọc lại tệp PDF lần 2**; chỉ đọc `<input.pdf>` khi nội dung tài liệu chưa có trong ngữ cảnh.
+     - **Agent không đọc trực tiếp được PDF** (công cụ đọc tệp không mở được `.pdf`, chỉ xem được ảnh): **không tự tìm công cụ render khác và không cài phần mềm** — render từng cụm `5–8` trang bằng `RenderPages` (cụm cuối không vượt `total_pages` ở Bước 1 — vd tài liệu 12 trang: `'1-8'` rồi `'9-12'`; vượt quá sẽ báo `out of valid range`), rồi mở xem song song các ảnh `work\pages\page_<p>.png` theo đường dẫn cụ thể:
+
+       ```powershell
+       powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\pdf_fallback_tools.ps1' -Action RenderPages -PdfPath '<input.pdf>' -OutDir 'work\pages' -Pages '1-8'
+       ```
+
+       Dịch xong cụm này mới render cụm tiếp theo. Giữ nguyên các ảnh trang đã render: pha dựng bố cục và `CropFromJson` dùng lại chúng (không render lại); chúng được dọn cùng `work\` ở Bước 4.
    - **Sàng lọc trước khi cắt fallback (`Triage before Crop`):** Khi gặp trang scan hoặc hình bị tách sót, **KHÔNG dùng `CropFromJson` cho sơ đồ đơn giản (Nhóm A)** — giữ để dựng HTML/CSS ở Bước 3 *(chỉ chạy `RenderPages` trang đó nếu chữ bị mờ)*. Chỉ chạy `RenderPages` + `CropFromJson` cho hình/ảnh chụp phức tạp (**Nhóm B**).
    - **Bắt buộc mở xem song song ảnh đã tách:** Khi có ảnh trong `figures[]` hoặc vừa cắt bằng `CropFromJson`, mở xem **song song trong 1 lượt** từng tệp ảnh theo đường dẫn cụ thể (`work\assets\<figures[].file>` / `work\assets\<out_name>`, tuyệt đối không dùng `*`) để kiểm chứng chất lượng cắt, đối chiếu 1–1 với PDF gốc + `manifest.json`, tránh lắp "mù" và đảm bảo biết rõ nội dung hình để dịch chú thích/nhãn chính xác.
 
