@@ -1,5 +1,5 @@
 # Luka-Loop
-Công cụ AI Agent tự động dịch tài liệu PDF từ tiếng Anh sang tiếng Việt. Không yêu cầu cài thêm bất cứ phần mềm hỗ trợ nào. Chỉ cần mở thư mục trên [Antigravity](https://antigravity.google/) là bắt đầu dùng được ngay.
+Công cụ AI Agent tự động dịch tài liệu PDF từ tiếng Anh sang tiếng Việt. Không yêu cầu cài thêm bất cứ phần mềm hỗ trợ nào. Chỉ cần mở thư mục trên các agent như [Antigravity](https://antigravity.google/), Claude Code là bắt đầu dùng được ngay.
 
 - Định dạng đầu vào: PDF, và nên là PDF tiêu chuẩn dưới 50 trang, với PDF scan ứng dụng vẫn dùng bình thường nhưng tốn thời gian hơn khá nhiều (nếu file scan nhiều ảnh chụp lồng bên trong, file tiêu chuẩn thì tách ảnh rất nhanh).
 - Định dạng đầu ra mặc định: Bản dịch tiếng Việt trả về ở cả 2 định dạng đồng thời là HTML và PDF. Định dạng HTML thường có kết quả hiển thị tốt hơn.
