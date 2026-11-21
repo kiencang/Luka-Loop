@@ -96,14 +96,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\html_packager.ps1
       - *Phục hồi khi QA fail:* Xem dòng báo lỗi trên stdout/stderr, mở sửa thẳng `work\draft.html` rồi chạy lại đúng lệnh Bước 4 (không chạy lại Bước 1–2).
       - *Khi chỉ riêng bước PDF lỗi:* Nếu stdout có dòng `WARNING: PDF export failed; HTML output is complete -> ...`, lệnh vẫn **thành công** (HTML đã đạt QA, đã ghi vào `output\` và `work\` đã được dọn). **KHÔNG** sửa `work\draft.html` và **KHÔNG** chạy lại Bước 4 (sẽ tạo bản trùng `_2`); chuyển thẳng sang phản hồi với dòng PDF dành cho trường hợp lỗi.
   - **Action `HtmlToPdf`** *(xuất PDF độc lập từ HTML đã đóng gói)*:
-    - CLI: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\html_packager.ps1' -Action HtmlToPdf -HtmlPath '<in.html>' [-OutPdfPath '<out.pdf>'] [-PdfTimeoutSeconds 60] [-CleanDir '<dir>']` *(bắt buộc chạy Auto-QA bảo mật trước khi gọi Microsoft Edge/Chrome headless cô lập mạng theo DNS whitelist 4 host MathJax/Google Fonts, tự đánh số `_2`, `_3`... nếu PDF đích đã tồn tại; phát `Write-Warning` và bỏ qua nếu thiếu trình duyệt)*.
+    - CLI: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\html_packager.ps1' -Action HtmlToPdf -HtmlPath '<in.html>' [-OutPdfPath '<out.pdf>'] [-PdfTimeoutSeconds 60] [-CleanDir '<dir>']` *(bắt buộc chạy Auto-QA bảo mật trước khi gọi Microsoft Edge/Chrome headless cô lập mạng theo DNS whitelist 4 host MathJax/Google Fonts, tự đánh số `_2`, `_3`... nếu PDF đích đã tồn tại; nếu thiếu trình duyệt thì in `WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export for <đường_dẫn>.html` (luồng stderr) và bỏ qua xuất PDF)*.
   - **Đầu ra stdout xác nhận thành công (theo thứ tự thực thi):**
     - `[QA PASS] Base64 images: <N> | Tables: <T> (wrapper optional) | LaTeX/MathJax OK | Broken anchors: 0`
     - `Output collision avoided; auto-numbered -> <đường_dẫn>` *(nếu tệp cũ đã tồn tại)*
+    - `Optimized <K>/<N> images (Quality=<Q>%, saved <S> KB raw)` *(nếu HTML có ảnh được nhúng)*
     - `PreserveLayout mode: skipped reader shell injection`
     - `Embedded images into HTML -> <đường_dẫn>.html (<bytes> bytes)`
     - `Exported PDF -> <đường_dẫn>.pdf (<bytes> bytes)`
     - `WARNING: PDF export failed; HTML output is complete -> <đường_dẫn>.html | Reason: ...` *(thay cho dòng `Exported PDF` khi Edge/Chrome quá thời gian hoặc không tạo được PDF; tệp PDF dở dang đã tự xóa)*
+    - `WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export for <đường_dẫn>.html` *(thay cho dòng `Exported PDF` khi máy không có Microsoft Edge/Chrome; HTML vẫn hoàn chỉnh — **không** chạy lại Bước 4)*
     - `Cleaned temp directory -> <đường_dẫn>\work` *(khi dùng `-CleanDir` — đủ căn cứ xác nhận từ stdout, không cần gọi thêm lệnh kiểm tra `output\` hay xóa `work\` riêng)*
 - **Quy tắc phản hồi sau khi hoàn tất:** Lấy **đúng tên tệp thực tế** in ở `Embedded images into HTML -> ...` và `Exported PDF -> ...` trên stdout (kể cả khi đã tự tăng số `_2`, `_3`...), rồi trả về liên kết tới các tệp đầu ra theo đúng mẫu thân thiện với người dùng cuối bên dưới (**tránh dùng các cụm từ kỹ thuật** như `"tự chứa"`, `"Self-contained"`, `"Base64"`, `"QA PASS"`, hay nhắc thư mục tạm `work/`; **tuyệt đối không tự ý viết bản tóm tắt hay lặp lại nội dung tài liệu đã dịch** trừ khi người dùng yêu cầu rõ):
 
@@ -114,7 +116,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools\html_packager.ps1
 
   **Trạng thái kiểm định:** Đạt chuẩn (đã tích hợp đủ <N> ảnh vào HTML, <T> bảng biểu giữ đúng thiết kế, 0 liên kết gãy).
   ```
-  *(Điều chỉnh số liệu trong ngoặc theo kết quả Auto-QA thực tế — vd bổ sung `công thức toán đầy đủ` nếu bài có LaTeX, lược ý ảnh / bảng nếu bằng `0`; nếu máy thiếu Microsoft Edge/Chrome nên bỏ qua xuất PDF, thay dòng PDF thành: `- **PDF:** Chưa xuất được do máy không có sẵn Microsoft Edge hoặc Chrome (bạn vẫn có thể mở tệp HTML bằng trình duyệt rồi In → Lưu thành PDF).`; nếu stdout có `WARNING: PDF export failed`, thay dòng PDF thành: `- **PDF:** Chưa xuất được do trình duyệt gặp lỗi khi tạo tệp PDF (bạn vẫn có thể mở tệp HTML bằng trình duyệt rồi In → Lưu thành PDF).`)*
+  *(Điều chỉnh số liệu trong ngoặc theo kết quả Auto-QA thực tế — vd bổ sung `công thức toán đầy đủ` nếu bài có LaTeX, lược ý ảnh / bảng nếu bằng `0`; nếu stdout/stderr có `WARNING: Microsoft Edge/Chrome not found`, thay dòng PDF thành: `- **PDF:** Chưa xuất được do máy không có sẵn Microsoft Edge hoặc Chrome (bạn vẫn có thể mở tệp HTML bằng trình duyệt rồi In → Lưu thành PDF).`; nếu stdout có `WARNING: PDF export failed`, thay dòng PDF thành: `- **PDF:** Chưa xuất được do trình duyệt gặp lỗi khi tạo tệp PDF (bạn vẫn có thể mở tệp HTML bằng trình duyệt rồi In → Lưu thành PDF).`)*
 
 ---
 

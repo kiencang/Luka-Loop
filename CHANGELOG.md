@@ -6,6 +6,8 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 ### Changed
 - Cả hai `SKILL.md`: agent không đọc trực tiếp được PDF (vd Codex) render từng cụm trang bằng `RenderPages` rồi xem ảnh, thay vì tự tìm công cụ khác; nêu rõ cụm cuối không vượt `total_pages`. Phần trùng lặp trong `claude-code.md` được rút gọn về mục này.
 - `antigravity.md`: dùng tên công cụ hiện tại `view_file`, `write_to_file`, `replace_file_content` (vẫn nhận tên cũ `read_file`/`edit_file`) và ghi chú lần đầu mở tệp luôn trả 800 dòng đầu.
+- Cả hai `SKILL.md`: ghi đúng dòng báo máy không có trình duyệt (`WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export …`) thay cho `Write-Warning` không có thật, để agent nhận ra trường hợp này và dùng đúng câu phản hồi. Danh sách dòng đầu ra ở Bước 4 nay theo đúng thứ tự công cụ in (`Output collision…` trước `Injected reader shell`) và có thêm dòng `Optimized <K>/<N> images…`.
+- `pdf-to-html-vi`: viết lại `description` để agent chọn đúng skill — nêu câu người dùng hay nói khi cần dùng, và nói rõ không dùng khi người dùng yêu cầu giữ thiết kế/bố cục gốc (chuyển sang `pdf-to-html-vi-layout`); bỏ chi tiết kỹ thuật không giúp chọn skill.
 - `claude-code.md`: đường dẫn có dấu `'` phải chạy bằng PowerShell tool, vì Bash làm mất dấu `'` và công cụ báo `PDF not found`.
 
 ## [1.1.15] - 2026-11-21

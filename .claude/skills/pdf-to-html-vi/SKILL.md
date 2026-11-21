@@ -1,7 +1,7 @@
 ---
 name: pdf-to-html-vi
 description: >-
-  Quy trình dịch thuật file PDF sang một tệp HTML tiếng Việt duy nhất (tất cả trong một / self-contained files), tự động tách ảnh kèm bản đồ chú thích bằng `extract_assets.exe` (PyMuPDF portable). Kích hoạt ngay khi người dùng gửi PDF và yêu cầu dịch sang tiếng Việt.
+  Quy trình mặc định dịch tài liệu PDF sang tiếng Việt, xuất một tệp HTML (kèm bản PDF) dễ đọc trên trình duyệt: dàn lại thành một cột, giữ hình ảnh, bảng biểu và công thức. Dùng khi người dùng gửi hoặc chỉ tới tệp `.pdf` và yêu cầu dịch sang tiếng Việt (vd "dịch file PDF này", "dịch tài liệu này"). KHÔNG dùng khi người dùng yêu cầu giữ thiết kế/bố cục gốc ("bảo toàn thiết kế", "bảo toàn layout", "giữ thiết kế", "giữ layout", "giữ nguyên định dạng") — khi đó dùng skill `pdf-to-html-vi-layout`.
 ---
 
 # `pdf-to-html-vi` — lối vào cho Claude Code
