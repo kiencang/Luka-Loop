@@ -6,7 +6,7 @@ description: >-
 
 # `pdf-to-html-vi` — lối vào cho Claude Code
 
-Quy trình gốc dùng chung cho mọi agent nằm ở [`.agents/skills/pdf-to-html-vi/SKILL.md`](../../../.agents/skills/pdf-to-html-vi/SKILL.md). Tệp này chỉ giúp Claude Code tìm thấy skill (Claude Code không đọc thư mục `.agents/`).
+Quy trình gốc dùng chung cho mọi agent nằm ở [`.agents/skills/pdf-to-html-vi/SKILL.md`](../../../.agents/skills/pdf-to-html-vi/SKILL.md). Tệp này chỉ giúp Claude Code tìm thấy skill.
 
 1. Đọc trọn `.agents/skills/pdf-to-html-vi/SKILL.md` và làm theo **đúng từng bước** trong đó. Các liên kết tương đối trong tệp đó (vd `./si_*.md`) tính từ thư mục `.agents/skills/pdf-to-html-vi/`.
 2. Áp dụng thêm [`.agents/adapters/claude-code.md`](../../../.agents/adapters/claude-code.md) (đã được nạp qua `CLAUDE.md`; nếu chưa có trong ngữ cảnh thì đọc tệp này trước).

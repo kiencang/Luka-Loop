@@ -6,10 +6,10 @@
 
 ## 1. Chạy lệnh công cụ
 
-- Chạy **nguyên văn** các lệnh PowerShell gọi script `tools\*.ps1` được ghi trong `SKILL.md` (giữ nguyên phần đầu lệnh, chỉ thay các giá trị trong `<...>`), bằng công cụ shell sẵn có (PowerShell tool, hoặc Bash qua Git Bash — cả hai đều chạy được lệnh này).
-  - `.claude/settings.json` của dự án cho phép sẵn đúng dạng lệnh này với 3 script `tools\extract_pdf_assets.ps1`, `tools\pdf_fallback_tools.ps1`, `tools\html_packager.ps1`. Viết khác đi (vd `& .\tools\html_packager.ps1 ...`, đổi thứ tự tham số đầu) sẽ khiến Claude Code phải hỏi lại người dùng.
-  - **Mỗi lệnh chạy riêng một lần gọi**, không nối nhiều lệnh bằng `;`, `&&` hay `|`.
-  - **Đường dẫn có dấu `'`** (vd `O'Brien 2024.pdf`): chạy lệnh bằng **PowerShell tool**, không dùng Bash. Quy tắc viết `'` thành `''` trong `SKILL.md` là cú pháp PowerShell; Bash đọc `'...''...'` thành hai chuỗi nối liền và làm mất dấu `'`, nên công cụ báo `PDF not found`.
+- Chạy **nguyên văn** các lệnh `tools\*.ps1` trong `SKILL.md` (chỉ thay giá trị trong `<...>`) bằng công cụ **PowerShell** của Claude Code.
+- Nếu phiên Claude Code chỉ có công cụ **Bash**, vẫn chạy nguyên văn lệnh đó trong Bash: lệnh tự mở chương trình PowerShell có sẵn trên Windows. Riêng tệp có dấu `'` trong tên (vd `O'Brien 2024.pdf`), Bash làm hỏng đường dẫn; khi đó hãy đề nghị người dùng đổi tên tệp.
+- `.claude/settings.json` của dự án cho phép sẵn đúng dạng lệnh này (qua cả công cụ PowerShell lẫn Bash) với 3 script `tools\extract_pdf_assets.ps1`, `tools\pdf_fallback_tools.ps1`, `tools\html_packager.ps1`. Viết khác đi (vd `& .\tools\html_packager.ps1 ...`, đổi thứ tự tham số đầu) sẽ khiến Claude Code phải hỏi lại người dùng.
+- **Mỗi lệnh chạy riêng một lần gọi**, không nối nhiều lệnh bằng `;`, `&&` hay `|`.
 
 ## 2. Lấy tệp PDF
 
