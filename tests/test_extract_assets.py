@@ -1686,6 +1686,38 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
                 '<!DOCTYPE html><html><head></head><body><svg><image href="https://evil.example/px.png"/></svg></body></html>',
                 r"Disallowed external resource reference\(s\)",
             ),
+            # Parser differential: browsers parse these bodies as markup inside foreign content, so the
+            # hidden <img onerror>/<script href> would run unseen by HTMLParser (which treats them as raw text).
+            (
+                "svg style hiding img onerror",
+                '<!DOCTYPE html><html><head></head><body><svg><style><img src="x" alt="" onerror="alert(1)"></style></svg></body></html>',
+                r"<style> inside <svg>",
+            ),
+            (
+                "svg style hiding external svg script",
+                '<!DOCTYPE html><html><head></head><body><svg><style><script href="https://cdn.jsdelivr.net/npm/evil@1/x.js"></script></style></svg></body></html>',
+                r"<style> inside <svg>",
+            ),
+            (
+                "svg textarea hiding img onerror",
+                '<!DOCTYPE html><html><head></head><body><svg><textarea><img src="x" onerror="alert(1)"></textarea></svg></body></html>',
+                r"<textarea> inside <svg>",
+            ),
+            (
+                "math style hiding javascript link",
+                '<!DOCTYPE html><html><head></head><body><math><style><a href="javascript:alert(1)">x</a></style></math></body></html>',
+                r"<style> inside <math>",
+            ),
+            (
+                "svg kept open across implied p close",
+                '<!DOCTYPE html><html><head></head><body><p><svg><section></section><style><img src="x" onerror="alert(1)"></style></svg></p></body></html>',
+                r"<style> inside <svg>",
+            ),
+            (
+                "svg title hiding img onerror",
+                '<!DOCTYPE html><html><head></head><body><svg><title><img src="x" onerror="alert(1)"></title></svg></body></html>',
+                r"<title> inside <svg>",
+            ),
         ]
         for label, bad_html, expected_rx in security_fail_cases:
             with self.subTest(case=label):
@@ -1707,6 +1739,43 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
                 out_html_path=str(spoof_out),
             )
         self.assertFalse(spoof_out.exists())
+
+    def test_csp_limits_mathjax_to_its_own_directory(self) -> None:
+        # The CSP must allow only the approved MathJax directory, never the whole CDN origin
+        # (anyone can publish scripts to jsDelivr/cdnjs).
+        import re
+        from contextlib import redirect_stdout
+        from io import StringIO
+
+        for src, expected in (
+            ("https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js", "https://cdn.jsdelivr.net/npm/mathjax@3/es5/"),
+            (
+                "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js",
+                "https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/",
+            ),
+        ):
+            with self.subTest(src=src):
+                html = (
+                    f'<!DOCTYPE html><html><head><script id="MathJax-script" async src="{src}"></script>'
+                    "</head><body><p>\\(x\\)</p></body></html>"
+                )
+                with redirect_stdout(StringIO()):
+                    scanner = qa.run_html_qa_check(html, skip_table_wrapper_check=True)
+                self.assertEqual(scanner.mathjax_srcs, [src])
+                out = shell.inject_csp_meta(html, mathjax_srcs=scanner.mathjax_srcs, inline_script_raw_bodies=[])
+                policy = re.search(r'content="([^"]*)"', out).group(1)
+                directives = {d.split()[0]: d.split()[1:] for d in policy.split(";") if d.strip()}
+                self.assertEqual(directives["script-src"], [expected])
+                self.assertIn(expected, directives["font-src"])
+                self.assertNotIn("https://cdn.jsdelivr.net", policy.split())
+                self.assertNotIn("https://cdnjs.cloudflare.com", policy.split())
+
+        no_math = shell.inject_csp_meta(
+            "<html><head></head><body></body></html>", mathjax_srcs=[], inline_script_raw_bodies=[]
+        )
+        self.assertIn("script-src 'none';", no_math)
+        with self.assertRaises(ValueError):
+            shell.mathjax_csp_sources(['https://cdn.jsdelivr.net/npm/mathjax@3/es5/x.js" onload="'])
 
     def test_security_allowlist_latex_svg_csp_and_html_to_pdf_qa(self) -> None:
         # 1. Legitimate links, safe LaTeX \href{https://...}, safe SVG internal <use href="#icon"> must pass

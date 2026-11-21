@@ -3,8 +3,12 @@
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
 ## [Unreleased]
+### Security
+- Auto-QA nay từ chối `<style>`, `<script>`, `<textarea>`, `<title>`… nằm trong `<svg>`/`<math>`: trình duyệt đọc nội dung các thẻ này như HTML thật, nên trước đây thẻ độc hại giấu bên trong (vd `<img onerror>`, `<script href>`) lọt qua QA.
+- CSP chỉ cho phép đúng thư mục MathJax (vd `https://cdn.jsdelivr.net/npm/mathjax@3/es5/`) thay vì cả tên miền `cdn.jsdelivr.net`/`cdnjs.cloudflare.com`.
+
 ### Added
-- `dev/ab_judge.py`: công cụ chấm mù trái/phải giữa hai bản bộ tách hình trên trang `tune` của DocLayNet, trước đây chỉ là script tạm. `build` tạo trang HTML cục bộ; `score` giải mã mã kết quả, tính sign test và khoảng tin cậy Wilson, rồi lưu đợt chấm vào `dev/ab_history/`. Thư mục này lưu kết quả AB1–AB4, không kèm ảnh. Thêm `dev/experiments/` chứa bản vá bị AB4 loại, kèm phân tích, và `tests/test_ab_judge.py`.
+- `dev/ab_judge.py`: công cụ chấm mù trái/phải hai bản bộ tách hình trên DocLayNet (`build` tạo trang HTML, `score` tính sign test, lưu đợt chấm vào `dev/ab_history/`); kèm `dev/experiments/` và `tests/test_ab_judge.py`.
 
 ## [1.1.14] - 2026-11-21
 ### Added

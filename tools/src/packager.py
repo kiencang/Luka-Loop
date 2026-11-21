@@ -113,7 +113,7 @@ def embed_images_and_package(
     qa_scanner = run_html_qa_check(updated, skip_table_wrapper_check=preserve_layout, shell_path=shell_path)
     updated = inject_csp_meta(
         updated,
-        has_mathjax=qa_scanner.has_mathjax_in_head,
+        mathjax_srcs=qa_scanner.mathjax_srcs,
         inline_script_raw_bodies=qa_scanner.allowed_inline_script_raw_bodies,
     )
 

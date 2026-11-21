@@ -44,6 +44,13 @@ _FORBIDDEN_HTML_TAGS = frozenset(
     }
 )
 _FORBIDDEN_META_HTTP_EQUIV = frozenset({"refresh", "set-cookie"})
+# Inside <svg>/<math> (foreign content) browsers parse <style>/<script>/<textarea>/... bodies as markup, while
+# Python's HTMLParser treats them as raw text. Hidden tags there (e.g. <img onerror>, <script href>) would
+# reach the browser unseen, so these elements are rejected outright inside foreign content.
+_FOREIGN_CONTENT_ROOTS = ("svg", "math")
+_FOREIGN_RAW_TEXT_TAGS = frozenset(
+    {"script", "style", "textarea", "title", "xmp", "iframe", "noembed", "noframes", "noscript", "plaintext"}
+)
 _EVENT_HANDLER_ATTR_RX = re.compile(r"^on[a-z]+$", re.IGNORECASE)
 _URI_ATTRS = frozenset({"href", "src", "xlink:href", "action", "formaction", "poster", "data", "background"})
 _SVG_EXTERNAL_HREF_TAGS = frozenset({"image", "use", "feimage"})
@@ -215,6 +222,10 @@ class _QADOMScanner(HTMLParser):
         self.wrapped_table_count = 0
         self.has_latex = False
         self.has_mathjax_in_head = False
+        self.mathjax_srcs: list[str] = []
+        # Open <svg>/<math> counted by explicit start/end tags only (not the implied-close stack), so the
+        # scanner never believes foreign content ended while the browser still considers it open.
+        self._foreign_depth: dict[str, int] = {name: 0 for name in _FOREIGN_CONTENT_ROOTS}
         self.allowed_inline_script_raw_bodies: list[str] = []
         self.seen_ids: set[str] = set()
         self.anchor_refs: list[str] = []
@@ -331,6 +342,8 @@ class _QADOMScanner(HTMLParser):
             cleaned_src = str(src_val).strip()
             if in_head and not body_norm and _ALLOWED_MATHJAX_SRC_RX.match(cleaned_src):
                 self.has_mathjax_in_head = True
+                if cleaned_src not in self.mathjax_srcs:
+                    self.mathjax_srcs.append(cleaned_src)
                 return
             desc = f'<script src="{cleaned_src[:100]}">' if cleaned_src else '<script src="">'
             self._add_issue(self.disallowed_scripts, self._seen_scripts, desc)
@@ -354,6 +367,17 @@ class _QADOMScanner(HTMLParser):
 
         if t in _FORBIDDEN_HTML_TAGS:
             self._add_issue(self.disallowed_tags, self._seen_tags, f"<{t}>")
+
+        if t in _FOREIGN_RAW_TEXT_TAGS:
+            foreign_root = next((name for name in _FOREIGN_CONTENT_ROOTS if self._foreign_depth[name] > 0), None)
+            if foreign_root is not None:
+                self._add_issue(
+                    self.disallowed_tags,
+                    self._seen_tags,
+                    f"<{t}> inside <{foreign_root}> (parsed as markup by browsers)",
+                )
+        if t in self._foreign_depth and not self_closing:
+            self._foreign_depth[t] += 1
 
         if t == "head":
             self.has_head_open = True
@@ -568,6 +592,8 @@ class _QADOMScanner(HTMLParser):
             self.has_head_close = True
         elif t == "body":
             self.has_body_close = True
+        elif t in self._foreign_depth and self._foreign_depth[t] > 0:
+            self._foreign_depth[t] -= 1
         self._pop_open_tag(t)
 
     def handle_data(self, data: str) -> None:

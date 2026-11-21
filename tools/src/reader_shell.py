@@ -20,6 +20,7 @@ _HTML_IGNORED_SEGMENTS_RX = re.compile(
 )
 _SCRIPT_BODY_RX = re.compile(r"(?is)<script\b[^>]*>(.*?)</script>")
 _CSP_META_TAG_RX = re.compile(r"""(?is)<meta\b[^>]*\bdata-luka-csp\s*=\s*["']1["'][^>]*>\s*""")
+_CSP_SAFE_SOURCE_RX = re.compile(r"^https://[A-Za-z0-9.-]+/[A-Za-z0-9_.@/-]+$")
 
 
 def _get_shell_section(template: str, tag_name: str) -> str:
@@ -152,14 +153,32 @@ def extract_trusted_shell_scripts(shell_path: Path | None = None) -> frozenset[s
     return frozenset(bodies)
 
 
+def mathjax_csp_sources(mathjax_srcs: list[str]) -> list[str]:
+    """Return the `.../es5/` directory of each QA-approved MathJax src as a path-restricted CSP source.
+
+    MathJax loads its components and fonts from that directory, so allowing the whole CDN origin is
+    unnecessary — and unsafe, since anyone can publish scripts to jsDelivr/cdnjs.
+    """
+    sources: list[str] = []
+    for src in mathjax_srcs:
+        cut = src.lower().find("/es5/")
+        if cut < 0 or not _CSP_SAFE_SOURCE_RX.match(src):
+            raise ValueError(f"Unexpected MathJax src for CSP: {src[:100]}")
+        base = src[: cut + len("/es5/")]
+        if base not in sources:
+            sources.append(base)
+    return sources
+
+
 def inject_csp_meta(
     html_text: str,
     *,
-    has_mathjax: bool,
+    mathjax_srcs: list[str],
     inline_script_raw_bodies: list[str],
 ) -> str:
     """Idempotently inject a defense-in-depth Content-Security-Policy <meta> right inside <head>."""
     cleaned, _ = sub_outside_ignored(html_text, _CSP_META_TAG_RX, "")
+    mathjax_sources = mathjax_csp_sources(mathjax_srcs)
 
     script_tokens: list[str] = []
     seen_hashes: set[str] = set()
@@ -172,13 +191,11 @@ def inject_csp_meta(
         if token not in seen_hashes:
             seen_hashes.add(token)
             script_tokens.append(token)
-    if has_mathjax:
-        script_tokens.extend(["https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"])
+    script_tokens.extend(mathjax_sources)
     script_src = " ".join(script_tokens) if script_tokens else "'none'"
 
     font_tokens = ["https://fonts.gstatic.com", "data:"]
-    if has_mathjax:
-        font_tokens.extend(["https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"])
+    font_tokens.extend(mathjax_sources)
     font_src = " ".join(font_tokens)
 
     policy = (
