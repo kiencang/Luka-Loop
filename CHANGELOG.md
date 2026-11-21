@@ -2,17 +2,18 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.16] - 2026-11-21
 ### Fixed
-- Dòng `WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export …` nay in qua stdout thay vì stderr, giống dòng `WARNING: PDF export failed …`. Trước đây, khi agent đọc kết quả qua ống dẫn, dòng này (xảy ra sau cùng) lại hiện ở đầu, trước cả `[QA PASS]`, trái với thứ tự ghi trong `SKILL.md`. Thêm test kiểm tra dòng nằm giữa `Embedded images into HTML` và `Cleaned temp directory`.
+- Dòng `WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export …` nay in qua stdout (trước là stderr), nên hiện đúng vị trí sau `Embedded images into HTML` thay vì nhảy lên đầu kết quả.
 
 ### Changed
-- Cả hai `SKILL.md`: agent không đọc trực tiếp được PDF (vd Codex) render từng cụm trang bằng `RenderPages` rồi xem ảnh, thay vì tự tìm công cụ khác; nêu rõ cụm cuối không vượt `total_pages`. Phần trùng lặp trong `claude-code.md` được rút gọn về mục này.
-- `antigravity.md`: dùng tên công cụ hiện tại `view_file`, `write_to_file`, `replace_file_content` (vẫn nhận tên cũ `read_file`/`edit_file`) và ghi chú lần đầu mở tệp luôn trả 800 dòng đầu.
-- Cả hai `SKILL.md`: ghi đúng dòng báo máy không có trình duyệt (`WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export …`) thay cho `Write-Warning` không có thật, để agent nhận ra trường hợp này và dùng đúng câu phản hồi. Danh sách dòng đầu ra ở Bước 4 nay theo đúng thứ tự công cụ in (`Output collision…` trước `Injected reader shell`) và có thêm dòng `Optimized <K>/<N> images…`.
-- `pdf-to-html-vi`: viết lại `description` để agent chọn đúng skill — nêu câu người dùng hay nói khi cần dùng, và nói rõ không dùng khi người dùng yêu cầu giữ thiết kế/bố cục gốc (chuyển sang `pdf-to-html-vi-layout`); bỏ chi tiết kỹ thuật không giúp chọn skill.
-- Ví dụ tham số trong `SKILL.md` và `si_layout.md` dùng nháy đơn nhất quán (`-PdfPath '<input.pdf>'`, `-CleanDir 'work'`, `-Pages '2-4'`), khớp quy tắc bọc đường dẫn bằng nháy đơn để PowerShell không chạy `$(...)` trong tên tệp.
-- `claude-code.md`: đường dẫn có dấu `'` phải chạy bằng PowerShell tool, vì Bash làm mất dấu `'` và công cụ báo `PDF not found`.
+- Hướng dẫn cho agent (`SKILL.md`, bộ chuyển đổi Claude Code/Antigravity) dễ làm đúng hơn:
+  - Agent không đọc được PDF (vd Codex) render từng cụm trang bằng `RenderPages` rồi xem ảnh; cụm cuối không vượt `total_pages`.
+  - Bước 4 ghi đúng các dòng đầu ra theo thứ tự công cụ in, kể cả dòng báo máy không có Edge/Chrome.
+  - Mô tả skill `pdf-to-html-vi` nói rõ khi nào dùng và khi nào chuyển sang `pdf-to-html-vi-layout`.
+  - Mọi ví dụ tham số dùng nháy đơn.
+  - Claude Code: ưu tiên công cụ PowerShell, Bash chỉ là đường lui; mô tả hai cách đưa tệp vào (tải lên tệp, nêu đường dẫn).
+  - Antigravity: tên công cụ hiện tại `view_file`…; tệp tải lên được lưu ở `.user_uploaded\media_<id>.pdf`.
 
 ## [1.1.15] - 2026-11-21
 ### Security
