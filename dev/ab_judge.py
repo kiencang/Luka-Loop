@@ -149,9 +149,9 @@ def build(args: argparse.Namespace) -> None:
         key.append({"id": i, "doc": r["doc"], "page_no": r["page_no"], "figure": k, "new_on_left": new_on_left,
                     "old_boxes": a, "new_boxes": b})
     (out_dir / f"ab_key_{args.code}.json").write_text(
-        json.dumps({"code": args.code, "old_fp": args.old, "new_fp": args.new, "items": key}, indent=1), encoding="utf-8")
+        json.dumps({"code": args.code, "old_fp": args.old, "new_fp": args.new, "items": key}, indent=1), encoding="utf-8", newline="\n")
     page_path = out_dir / f"ab_judge_{args.code}.html"
-    page_path.write_text(PAGE.replace("{CARDS}", "".join(cards)).replace("{CODE}", html.escape(args.code)), encoding="utf-8")
+    page_path.write_text(PAGE.replace("{CARDS}", "".join(cards)).replace("{CODE}", html.escape(args.code)), encoding="utf-8", newline="\n")
     print(f"wrote {page_path} ({page_path.stat().st_size / 1e6:.1f} MB); key {out_dir / f'ab_key_{args.code}.json'}")
 
 
@@ -181,7 +181,7 @@ def score(args: argparse.Namespace) -> None:
             print(f"  {name:10} #{i:<3} {it['doc']} p{it['page_no']} fig{it['figure']}")
     key["answers"], key["result"] = answers.strip(), res
     HISTORY_DIR.mkdir(exist_ok=True)
-    (HISTORY_DIR / f"ab_key_{code}.json").write_text(json.dumps(key, indent=1), encoding="utf-8")
+    (HISTORY_DIR / f"ab_key_{code}.json").write_text(json.dumps(key, indent=1), encoding="utf-8", newline="\n")
     print(f"archived to {HISTORY_DIR / f'ab_key_{code}.json'}")
 
 
