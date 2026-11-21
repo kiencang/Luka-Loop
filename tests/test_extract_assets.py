@@ -1713,6 +1713,23 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
                 '<!DOCTYPE html><html><head></head><body><p><svg><section></section><style><img src="x" onerror="alert(1)"></style></svg></p></body></html>',
                 r"<style> inside <svg>",
             ),
+            # Browsers end these comments early; HTMLParser keeps reading to the next `-->`, so the
+            # tags after them would be live in the browser but unseen by the scanner.
+            (
+                "empty comment <!--> hiding meta refresh",
+                '<!DOCTYPE html><html><head></head><body><!--><meta http-equiv="refresh" content="0;url=https://evil.example">--></body></html>',
+                r"malformed HTML comment\(s\).*<!-->",
+            ),
+            (
+                "empty comment <!---> hiding img onerror",
+                '<!DOCTYPE html><html><head></head><body><!---><img src="x" alt="" onerror="alert(1)">--></body></html>',
+                r"malformed HTML comment\(s\).*<!--->",
+            ),
+            (
+                "comment closed by --!> hiding meta refresh",
+                '<!DOCTYPE html><html><head></head><body><!-- a --!><meta http-equiv="refresh" content="0;url=https://evil.example"> --></body></html>',
+                r"malformed HTML comment\(s\).*--!>",
+            ),
             (
                 "svg title hiding img onerror",
                 '<!DOCTYPE html><html><head></head><body><svg><title><img src="x" onerror="alert(1)"></title></svg></body></html>',

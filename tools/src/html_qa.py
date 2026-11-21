@@ -44,6 +44,10 @@ _FORBIDDEN_HTML_TAGS = frozenset(
     }
 )
 _FORBIDDEN_META_HTTP_EQUIV = frozenset({"refresh", "set-cookie"})
+# Browsers end a comment at `<!-->`, `<!--->` (empty comment) and at `--!>`, while Python's HTMLParser
+# keeps reading until the next `-->`. Tags placed after these forms (e.g. <meta http-equiv="refresh">)
+# would be live in the browser yet hidden from this scanner, so the forms are rejected outright.
+_MALFORMED_COMMENT_RX = re.compile(r"<!---?>|--!>")
 # Inside <svg>/<math> (foreign content) browsers parse <style>/<script>/<textarea>/... bodies as markup, while
 # Python's HTMLParser treats them as raw text. Hidden tags there (e.g. <img onerror>, <script href>) would
 # reach the browser unseen, so these elements are rejected outright inside foreign content.
@@ -660,6 +664,12 @@ def run_html_qa_check(
         )
     if scanner.disallowed_tags:
         issues.append(f"Disallowed HTML tag(s): {_format_sample_items(scanner.disallowed_tags)}")
+    malformed_comments = sorted({m.group(0) for m in _MALFORMED_COMMENT_RX.finditer(html_text)})
+    if malformed_comments:
+        issues.append(
+            "Disallowed malformed HTML comment(s) (browsers end the comment early; "
+            f"write comments as <!-- ... -->): {_format_sample_items(malformed_comments)}"
+        )
     if scanner.disallowed_event_handlers:
         issues.append(
             f"Disallowed inline event handler attribute(s): {_format_sample_items(scanner.disallowed_event_handlers)}"

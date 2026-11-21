@@ -2,6 +2,10 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Security
+- Auto-QA nay từ chối comment HTML dị dạng `<!-->`, `<!--->` và dấu đóng `--!>`. Trình duyệt kết thúc comment ngay tại các dạng này, còn bộ quét đọc tiếp tới `-->` kế tiếp, nên thẻ đặt phía sau (vd `<meta http-equiv="refresh">` chuyển hướng sang trang khác, điều CSP không chặn được) từng lọt qua QA mà vẫn chạy trong trình duyệt.
+
 ## [1.1.16] - 2026-11-21
 ### Fixed
 - Dòng `WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export …` nay in qua stdout (trước là stderr), nên hiện đúng vị trí sau `Embedded images into HTML` thay vì nhảy lên đầu kết quả.
