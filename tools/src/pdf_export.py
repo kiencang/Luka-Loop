@@ -127,7 +127,8 @@ def html_to_pdf(
 
     browser = find_headless_browser()
     if not browser:
-        print(f"WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export for {abs_html}", file=sys.stderr)
+        # stdout, not stderr: this line replaces "Exported PDF" and agents must see it in order (see SKILL.md Step 4).
+        print(f"WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export for {abs_html}")
         return None
 
     tmp_profile = Path(tempfile.gettempdir()) / f"edge_pdf_{uuid.uuid4().hex}"

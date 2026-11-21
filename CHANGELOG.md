@@ -3,6 +3,9 @@
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
 ## [Unreleased]
+### Fixed
+- Dòng `WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export …` nay in qua stdout thay vì stderr, giống dòng `WARNING: PDF export failed …`. Trước đây, khi agent đọc kết quả qua ống dẫn, dòng này (xảy ra sau cùng) lại hiện ở đầu, trước cả `[QA PASS]`, trái với thứ tự ghi trong `SKILL.md`. Thêm test kiểm tra dòng nằm giữa `Embedded images into HTML` và `Cleaned temp directory`.
+
 ### Changed
 - Cả hai `SKILL.md`: agent không đọc trực tiếp được PDF (vd Codex) render từng cụm trang bằng `RenderPages` rồi xem ảnh, thay vì tự tìm công cụ khác; nêu rõ cụm cuối không vượt `total_pages`. Phần trùng lặp trong `claude-code.md` được rút gọn về mục này.
 - `antigravity.md`: dùng tên công cụ hiện tại `view_file`, `write_to_file`, `replace_file_content` (vẫn nhận tên cũ `read_file`/`edit_file`) và ghi chú lần đầu mở tệp luôn trả 800 dòng đầu.

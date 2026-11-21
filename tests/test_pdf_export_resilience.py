@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from unittest import mock
@@ -136,6 +136,21 @@ class TestPdfExportResilience(unittest.TestCase):
         html, pdf, log = self._package()
         self._assert_degraded_to_html_only(html, pdf, log)
         self.assertIn("timed out after 6 s", log)
+
+    def test_missing_browser_reports_on_stdout_in_order(self) -> None:
+        # The line replaces "Exported PDF" in SKILL.md Step 4, so it must be on stdout (stderr shows up
+        # out of order when agents read piped output) and come after "Embedded" and before "Cleaned".
+        err = StringIO()
+        with mock.patch.object(pdfx, "find_headless_browser", return_value=None), redirect_stderr(err):
+            html, pdf, log = self._package()
+        self.assertIsNone(pdf)
+        self.assertTrue(html.is_file())
+        self.assertEqual(err.getvalue(), "")
+        warn = log.index("WARNING: Microsoft Edge/Chrome not found; skipped automatic PDF export for ")
+        self.assertLess(log.index("Embedded images into HTML ->"), warn)
+        self.assertLess(warn, log.index("Cleaned temp directory ->"))
+        self.assertEqual(_FakeBrowser.calls, [], "no browser must be launched")
+        self.assertFalse(self.work.exists(), "work/ must still be cleaned when no browser is found")
 
     def test_rerun_after_failure_keeps_single_numbering(self) -> None:
         _FakeBrowser.behaviour = "empty"
