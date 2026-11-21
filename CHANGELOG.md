@@ -4,7 +4,7 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 
 ## [Unreleased]
 ### Security
-- Auto-QA nay từ chối comment HTML dị dạng `<!-->`, `<!--->` và dấu đóng `--!>`. Trình duyệt kết thúc comment ngay tại các dạng này, còn bộ quét đọc tiếp tới `-->` kế tiếp, nên thẻ đặt phía sau (vd `<meta http-equiv="refresh">` chuyển hướng sang trang khác, điều CSP không chặn được) từng lọt qua QA mà vẫn chạy trong trình duyệt.
+- Auto-QA nay từ chối comment HTML dị dạng `<!-->`, `<!--->` và dấu đóng `--!>`. Trình duyệt kết thúc comment ngay tại các dạng này, còn bộ quét đọc tiếp tới `-->` kế tiếp, nên thẻ đặt phía sau (vd `<meta http-equiv="refresh">` chuyển hướng sang trang khác, điều CSP không chặn được) từng lọt qua QA mà vẫn chạy trong trình duyệt. Bước 3 của cả hai `SKILL.md` dặn agent chỉ viết comment dạng chuẩn `<!-- nội dung -->`.
 
 ## [1.1.16] - 2026-11-21
 ### Fixed
