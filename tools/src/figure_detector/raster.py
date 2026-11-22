@@ -80,7 +80,7 @@ def _reattach_overlaid_labels(ctx: PageContext, original: pymupdf.Rect, trimmed:
         r = tb.rect
         if tb.kind != "text" or not inside.contains(r) or trimmed.contains(r):
             continue
-        if r.y1 <= top_band or r.y0 >= bottom_band:
+        if r.y1 <= top_band or r.y0 >= bottom_band or ctx.is_running_head(r):
             continue
         if _is_short_axis_label(tb, vertical_ok=True):
             out |= r

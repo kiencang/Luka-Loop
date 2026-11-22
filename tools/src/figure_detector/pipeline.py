@@ -20,6 +20,7 @@ from .merge import (
     merge_candidates,
 )
 from .model import (
+    RENDER_PAD,
     _SECTION_HEADING_RE,
     _SUBPANEL_LABEL_RE,
     DEFAULT_CONFIG,
@@ -85,6 +86,7 @@ def _expand_plot_axis_labels(candidates: list[CandidateBox], ctx: PageContext) -
         and _is_short_axis_label(tb, vertical_ok=True)
         and tb.rect.y1 >= ctx.page_rect.y0 + 36.0
         and tb.rect.y0 <= ctx.page_rect.y1 - 36.0
+        and not ctx.is_running_head(tb.rect)
     ]
     if not axis_blocks:
         return
@@ -221,6 +223,8 @@ def _label_lines(ctx: PageContext) -> list[tuple[pymupdf.Rect, bool]]:
         owner = owners[key]
         if owner < 0 or not block_ok[owner] or r.y1 <= top_band or r.y0 >= bottom_band:
             continue
+        if ctx.is_running_head(r):
+            continue
         tb = ctx.text_blocks[owner]
         if tb.kind != "text" or _SECTION_HEADING_RE.match(_clean_text(tb.text)):
             continue  # captions and section headings
@@ -310,13 +314,41 @@ def _attach_adjacent_label_lines(candidates: list[CandidateBox], ctx: PageContex
         cand.rect = cur & ctx.page_rect
 
 
+def _clear_running_heads(candidates: list[CandidateBox], ctx: PageContext) -> None:
+    """Pull each box edge back past a running head or folio that the box (with its render padding) would show.
+
+    Heads are kept out of every label attachment, but a figure's own box can still reach the head band: a loose
+    white EPS bounding box, or an image with an off-white margin. The edge moves only when most of the box stays.
+    """
+    pad = RENDER_PAD + 0.5
+    for cand in candidates:
+        r = pymupdf.Rect(cand.rect)
+        for head in ctx.running_heads:
+            if not (r + (-pad, -pad, pad, pad)).intersects(head):
+                continue
+            if (head.y0 + head.y1) / 2 < (r.y0 + r.y1) / 2:
+                r.y0 = max(r.y0, head.y1 + pad)
+            else:
+                r.y1 = min(r.y1, head.y0 - pad)
+        if r != cand.rect and not r.is_empty and r.height >= 0.6 * cand.rect.height:
+            ctx.log(f"running_head:clear {cand.rect} -> {r}")
+            cand.rect = r
+
+
 def _run_page_pipeline(
-    page: pymupdf.Page, cfg: DetectorConfig = DEFAULT_CONFIG
+    page: pymupdf.Page,
+    cfg: DetectorConfig = DEFAULT_CONFIG,
+    running_heads: list[pymupdf.Rect] | None = None,
 ) -> tuple[PageContext, list[CandidateBox], bool]:
-    """Execute Phases 1–5 on `page` and return `(PageContext, candidates, is_scanned)`."""
+    """Execute Phases 1–5 on `page` and return `(PageContext, candidates, is_scanned)`.
+
+    `running_heads` are the page's repeated heads and folios (`running_heads.find_running_heads`), in the same
+    unrotated coordinates; single-page callers leave it out.
+    """
     _ensure_pymupdf()
     # Phase 1
     ctx = analyze_page(page, cfg=cfg)
+    ctx.running_heads = list(running_heads or [])
     # Phase 2
     raster_rects, has_full_page_img = detect_raster_regions(ctx, cfg=cfg)
     # Phase 3
@@ -350,6 +382,7 @@ def _run_page_pipeline(
         _annotate_candidate_origins(candidates, raster_rects, filtered_rects)
         _expand_plot_axis_labels(candidates, ctx)
     _attach_adjacent_label_lines(candidates, ctx, cfg)
+    _clear_running_heads(candidates, ctx)
     min_uncap_vec_dim = cfg.min_vector_dim * max(1.0, min(ctx.pw, ctx.ph) / 792.0)
     candidates = [
         c

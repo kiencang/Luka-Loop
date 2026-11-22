@@ -20,6 +20,7 @@ from .geometry import (
     _rect_gap,
 )
 from .model import (
+    RENDER_PAD,
     CandidateBox,
     PageContext,
     TextBlock,
@@ -33,6 +34,7 @@ from .pipeline import (
     _run_page_pipeline,
     unrotated_page,
 )
+from .running_heads import find_running_heads, page_edge_lines
 from .text import (
     _clean_text,
 )
@@ -131,11 +133,16 @@ def extract_images(
 
         safe_out_dir.mkdir(parents=True, exist_ok=True)
         total_pages = len(doc)
+        edge_lines = []
+        for page in doc:
+            with unrotated_page(page):
+                edge_lines.append(page_edge_lines(page))
+        running_heads = find_running_heads(edge_lines)
 
         for pno, page in enumerate(doc, 1):
             # Detect (and read every text/table fact) on the unrotated page, then render on the displayed page.
             with unrotated_page(page) as to_display:
-                ctx, candidates, is_scanned = _run_page_pipeline(page)
+                ctx, candidates, is_scanned = _run_page_pipeline(page, running_heads=running_heads[pno - 1])
                 table_bboxes: list[pymupdf.Rect] = []
                 if write_meta and any(c.caption_idx is None for c in candidates):
                     table_bboxes = [t.rect for t in ctx.get_page_tables()]
@@ -163,7 +170,7 @@ def extract_images(
 
             for idx0, (cand, bb, meta) in enumerate(found):
                 idx = idx0 + 1
-                clip = pymupdf.Rect(bb.x0 - 4.0, bb.y0 - 4.0, bb.x1 + 4.0, bb.y1 + 4.0) & page_rect
+                clip = pymupdf.Rect(bb.x0 - RENDER_PAD, bb.y0 - RENDER_PAD, bb.x1 + RENDER_PAD, bb.y1 + RENDER_PAD) & page_rect
                 if clip.is_empty:
                     continue
                 out_name = f"fig_p{pno}_{idx}.png"

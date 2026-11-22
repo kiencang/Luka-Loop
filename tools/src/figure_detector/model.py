@@ -24,6 +24,8 @@ class _LazyPyMuPDF:
 
 pymupdf = _LazyPyMuPDF()
 
+RENDER_PAD = 4.0  # pt of page drawn around each detected box when the figure is rendered
+
 
 def _ensure_pymupdf():
     """Return the real PyMuPDF module (importing it on first use) via the shared loader in `image_ops`."""
@@ -193,7 +195,15 @@ class PageContext:
     drawings: list[dict]
     separator_rules: list[pymupdf.Rect]
     trace: list[str] = field(default_factory=list)
+    running_heads: list[pymupdf.Rect] = field(default_factory=list)  # repeated heads/folios (running_heads.py)
     _page_tables: list[PageTableInfo] | None = None
+
+    def is_running_head(self, rect: pymupdf.Rect) -> bool:
+        """True when at least half of `rect` is covered by running heads or folios of the document."""
+        if not self.running_heads or rect.is_empty:
+            return False
+        covered = sum((rect & h).get_area() for h in self.running_heads)
+        return covered >= 0.5 * rect.get_area()
 
     def get_page_tables(self) -> list[PageTableInfo]:
         """Lazily run whole-page `find_tables()` at most once per page."""

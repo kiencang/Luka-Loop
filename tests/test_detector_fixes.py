@@ -221,5 +221,85 @@ class TestRotatedPages(unittest.TestCase):
         self.assertLess(abs(rects[0].x0 - expected.x0) + abs(rects[0].y0 - expected.y0), 6, f"{rects[0]} vs {expected}")
 
 
+def _line(side: str, text: str, y: float, x: float = 300.0):
+    from figure_detector.running_heads import _DIGITS_RE, EdgeLine
+
+    return EdgeLine(side, _DIGITS_RE.sub("#", text.lower()).strip(), text, pymupdf.Rect(x, y, x + 6 * len(text), y + 9))
+
+
+class TestRunningHeads(unittest.TestCase):
+    """Running heads and folios printed right above a top figure were taken into the image (dev/header-pdf set:
+    18 of 42 images). Repetition across pages tells them apart from figure labels, which single-page rules cannot.
+    """
+
+    def test_repeated_heads_and_page_counters_are_found(self) -> None:
+        from figure_detector.running_heads import find_running_heads
+
+        pages = [[]] + [[_line("top", "J. Appl. Hydrodyn. 41 (2026)", 40, 48), _line("top", str(n), 40, 540)] for n in range(2, 6)]
+        pages.append([_line("bottom", "Page 6 of 6", 770)])
+        found = find_running_heads(pages)
+        self.assertEqual(found[0], [])
+        for n in range(1, 5):
+            self.assertEqual(len(found[n]), 2, f"title and folio of page {n + 1}: {found[n]}")
+        self.assertEqual(found[5], [], "a foot printed on one page only is not a running foot")
+
+    def test_identical_numbers_and_far_apart_labels_are_not_heads(self) -> None:
+        from figure_detector.running_heads import find_running_heads
+
+        # The same chart layout at the top of several pages: its top tick value never changes like a page counter.
+        ticks = find_running_heads([[_line("top", "1.50", 60)] for _ in range(5)])
+        self.assertTrue(all(not f for f in ticks), ticks)
+        # A figure label repeated at the same place, but far apart in a long book.
+        pages: list[list] = [[] for _ in range(60)]
+        for i in (5, 30, 55):
+            pages[i] = [_line("top", "Supine position", 70)]
+        self.assertTrue(all(not f for f in find_running_heads(pages)))
+
+    def _plot_pdf(self, folder: Path, pages: int) -> Path:
+        """A report whose page number sits 10 pt above a captioned vector plot on every page after the first."""
+        doc = pymupdf.open()
+        for n in range(1, pages + 1):
+            page = doc.new_page(width=595, height=842)
+            if n == 1:
+                _paragraph(page, 90, 30)
+                continue
+            page.insert_text((295, 38), str(n), fontsize=9)
+            frame = pymupdf.Rect(140, 50, 470, 230)
+            page.draw_rect(frame, color=(0, 0, 0), width=0.8)
+            pts = [pymupdf.Point(frame.x0 + 6 * i, frame.y1 - 20 - 120 * abs(((i * 7) % 40) - 20) / 20) for i in range(55)]
+            page.draw_polyline(pts, color=(0.1, 0.3, 0.8), width=1.2)
+            for k, label in enumerate(("0", "2", "4", "6", "8", "10")):
+                page.insert_text((frame.x0 + k * 64, frame.y1 + 11), label, fontsize=8)
+            for k, label in enumerate(("1.0", "0.5", "0.0")):
+                page.insert_text((frame.x0 - 18, frame.y0 + 8 + k * 80), label, fontsize=8)
+            page.insert_text((140, 262), f"Figure {n - 1}. Response of the sensor array under load.", fontsize=BODY)
+            _paragraph(page, 290, 30)
+        path = folder / f"report{pages}.pdf"
+        doc.save(path)
+        return path
+
+    def test_page_number_above_a_top_figure_stays_out_of_the_image(self) -> None:
+        import json
+        import tempfile
+
+        from figure_detector.extract import extract_images
+
+        tmp = Path(tempfile.mkdtemp(prefix="luka_rh_"))
+        self.addCleanup(__import__("shutil").rmtree, tmp, True)
+        pdf = self._plot_pdf(tmp, 5)
+        with pymupdf.open(pdf) as doc:
+            rects, _ = fd.collect_page_figures(doc[2])  # one page alone: no repetition to go by
+        self.assertEqual(len(rects), 1, rects)
+        self.assertLess(rects[0].y0, 32, f"precondition: the single-page rules take the folio in: {rects[0]}")
+
+        extract_images(pdf, tmp / "out", dpi=72, write_meta=True)
+        figures = json.loads((tmp / "out" / "manifest.json").read_text(encoding="utf-8"))["figures"]
+        self.assertEqual(len(figures), 4, figures)
+        for fig in figures:
+            top = fig["box"][1] * 842 - 4.0  # crop top, with the render padding
+            self.assertGreater(top, 40.5, f"folio (y 28-40.7) inside the image of page {fig['page']}: {fig}")
+            self.assertLess(fig["box"][1] * 842, 52, f"the plot frame itself must stay whole: {fig}")
+
+
 if __name__ == "__main__":
     unittest.main()
