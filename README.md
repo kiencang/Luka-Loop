@@ -18,7 +18,7 @@ Phần khó nhất đã xong! Giờ để dùng công cụ dịch, bạn chỉ v
 
 Giờ thì bạn chỉ việc tải file PDF vào khung chat rồi gõ câu lệnh kiểu như `Dịch tài liệu sang tiếng Việt.` là agent Gemini sẽ tiến hành dịch, và gửi kết quả về ở cả 2 định dạng HTML và PDF. 
 
-Nếu muốn bản dịch **giữ sát bố cục/thiết kế gốc** của từng trang của PDF (sách, tạp chí, tài liệu nhiều cột...), hãy nêu rõ trong yêu cầu (ví dụ: `Dịch tài liệu sang tiếng Việt và bảo toàn thiết kế/layout.`).
+Nếu muốn bản dịch **giữ sát bố cục/thiết kế gốc** của từng trang của PDF (sách, tạp chí, tài liệu nhiều cột...), hãy nêu rõ trong yêu cầu (ví dụ: `Dịch tài liệu sang tiếng Việt và bảo toàn thiết kế/layout.`). Lưu ý là với cách dịch yêu cầu bố cục giống bản gốc sẽ tiêu tốn token hơn đáng kể, khoảng gần gấp đôi so với kiểu mặc định, vì thế bạn chỉ nên dùng khi cần thiết.
 
 Dung lượng file: Nếu bạn tải file lên từ khung chat, giới hạn của Antigravity là 10MB, trường hợp bạn có file lớn hơn, bạn nên đặt vào thư mục `input` của chương trình này.
 
