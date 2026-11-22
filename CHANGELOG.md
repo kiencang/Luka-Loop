@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.22] - 2026-11-22
 ### Fixed
 - Tách hình trên trang PDF bị xoay (`/Rotate` 90/180/270): trước đây công cụ dò hình theo tọa độ trang chưa xoay nhưng lại cắt ảnh theo trang đã xoay, nên ảnh cắt lệch sang vùng khác của trang (trên DocLayNet, cả 10/10 hình ở 27 trang xoay đều hỏng). Nay bộ dò chạy trên trang tạm bỏ xoay, rồi chuyển hộp sang trang hiển thị: ảnh cắt đúng hình, đứng thẳng như khi xem, `box` trong `manifest.json` tính theo trang hiển thị và hình được đánh số theo thứ tự đọc trên trang hiển thị. Trang không xoay giữ nguyên kết quả.
 
