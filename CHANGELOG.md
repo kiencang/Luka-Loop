@@ -6,6 +6,9 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 ### Fixed
 - Tách hình trên trang PDF bị xoay (`/Rotate` 90/180/270): trước đây công cụ dò hình theo tọa độ trang chưa xoay nhưng lại cắt ảnh theo trang đã xoay, nên ảnh cắt lệch sang vùng khác của trang (trên DocLayNet, cả 10/10 hình ở 27 trang xoay đều hỏng). Nay bộ dò chạy trên trang tạm bỏ xoay, rồi chuyển hộp sang trang hiển thị: ảnh cắt đúng hình, đứng thẳng như khi xem, `box` trong `manifest.json` tính theo trang hiển thị và hình được đánh số theo thứ tự đọc trên trang hiển thị. Trang không xoay giữ nguyên kết quả.
 
+### Changed
+- Auto-QA (`html_qa.py`): tách hàm kiểm tra thẻ mở `_process_start_tag` (212 dòng, 108 nhánh) thành các hàm nhỏ theo việc: cấu trúc, `<script>`, `<img>`, `<table>`, thuộc tính, và từng nhóm đường dẫn (`<a>`, `<link>`, `<img>`, `<script>`, còn lại). Không đổi quy tắc nào: bản cũ và bản mới cho kết quả giống hệt nhau trên toàn bộ HTML trong repo và 30.000 tài liệu sinh ngẫu nhiên.
+
 ## [1.1.21] - 2026-11-22
 ### Fixed
 - Chọn chế độ giữ thiết kế: `AGENTS.md` và hai `SKILL.md` nhận diện theo quy tắc ("giữ/giữ nguyên/bảo toàn" + "định dạng/format/bố cục/layout/thiết kế/trình bày") kèm ví dụ, thay cho danh sách 5 cụm từ cố định. Trước đây câu "Giữ định dạng" bị chuyển sang skill mặc định (bản một cột). Thêm ví dụ các yêu cầu về nội dung ("dịch sát nghĩa", "giữ hình ảnh/bảng biểu") không được nhầm thành chế độ giữ thiết kế.
