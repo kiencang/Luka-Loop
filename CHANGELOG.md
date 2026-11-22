@@ -2,6 +2,10 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- Chọn chế độ giữ thiết kế: `AGENTS.md` và hai `SKILL.md` nhận diện theo quy tắc ("giữ/giữ nguyên/bảo toàn" + "định dạng/format/bố cục/layout/thiết kế/trình bày") kèm ví dụ, thay cho danh sách 5 cụm từ cố định. Trước đây câu "Giữ định dạng" bị chuyển sang skill mặc định (bản một cột). Thêm ví dụ các yêu cầu về nội dung ("dịch sát nghĩa", "giữ hình ảnh/bảng biểu") không được nhầm thành chế độ giữ thiết kế.
+
 ## [1.1.20] - 2026-11-22
 ### Fixed
 - Skill bảo toàn thiết kế (`pdf-to-html-vi-layout`): agent không còn xếp hình theo số trong tên tệp `fig_pX_Y`. Số `Y` đánh từ trên xuống trên cả trang, không theo cột, nên trên trang 2 cột thường xen kẽ giữa hai cột và có thể nhảy số; xếp theo tên tệp từng khiến hình đặt sai chỗ hoặc đảo thứ tự bước. `si_translation.md` nay giải thích cách đặt tên và yêu cầu xác định vị trí bằng `page`/`box` trong `manifest.json`, đối chiếu nhãn in trên hình và quan sát bản gốc; `si_layout.md` yêu cầu giữ đúng thứ tự trên–dưới trong từng cột và thêm mục này vào danh sách tự kiểm tra.
