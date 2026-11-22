@@ -1,5 +1,5 @@
 # Luka-Loop
-Công cụ AI Agent tự động dịch tài liệu PDF từ tiếng Anh sang tiếng Việt. Không yêu cầu cài thêm bất cứ phần mềm hỗ trợ nào. Chỉ cần mở thư mục trên các agent như [Antigravity](https://antigravity.google/), Claude Code là bắt đầu dùng được ngay.
+Công cụ AI Agent tự động dịch tài liệu PDF từ tiếng Anh sang tiếng Việt. Không yêu cầu cài thêm bất cứ phần mềm (ngoài công cụ này và phần mềm desktop Agent mà bạn hay dùng) hỗ trợ nào. Chỉ cần mở thư mục trên các agent như [Antigravity](https://antigravity.google/), [Claude Code](https://claude.com/product/claude-code) là bắt đầu dùng được ngay. Một số agent khác mà bạn có thể thử là [Cursor](https://cursor.com/) và [Gosse](https://goose-docs.ai/).
 
 - Định dạng đầu vào: PDF, và nên là PDF tiêu chuẩn dưới 50 trang, với PDF scan ứng dụng vẫn dùng bình thường nhưng tốn thời gian hơn khá nhiều (nếu file scan nhiều ảnh chụp lồng bên trong, file tiêu chuẩn thì tách ảnh rất nhanh).
 - Định dạng đầu ra mặc định: Bản dịch tiếng Việt trả về ở cả 2 định dạng đồng thời là HTML và PDF. Định dạng HTML thường có kết quả hiển thị tốt hơn.
@@ -40,9 +40,9 @@ Ngoài Antigravity, bạn có thể dùng công cụ với **Claude Code** (tab 
 - **Trình duyệt (tùy chọn để tự động xuất PDF):** Công cụ dùng Microsoft Edge (ưu tiên) hoặc Google Chrome để xuất tệp PDF. Nếu không có, quy trình vẫn xuất hoàn chỉnh tệp `*_vi.html`.
 
 ## Lý do tồn tại
-Tôi đã có sản phẩm https://github.com/kiencang/PDF-silaTranslator có chức năng tương đương, nhưng hiện tại chỉ API Key trả phí mới sử dụng được. 
+Tôi đã có sản phẩm https://github.com/kiencang/PDF-silaTranslator có chức năng tương đương, nhưng hiện tại chỉ API Key trả phí mới sử dụng được. Mặc dù ngưỡng miễn phí của Antigavity không lớn, nhưng nếu dịch tài liệu nhỏ vẫn được, còn với tài liệu dài, dịch nhiều vẫn cần các tài khoản có phí (nhưng tính trên trung bình, vẫn rẻ hơn khá nhiều so với việc dịch bằng cách mua API Key). 
 
-Luka-Loop sử dụng agent Gemini thông qua Antigravity, và hoàn toàn dùng được với tài khoản miễn phí. Ngoài ra, việc sử dụng các thư viện python chất lượng cao như PyMuPDF giúp công cụ có sự cải tiến tốt hơn trong khả năng tách ảnh, khi bạn thử, bạn sẽ thấy đa số các file PDF nó có khả năng bảo toàn định dạng rất tốt.
+Ngoài ra, việc sử dụng các thư viện python chất lượng cao như PyMuPDF giúp công cụ có sự cải tiến tốt hơn trong khả năng tách ảnh, khi bạn thử, bạn sẽ thấy đa số các file PDF nó có khả năng bảo toàn định dạng rất tốt.
 
 ## Cấu trúc dự án
 - [`AGENTS.md`](./AGENTS.md) — Quy tắc điều phối dành cho AI Agent trong workspace.
