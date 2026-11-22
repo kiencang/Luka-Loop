@@ -602,7 +602,7 @@ def _run_group(file: str, rg: int, entries: list[dict]) -> list[dict]:
     import pyarrow.parquet as pq
     import pymupdf
     from figure_detector.extract import _detect_table_placement
-    from figure_detector.pipeline import _run_page_pipeline
+    from figure_detector.pipeline import _run_page_pipeline, unrotated_page
 
     rows = pq.ParquetFile(file).read_row_group(rg, columns=["pdf"]).to_pylist()
     out = []
@@ -612,14 +612,16 @@ def _run_group(file: str, rg: int, entries: list[dict]) -> list[dict]:
         try:
             with pymupdf.open(stream=rows[e["row"]]["pdf"], filetype="pdf") as doc:
                 page = doc[0]
-                ctx, candidates, is_scanned = _run_page_pipeline(page)
-                tables = [t.rect for t in ctx.get_page_tables()] if any(c.caption_idx is None for c in candidates) else []
-                res["preds"] = [[round(v, 2) for v in c.rect] for c in candidates]
-                res["pred_meta"] = [
-                    {"source": c.source, "captioned": c.caption_idx is not None,
-                     "placement": _detect_table_placement(candidates, k, ctx, tables)}
-                    for k, c in enumerate(candidates)
-                ]
+                # Same as extract_images: detect unrotated, report boxes on the displayed page (DocLayNet's frame).
+                with unrotated_page(page) as to_display:
+                    ctx, candidates, is_scanned = _run_page_pipeline(page)
+                    tables = [t.rect for t in ctx.get_page_tables()] if any(c.caption_idx is None for c in candidates) else []
+                    res["pred_meta"] = [
+                        {"source": c.source, "captioned": c.caption_idx is not None,
+                         "placement": _detect_table_placement(candidates, k, ctx, tables)}
+                        for k, c in enumerate(candidates)
+                    ]
+                res["preds"] = [[round(v, 2) for v in c.rect * to_display] for c in candidates]
                 res["is_scanned"] = is_scanned
         except Exception as exc:  # noqa: BLE001 - one broken page must not stop a 12k-page run
             res["error"] = f"{type(exc).__name__}: {exc}"

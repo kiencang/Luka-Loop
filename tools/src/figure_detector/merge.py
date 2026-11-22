@@ -17,6 +17,7 @@ from .model import (
     CandidateBox,
     DetectorConfig,
     PageContext,
+    pymupdf,
 )
 
 
@@ -101,20 +102,25 @@ def _should_merge_candidates(
     return True
 
 
-def _sort_reading_order(candidates: list[CandidateBox]) -> list[CandidateBox]:
-    """Sort candidates top-to-bottom, ordering items within the same ~14pt band left-to-right."""
-    ordered = sorted(candidates, key=lambda c: (c.rect.y0, c.rect.x0))
-    rows: list[list[CandidateBox]] = []
-    for c in ordered:
-        if rows and abs(c.rect.y0 - rows[-1][0].rect.y0) <= 14.0:
-            rows[-1].append(c)
+def reading_order(rects: list[pymupdf.Rect]) -> list[int]:
+    """Return indices of `rects` top-to-bottom, ordering items within the same ~14pt band left-to-right."""
+    ordered = sorted(range(len(rects)), key=lambda i: (rects[i].y0, rects[i].x0))
+    rows: list[list[int]] = []
+    for i in ordered:
+        if rows and abs(rects[i].y0 - rects[rows[-1][0]].y0) <= 14.0:
+            rows[-1].append(i)
         else:
-            rows.append([c])
-    result: list[CandidateBox] = []
+            rows.append([i])
+    result: list[int] = []
     for row in rows:
-        row.sort(key=lambda c: c.rect.x0)
+        row.sort(key=lambda i: rects[i].x0)
         result.extend(row)
     return result
+
+
+def _sort_reading_order(candidates: list[CandidateBox]) -> list[CandidateBox]:
+    """Sort candidates top-to-bottom, ordering items within the same ~14pt band left-to-right."""
+    return [candidates[i] for i in reading_order([c.rect for c in candidates])]
 
 
 def merge_candidates(

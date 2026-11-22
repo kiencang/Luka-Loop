@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from .captions import (
     _recover_orphan_caption_vectors,
@@ -368,7 +370,29 @@ def detect_page_figures_debug(
     return candidates, is_scanned, ctx.trace
 
 
+@contextmanager
+def unrotated_page(page: pymupdf.Page) -> Iterator[pymupdf.Matrix]:
+    """Temporarily clear the page's /Rotate so detection sees one coordinate space.
+
+    On a rotated page PyMuPDF reports text, drawings and image boxes in unrotated coordinates, while `page.rect`
+    and `get_pixmap(clip=...)` use the displayed (rotated) page, so the detector's page-size rules and the crop
+    disagree. Inside this block every query is unrotated; the yielded matrix maps those coordinates onto the
+    displayed page. The original rotation is restored on exit (the document is never saved).
+    """
+    rotation = page.rotation
+    if rotation % 360 == 0:
+        yield pymupdf.Identity
+        return
+    to_display = page.rotation_matrix
+    page.set_rotation(0)
+    try:
+        yield to_display
+    finally:
+        page.set_rotation(rotation)
+
+
 def collect_page_figures(page: pymupdf.Page) -> tuple[list[pymupdf.Rect], bool]:
-    """Collect logical figure bounding boxes on `page` and flag scanned pages."""
-    _, candidates, is_scanned = _run_page_pipeline(page)
-    return [c.rect for c in candidates], is_scanned
+    """Collect logical figure bounding boxes on `page` (displayed-page coordinates) and flag scanned pages."""
+    with unrotated_page(page) as to_display:
+        _, candidates, is_scanned = _run_page_pipeline(page)
+    return [c.rect * to_display for c in candidates], is_scanned

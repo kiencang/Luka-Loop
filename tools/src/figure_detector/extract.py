@@ -26,8 +26,12 @@ from .model import (
     _ensure_pymupdf,
     pymupdf,
 )
+from .merge import (
+    reading_order,
+)
 from .pipeline import (
     _run_page_pipeline,
+    unrotated_page,
 )
 from .text import (
     _clean_text,
@@ -129,17 +133,37 @@ def extract_images(
         total_pages = len(doc)
 
         for pno, page in enumerate(doc, 1):
-            ctx, candidates, is_scanned = _run_page_pipeline(page)
+            # Detect (and read every text/table fact) on the unrotated page, then render on the displayed page.
+            with unrotated_page(page) as to_display:
+                ctx, candidates, is_scanned = _run_page_pipeline(page)
+                table_bboxes: list[pymupdf.Rect] = []
+                if write_meta and any(c.caption_idx is None for c in candidates):
+                    table_bboxes = [t.rect for t in ctx.get_page_tables()]
+                found: list[tuple[CandidateBox, pymupdf.Rect, dict | None]] = []
+                for idx0, cand in enumerate(candidates):
+                    meta = None
+                    if write_meta:
+                        cap_text = (
+                            _clean_text(ctx.fig_captions[cand.caption_idx].text)
+                            if cand.caption_idx is not None
+                            else None
+                        )
+                        meta = {
+                            "caption": cap_text,
+                            "context": None if cap_text is not None else _extract_context_snippet(cand.rect, ctx.text_blocks),
+                            "placement": _detect_table_placement(candidates, idx0, ctx, table_bboxes),
+                        }
+                    found.append((cand, cand.rect * to_display, meta))
             if is_scanned:
                 scanned_pages.append(pno)
-            table_bboxes: list[pymupdf.Rect] = []
-            if write_meta and any(c.caption_idx is None for c in candidates):
-                table_bboxes = [t.rect for t in ctx.get_page_tables()]
+            page_rect = page.rect
+            if page.rotation % 360:
+                # Unrotated reading order runs sideways on the displayed page; renumber in displayed order.
+                found = [found[i] for i in reading_order([bb for _, bb, _ in found])]
 
-            for idx0, cand in enumerate(candidates):
+            for idx0, (cand, bb, meta) in enumerate(found):
                 idx = idx0 + 1
-                bb = cand.rect
-                clip = pymupdf.Rect(bb.x0 - 4.0, bb.y0 - 4.0, bb.x1 + 4.0, bb.y1 + 4.0) & ctx.page_rect
+                clip = pymupdf.Rect(bb.x0 - 4.0, bb.y0 - 4.0, bb.x1 + 4.0, bb.y1 + 4.0) & page_rect
                 if clip.is_empty:
                     continue
                 out_name = f"fig_p{pno}_{idx}.png"
@@ -156,30 +180,19 @@ def extract_images(
                 pix.save(out_path)
                 saved.append(out_path)
 
-                if write_meta:
-                    cap_text = (
-                        _clean_text(ctx.fig_captions[cand.caption_idx].text)
-                        if cand.caption_idx is not None
-                        else None
-                    )
-                    ctx_text = (
-                        None
-                        if cap_text is not None
-                        else _extract_context_snippet(bb, ctx.text_blocks)
-                    )
-                    placement = _detect_table_placement(candidates, idx0, ctx, table_bboxes)
+                if meta is not None:
                     manifest_items.append(
                         {
                             "file": out_name,
                             "page": pno,
                             "source": cand.source,
                             "drawings": cand.drawings,
-                            "placement": placement,
-                            "box": _normalize_box(bb, ctx.page_rect),
+                            "placement": meta["placement"],
+                            "box": _normalize_box(bb, page_rect),
                             "width_px": pix.width,
                             "height_px": pix.height,
-                            "caption": cap_text,
-                            "context": ctx_text,
+                            "caption": meta["caption"],
+                            "context": meta["context"],
                         }
                     )
 
