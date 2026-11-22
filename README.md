@@ -12,7 +12,7 @@ Rất đơn giản, bạn tải trực tiếp gói dựng sẵn mới nhất t�
 - **Tải bản mới nhất:** [luka-loop-win-x64.zip](https://github.com/kiencang/Luka-Loop/releases/latest/download/luka-loop-win-x64.zip)
 - *(Nếu mở trang [GitHub Releases](https://github.com/kiencang/Luka-Loop/releases), hãy chọn tệp **`luka-loop-win-x64.zip`** trong mục **Assets** — không tải `Source code (zip)` vì gói mã nguồn thô từ Git không kèm sẵn `extract_assets.exe`).*
 
-Sau đó giải nén file zip đó ở bất kỳ thư mục làm việc nào mà bạn muốn. Khi giải nén, nhớ chọn tùy chọn `Extract Here`, mở thư mục `luka-loop` vừa giải nén thấy ngay file có tên `AGENTS.md` nghĩa là bạn đã giải nén thành công (nếu thích, bạn có thể đổi tên thư mục `luka-loop` sang tên khác cũng không vấn đề gì).
+Sau đó giải nén file zip đó ở bất kỳ thư mục làm việc nào mà bạn muốn. Khi giải nén, nhớ chọn tùy chọn `Extract Here`, mở thư mục `luka-loop` vừa giải nén thấy ngay file có tên `AGENTS.md` nghĩa là bạn đã giải nén thành công (nếu thích, bạn có thể đổi tên thư mục `luka-loop` sang tên khác cũng không vấn đề gì). PS: Nếu giải nén theo kiểu `Etract to` sẽ tạo thành 2 thư mục lồng nhau và sẽ không dùng được, nên bạn nhớ dùng `Extract Here` nhé! 
 
 Phần khó nhất đã xong! Giờ để dùng công cụ dịch, bạn chỉ việc vào Antigravity, chọn `Workspace > Create Project > Add Folder`, rồi bạn thêm thư mục vừa giải nén xong là OK.
 
