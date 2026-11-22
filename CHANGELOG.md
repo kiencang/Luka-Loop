@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.23] - 2026-11-23
 ### Fixed
 - Ảnh tách ra không còn dính tiêu đề chạy (tên tạp chí, tên chương) và số trang in sát phía trên hình. Trước khi dò hình, công cụ quét cả tài liệu, tìm dòng trên cùng/dưới cùng lặp lại ở cùng độ cao trên ít nhất 2 trang khác gần đó (số trang phải thay đổi như bộ đếm, nên số trên trục biểu đồ không bị nhầm). Các dòng này không bao giờ được gom vào hình, và mép hình chạm vào chúng được kéo lùi lại. Trên bộ đề 10 tệp × 5 trang (`dev/header-pdf`), số ảnh dính tiêu đề/số trang giảm từ 18/42 xuống 0, không thêm hình cắt hụt hay bỏ sót. Trên tài liệu thật: 56 trang lỗi dính tiêu đề của DocLayNet, chạy lại trong bản đầy đủ của 30 bài báo arXiv, code cũ dính cả 56, code mới sạch cả 56 mà không mất phần nào của hình (kiểm bằng máy, chấm mù và xem tận mắt 93 ảnh); 1.007 trang sách thật không đổi khung nào, tốc độ như cũ. Tài liệu một trang giữ nguyên kết quả (DocLayNet: cả 14.117 trang cho khung hình y hệt).
 
