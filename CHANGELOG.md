@@ -2,6 +2,10 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- Bộ chuyển đổi Claude Code: PDF tới 10 trang phải đọc bằng một lệnh `Read` chỉ có `file_path`, không kèm tham số `pages` (kể cả `pages: "1-5"`). Đọc cả tệp, Claude nhận cả lớp chữ lẫn hình từng trang nên chữ, số liệu và ký hiệu chính xác hơn, và không cần `pdftoppm`; chính tham số `pages` mới đòi `pdftoppm` và gây lỗi `pdftoppm is not installed` trên Windows.
+
 ## [1.1.18] - 2026-11-22
 ### Fixed
 - Cập nhật cho Claude adapter dùng luôn Render Pages để đọc file PDF dài;
