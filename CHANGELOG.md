@@ -2,10 +2,10 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.26] - 2026-11-24
 ### Fixed
 - **Hình ở một cột kéo chữ của cột bên cạnh vào ảnh** (dòng phương trình, đoạn văn ngắn của cột kia): bước gắn nhãn theo dòng (`_attach_adjacent_label_lines`) nay biết khe giữa hai cột chữ. Khe được tìm từ vị trí các đoạn văn (khối chữ ≥ 12 từ) chiếu xuống trục ngang: khoảng trống ≥ 6 pt nằm ở phần giữa trang (15–85% bề rộng), mỗi bên có đoạn văn chiếm ≥ 15% chiều cao trang. Hình không vượt qua đường giữa khe thì không nhận dòng chữ có tâm ở bên kia khe; hình rộng vắt qua đường giữa và trang không có khe (một cột, hoặc có đoạn văn chạy ngang cả trang) giữ cách cũ.
-  - DocLayNet: tune 6 trang đổi, holdout 3 trang đổi, val/test không đổi; ảnh dính chữ tune 163 → 159, holdout 20 → 18; trang lỗi nặng tune 517 → 514, holdout 138 → 136; số hình đúng và bỏ sót không đổi. Xem ảnh cả 6 trang tune: đều tốt hơn, trong đó có `1001.1552.pdf` p11, ca duy nhất bản cũ thắng khi chấm mù luật cứu mảnh nhỏ (v1.1.24).
+  - DocLayNet: tune 6 trang đổi, holdout 3 trang đổi, val/test không đổi; ảnh dính chữ tune 163 → 159, holdout 20 → 18; trang lỗi nặng tune 426 → 423, holdout 114 → 112; số hình đúng và bỏ sót không đổi. Xem ảnh cả 6 trang tune: đều tốt hơn, trong đó có `1001.1552.pdf` p11, ca duy nhất bản cũ thắng khi chấm mù luật cứu mảnh nhỏ (v1.1.24).
   - 32 bài báo đầy đủ (có nhận diện tiêu đề chạy): 4 trang đổi, đều tốt hơn; 6 cuốn sách tiêu biểu và `dev/header-pdf`: không đổi.
 
 ### Added
