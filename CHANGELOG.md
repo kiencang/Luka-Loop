@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.24] - 2026-11-24
 ### Fixed
 - Hình không còn bị cắt mất phần hay bỏ sót khi được vẽ bằng nhiều mảnh nhỏ rời nhau (lưới ô vuông, sơ đồ chấm, ký hiệu chú giải, nhãn trục vẽ bằng nét). Bộ dò chỉ gom các nét cách nhau tối đa 5 pt, nên những hình như vậy vỡ thành nhiều cụm, mỗi cụm nhỏ hơn 42 pt và bị loại vì "quá nhỏ". Nay, sau các bước dò hình sẵn có, những mảnh bị loại mà chưa nằm trong hình nào được gom lại với nhau và với các hình đã tìm thấy khi cách nhau tối đa 20 pt. Mỗi khối gom được phải qua lại toàn bộ luật lọc như một cụm bình thường. Ba chốt chặn đi kèm:
   - mảnh nằm đè lên câu văn hay chú thích (gạch phân số, dấu căn trong công thức) không được gom;
