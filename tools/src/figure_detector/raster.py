@@ -94,8 +94,11 @@ def detect_raster_regions(
     raw_rects: list[pymupdf.Rect] = []
     has_full_page_img = False
 
-    infos = ctx.page.get_image_info(xrefs=True)
-    trim_allowed = len(infos) <= cfg.raster_trim_max_images
+    # Inline images (BI..EI) carry no xref and cannot be trimmed via Pixmap(doc, xref); skip costly xref matching
+    # when the page has no image XObjects at all (e.g. pages tiled with thousands of inline images).
+    has_xobjects = bool(ctx.page.get_images(full=False))
+    infos = ctx.page.get_image_info(xrefs=has_xobjects)
+    trim_allowed = has_xobjects and len(infos) <= cfg.raster_trim_max_images
     for info in infos:
         r = pymupdf.Rect(info["bbox"]) & ctx.page_rect
         if r.is_empty or r.width < 1.0 or r.height < 1.0:

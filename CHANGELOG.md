@@ -2,6 +2,15 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Changed
+- Tối ưu các điểm nghẽn lớn nhất của bộ tách hình mà không đánh đổi độ chính xác trên trang thường:
+  - Bỏ cờ `TEXT_PRESERVE_IMAGES` khi đọc `page.get_text("dict")` trong `analyze_page` (tránh giải mã hàng nghìn ảnh nhúng rồi bỏ đi — trang chậm nhất `1001.2338.pdf` p20 giảm từ 49 s xuống 0,12 s ở Pha 1);
+  - Chỉ yêu cầu `xrefs=True` trong `get_image_info` khi trang thực sự có ảnh XObject (`page.get_images(full=False)` khác rỗng);
+  - Đánh chỉ mục `word_rects` theo dải tọa độ `y` 16 pt trong `_filter_drawings` thay cho quét $O(\text{drawings} \times \text{words})$;
+  - Tái sử dụng `ctx.drawings` (nhân bản `rect` an toàn) khi gọi `find_tables()` để không trích lại nét vẽ lần 2.
+  - Kết quả trên toàn bộ 14.117 trang DocLayNet (so với v1.1.24): thời gian trung bình giảm `0,514 s → 0,422 s/trang`, `p99` giảm `6,46 s → 5,25 s`, trang chậm nhất đo đơn luồng giảm xuống `26,15 s`; 14.110/14.117 trang trùng khớp tuyệt đối từng hộp, 7 trang thay đổi do bỏ `TEXT_PRESERVE_IMAGES` đều cải thiện (`pages_with_severe_error: 601 → 598`, `figures_ok: 4.679 → 4.682`, `0` tụt chất lượng); `dev/header-pdf` (50 trang) và 6/6 golden snapshot giữ nguyên 100%.
+
 ## [1.1.24] - 2026-11-24
 ### Fixed
 - Hình không còn bị cắt mất phần hay bỏ sót khi được vẽ bằng nhiều mảnh nhỏ rời nhau (lưới ô vuông, sơ đồ chấm, ký hiệu chú giải, nhãn trục vẽ bằng nét). Bộ dò chỉ gom các nét cách nhau tối đa 5 pt, nên những hình như vậy vỡ thành nhiều cụm, mỗi cụm nhỏ hơn 42 pt và bị loại vì "quá nhỏ". Nay, sau các bước dò hình sẵn có, những mảnh bị loại mà chưa nằm trong hình nào được gom lại với nhau và với các hình đã tìm thấy khi cách nhau tối đa 20 pt. Mỗi khối gom được phải qua lại toàn bộ luật lọc như một cụm bình thường. Ba chốt chặn đi kèm:

@@ -369,5 +369,40 @@ class TestSmallVectorRescue(unittest.TestCase):
             self.assertFalse(c.rect.contains(pymupdf.Point(200, 236)), f"caption of Figure 1 inside an image: {c.rect}")
 
 
+class TestWordBandEquivalence(unittest.TestCase):
+    """The Y-band word index in `_filter_drawings` must agree with brute-force `intersects` on every edge case."""
+
+    def test_word_bands_match_brute_force_on_boundaries_and_spans(self) -> None:
+        from figure_detector.geometry import _vert_overlap
+        from figure_detector.vector import _build_word_bands, _has_overlapping_word
+
+        words = [
+            pymupdf.Rect(10, -8, 40, 2),
+            pymupdf.Rect(50, 15.9, 90, 16.1),  # straddles a 16 pt band boundary
+            pymupdf.Rect(100, 16.0, 160, 32.0),  # sits cleanly on band boundary [16, 32]
+            pymupdf.Rect(200, 40.0, 260, 75.0),  # spans 3 bands
+            pymupdf.Rect(300, 100.0, 300, 110.0),  # degenerate zero-width rect
+        ]
+        bands = _build_word_bands(words)
+        probes = [
+            pymupdf.Rect(15, -4, 35, 1),
+            pymupdf.Rect(40, -8, 50, 2),  # touches x1==x0 only (no intersection)
+            pymupdf.Rect(60, 10, 80, 16.0),  # overlaps straddling word vertically by 0.1
+            pymupdf.Rect(105, 32.0, 150, 44.0),  # touches y0==y1 only
+            pymupdf.Rect(110, 18.0, 150, 30.0),  # fully inside boundary word
+            pymupdf.Rect(210, 52.0, 240, 62.0),  # middle band of multi-band word
+            pymupdf.Rect(295, 100.0, 305, 110.0),  # crosses degenerate word
+            pymupdf.Rect(0, 200.0, 50, 220.0),  # empty band
+        ]
+        for r in probes:
+            for half_v in (False, True):
+                expected = any(
+                    r.intersects(w) and (not half_v or _vert_overlap(r, w) >= 0.5 * min(r.height, w.height))
+                    for w in words
+                )
+                got = _has_overlapping_word(r, bands, require_half_vert=half_v)
+                self.assertEqual(got, expected, f"probe={r}, half_v={half_v}")
+
+
 if __name__ == "__main__":
     unittest.main()

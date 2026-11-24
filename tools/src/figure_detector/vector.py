@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 from functools import cached_property
 
@@ -38,14 +39,57 @@ from .text import (
 )
 
 
+_WORD_BAND_PT = 16.0
+
+
+def _build_word_bands(word_rects: list[pymupdf.Rect]) -> dict[int, list[tuple[float, float, pymupdf.Rect]]]:
+    """Bucket word boxes into horizontal strips so highlight/watermark checks avoid O(drawings * words)."""
+    bands: dict[int, list[tuple[float, float, pymupdf.Rect]]] = {}
+    for wr in word_rects:
+        if wr.is_empty or wr.is_infinite or not (math.isfinite(wr.y0) and math.isfinite(wr.y1)):
+            continue
+        entry = (wr.x0, wr.x1, wr)
+        b0 = math.floor(wr.y0 / _WORD_BAND_PT)
+        b1 = math.floor(wr.y1 / _WORD_BAND_PT)
+        for b in range(b0, b1 + 1):
+            bands.setdefault(b, []).append(entry)
+    return bands
+
+
+def _has_overlapping_word(
+    r: pymupdf.Rect,
+    word_bands: dict[int, list[tuple[float, float, pymupdf.Rect]]],
+    *,
+    require_half_vert: bool = False,
+) -> bool:
+    """Exact equivalent of `any(r.intersects(wr) ... for wr in word_rects)` restricted to overlapping Y-bands."""
+    if not word_bands or r.is_empty or r.is_infinite or not (math.isfinite(r.y0) and math.isfinite(r.y1)):
+        return False
+    rx0, rx1 = r.x0, r.x1
+    b0 = math.floor(r.y0 / _WORD_BAND_PT)
+    b1 = math.floor(r.y1 / _WORD_BAND_PT)
+    for b in range(b0, b1 + 1):
+        bucket = word_bands.get(b)
+        if not bucket:
+            continue
+        for wx0, wx1, wr in bucket:
+            if wx1 <= rx0 or rx1 <= wx0:
+                continue
+            if r.intersects(wr):
+                if not require_half_vert or _vert_overlap(r, wr) >= 0.5 * min(r.height, wr.height):
+                    return True
+    return False
+
+
 def _filter_drawings(
     ctx: PageContext, raster_rects: list[pymupdf.Rect], cfg: DetectorConfig = DEFAULT_CONFIG
 ) -> list[dict]:
     """Remove page frames, divider rules, highlights, watermarks, and tall sidebar containers."""
     top_y, bot_y = ctx.page_rect.y0, ctx.page_rect.y1
+    word_bands = _build_word_bands(ctx.word_rects) if ctx.word_rects else {}
     wm_indices = {i for i, dr in enumerate(ctx.drawings) if _is_light_gray_watermark_glyph(dr)}
     drop_wm = len(wm_indices) >= 4 and any(
-        ctx.drawings[i]["rect"].intersects(wr) for i in wm_indices for wr in ctx.word_rects
+        _has_overlapping_word(ctx.drawings[i]["rect"], word_bands) for i in wm_indices
     )
 
     filtered: list[dict] = []
@@ -73,16 +117,15 @@ def _filter_drawings(
             continue
 
         if dr.get("color") is None and dr.get("fill") is not None:
-            is_highlight = 4.0 <= r.height <= 24.0 and any(
-                r.intersects(wr) and _vert_overlap(r, wr) >= 0.5 * min(r.height, wr.height)
-                for wr in ctx.word_rects
-            )
-            is_tall_backdrop = (
+            if r.width >= 0.30 * ctx.pw:
+                continue
+            if 4.0 <= r.height <= 24.0 and _has_overlapping_word(r, word_bands, require_half_vert=True):
+                continue
+            if (
                 r.height >= 0.45 * ctx.ph
                 and r.width >= 0.12 * ctx.pw
                 and _count_words_inside(r, ctx.word_rects) >= 10
-            )
-            if is_highlight or r.width >= 0.30 * ctx.pw or is_tall_backdrop:
+            ):
                 continue
         elif r.height >= 0.45 * ctx.ph and r.width >= 0.12 * ctx.pw and _is_simple_box_drawing(dr):
             # Drop tall framed sidebar card backdrops (stroked + filled) enclosing dense sidebar prose/tables.
@@ -412,10 +455,7 @@ def _reject_pymupdf_table(f: _ClusterFeatures) -> FilterDecision | None:
         for t in ctx.get_page_tables()
     )
     if not matched_tab and len(f.inside_rects) >= 4:
-        clip_tabs = [
-            PageTableInfo(pymupdf.Rect(t.bbox), t.row_count, t.col_count)
-            for t in ctx.page.find_tables(clip=rect).tables
-        ]
+        clip_tabs = ctx.find_tables_in_clip(rect)
         matched_tab = any(
             t.rect.get_area() > 0.45 * rect_area
             and t.row_count >= 2

@@ -209,12 +209,25 @@ class PageContext:
         covered = sum((rect & h).get_area() for h in self.running_heads)
         return covered >= 0.5 * rect.get_area()
 
+    def _table_paths_kwargs(self) -> dict:
+        """Reuse `self.drawings` for `find_tables()` with cloned rects (PyMuPDF mutates path rects in place)."""
+        if getattr(self.page, "rotation", 0) % 360 != 0:
+            return {}
+        return {"paths": [{**dr, "rect": pymupdf.Rect(dr["rect"])} for dr in self.drawings]}
+
+    def find_tables_in_clip(self, clip: pymupdf.Rect) -> list[PageTableInfo]:
+        """Run `find_tables(clip=...)` reusing already-extracted page drawings."""
+        return [
+            PageTableInfo(pymupdf.Rect(t.bbox), t.row_count, t.col_count)
+            for t in self.page.find_tables(clip=clip, **self._table_paths_kwargs()).tables
+        ]
+
     def get_page_tables(self) -> list[PageTableInfo]:
         """Lazily run whole-page `find_tables()` at most once per page."""
         if self._page_tables is None:
             self._page_tables = [
                 PageTableInfo(pymupdf.Rect(t.bbox), t.row_count, t.col_count)
-                for t in self.page.find_tables().tables
+                for t in self.page.find_tables(**self._table_paths_kwargs()).tables
             ]
         return self._page_tables
 

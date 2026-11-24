@@ -204,7 +204,9 @@ def analyze_page(page: pymupdf.Page, cfg: DetectorConfig = DEFAULT_CONFIG) -> Pa
     rules = _collect_separator_rules(drawings, pw, ph) if drawings else []
 
     raw_blocks: list[TextBlock] = []
-    for b in page.get_text("dict").get("blocks", ()):
+    # Skip image blocks (type != 0) so MuPDF does not decode every embedded/inline image into bytes just to discard it.
+    text_flags = pymupdf.TEXTFLAGS_DICT & ~pymupdf.TEXT_PRESERVE_IMAGES
+    for b in page.get_text("dict", flags=text_flags).get("blocks", ()):
         if b.get("type") != 0:
             continue
         raw_blocks.extend(_split_dict_block(b, cfg=cfg))
