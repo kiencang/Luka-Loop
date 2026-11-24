@@ -5,6 +5,7 @@ Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ 
 ## [Unreleased]
 ### Changed
 - CI (`ci.yml`) nay cũng chạy khi chỉ đổi `.claude/**`, `CLAUDE.md` hoặc `dev/**` (các tệp mà `test_skill_contracts.py`, `test_eval_doclaynet.py`, `test_ab_judge.py` kiểm tra trực tiếp) và có thêm bước `ruff check tools/src tests` (ghim `ruff==0.15.7`).
+- Dọn `dev/`: thêm dòng trống cuối cho 10 tệp theo `.editorconfig`, sửa 22 cảnh báo `ruff` (nhiều câu lệnh một dòng, import, `lambda`, biến mơ hồ); bước ruff của CI nay quét cả `dev`. Bộ sinh `dev/header-pdf` cho ảnh trang giống hệt trước khi dọn.
 
 ## [1.1.30] - 2026-11-25
 ### Fixed

@@ -1,16 +1,20 @@
 """Render chosen pages (top part or full) with the extracted image boxes: red = contains running head."""
-import json, sys
+import json
+import sys
 from pathlib import Path
 import pymupdf
 
 SRC = Path(__file__).resolve().parents[1]  # dev/header-pdf
-RUN = Path(sys.argv[1]); out = Path(sys.argv[2]); frac = float(sys.argv[3])
+RUN = Path(sys.argv[1])
+out = Path(sys.argv[2])
+frac = float(sys.argv[3])
 rep = json.loads((RUN / "report.json").read_text(encoding="utf-8"))
 sel = [(a.split("@")[0], int(a.split("@")[1])) for a in sys.argv[4:]]
 outdoc = pymupdf.open()
 for name, p in sel:
     full = next(n for n in rep if n.startswith(name))
-    d = pymupdf.open(SRC / full); pg = d[p - 1]
+    d = pymupdf.open(SRC / full)
+    pg = d[p - 1]
     clip = pymupdf.Rect(0, 0, pg.rect.width, pg.rect.height * frac)
     op = outdoc.new_page(width=clip.width, height=clip.height)
     op.show_pdf_page(op.rect, d, p - 1, clip=clip)

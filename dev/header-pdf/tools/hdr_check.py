@@ -4,13 +4,17 @@ Per extracted image: 'header' if it contains >= 50% of a running head / folio bo
 Per figure: 'missed' if no image covers its centre, 'cut' if its inked area (white page render inside the
 placement box, ignoring the loose white box) reaches > 2 pt outside the covering image.
 """
-import contextlib, io, json, shutil, sys
+import contextlib
+import io
+import json
+import shutil
+import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]  # repo root (this file: dev/header-pdf/tools/)
 sys.path.insert(0, str(REPO / "tools" / "src"))
-import pymupdf
-from figure_detector.extract import extract_images
+import pymupdf  # noqa: E402
+from figure_detector.extract import extract_images  # noqa: E402
 
 SRC = REPO / "dev" / "header-pdf"
 OUT = Path(sys.argv[1])
@@ -63,8 +67,11 @@ for name, t in truth.items():
                          "outside_share": round(share, 4), "outside_sample": [[round(a, 1), round(b, 1)] for a, b in outside[:5]]})
     nh = sum(bool(i["header_hits"]) for i in items)
     report[name] = {"items": items, "figures": figs}
-    tot["images"] += len(items); tot["header"] += nh; tot["figures"] += len(figs)
-    tot["missed"] += sum(f["status"] == "missed" for f in figs); tot["cut"] += sum(f["status"] == "cut" for f in figs)
+    tot["images"] += len(items)
+    tot["header"] += nh
+    tot["figures"] += len(figs)
+    tot["missed"] += sum(f["status"] == "missed" for f in figs)
+    tot["cut"] += sum(f["status"] == "cut" for f in figs)
     print(f"{name:34} images {len(items)}  header {nh}  | figures {len(figs)}: "
           + " ".join(f"p{f['page']}:{f['status']}{'(ctrl)' if f['control'] else ''}" for f in figs)
           + " | hits: " + "; ".join(f"p{i['page']}:{'+'.join(i['header_hits'])}" for i in items if i["header_hits"]))

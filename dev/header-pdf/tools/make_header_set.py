@@ -161,22 +161,26 @@ class Doc:
             folio = s["folio_fmt"].format(pno)
             if s["folio"] == "top-outer":
                 x = s["W"] - s["margin"] - pymupdf.get_text_length(folio, "helv", s["head_fs"]) if outer_right else s["margin"]
-                page.insert_text((x, hy), folio, fontname="helv", fontsize=s["head_fs"]); self.mark(pno, "folio", x, hy, folio, "helv", s["head_fs"])
+                page.insert_text((x, hy), folio, fontname="helv", fontsize=s["head_fs"])
+                self.mark(pno, "folio", x, hy, folio, "helv", s["head_fs"])
             if s["folio"] == "top-centre":
                 x = (s["W"] - pymupdf.get_text_length(folio, "helv", s["head_fs"])) / 2
-                page.insert_text((x, hy), folio, fontname="helv", fontsize=s["head_fs"]); self.mark(pno, "folio", x, hy, folio, "helv", s["head_fs"])
+                page.insert_text((x, hy), folio, fontname="helv", fontsize=s["head_fs"])
+                self.mark(pno, "folio", x, hy, folio, "helv", s["head_fs"])
             if s.get("head_text"):
                 txt = s["head_text"]
                 if outer_right:
                     x = s["margin"]
                 else:
                     x = s["W"] - s["margin"] - pymupdf.get_text_length(txt, "helv", s["head_fs"])
-                page.insert_text((x, hy), txt, fontname="helv", fontsize=s["head_fs"]); self.mark(pno, "head", x, hy, txt, "helv", s["head_fs"])
+                page.insert_text((x, hy), txt, fontname="helv", fontsize=s["head_fs"])
+                self.mark(pno, "head", x, hy, txt, "helv", s["head_fs"])
             if s.get("rule"):
                 page.draw_line((s["margin"], hy + 4), (s["W"] - s["margin"], hy + 4), width=0.5)
             if s["folio"] == "bottom-centre":
                 w = pymupdf.get_text_length(folio, "tiro", 10)
-                page.insert_text(((s["W"] - w) / 2, s["H"] - s["foot_y"]), folio, fontname="tiro", fontsize=10); self.mark(pno, "folio", (s["W"] - w) / 2, s["H"] - s["foot_y"], folio, "tiro", 10)
+                page.insert_text(((s["W"] - w) / 2, s["H"] - s["foot_y"]), folio, fontname="tiro", fontsize=10)
+                self.mark(pno, "folio", (s["W"] - w) / 2, s["H"] - s["foot_y"], folio, "tiro", 10)
         return page
 
     def text(self, page, rect, n):
@@ -195,7 +199,7 @@ class Doc:
 
     def place_figure(self, page, rect, kind, loose_top=0.0, raster=False, control=None):
         """Draw a figure in `rect` (page coords). `loose_top` pt of white bounding box above the plot."""
-        s, rnd, (_, xl, yl) = self.s, self.rnd, self.topic
+        rnd, (_, xl, yl) = self.rnd, self.topic
         w_in, h_in = rect.width / 72, max(1.2, (rect.height - loose_top) / 72)
         if kind == "lines":
             fig = fig_lines(rnd, xl, yl, w_in, h_in, top_ticks=control == "top_ticks", title="Panel overview" if control == "title" else None)

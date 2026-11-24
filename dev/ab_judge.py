@@ -171,10 +171,10 @@ def score(args: argparse.Namespace) -> None:
         sys.exit(f"no key for round {code}")
     key = json.loads(key_path.read_text(encoding="utf-8"))
     res = decode(answers.strip(), key["items"])
-    w, l = len(res["new_better"]), len(res["old_better"])
-    lo, hi = wilson(w, w + l)
-    print(f"{code}: new better {w}, old better {l}, equal {len(res['equal'])}, both bad {len(res['both_bad'])}")
-    print(f"new wins {w}/{w + l} decisive pairs (95% CI {lo:.0%}-{hi:.0%}), sign test p={sign_test(w, l):.3g}")
+    w, n_old = len(res["new_better"]), len(res["old_better"])
+    lo, hi = wilson(w, w + n_old)
+    print(f"{code}: new better {w}, old better {n_old}, equal {len(res['equal'])}, both bad {len(res['both_bad'])}")
+    print(f"new wins {w}/{w + n_old} decisive pairs (95% CI {lo:.0%}-{hi:.0%}), sign test p={sign_test(w, n_old):.3g}")
     for name in ("old_better", "both_bad"):
         for i in res[name]:
             it = key["items"][i - 1]

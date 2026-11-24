@@ -1,12 +1,20 @@
 """Review page: every page of dev/header-pdf with the extracted image boxes, plus the crops themselves (PNG folder)."""
-import base64, html, json, sys
+import base64
+import html
+import json
+import sys
 from pathlib import Path
 import pymupdf
 
 REPO = Path(__file__).resolve().parents[3]  # repo root (this file: dev/header-pdf/tools/)
 RUN = Path(sys.argv[1])
 report = json.loads((RUN / "report.json").read_text(encoding="utf-8"))
-b64 = lambda data: "data:image/png;base64," + base64.b64encode(data).decode()
+
+
+def b64(data):
+    return "data:image/png;base64," + base64.b64encode(data).decode()
+
+
 cards = []
 for name, rep in report.items():
     doc = pymupdf.open(REPO / "dev" / "header-pdf" / name)
@@ -14,11 +22,15 @@ for name, rep in report.items():
         figs = [i for i in rep["items"] if i["page"] == pno]
         if not figs:
             continue
-        view = pymupdf.open(); vp = view.new_page(width=page.rect.width, height=page.rect.height)
+        view = pymupdf.open()
+        vp = view.new_page(width=page.rect.width, height=page.rect.height)
         vp.show_pdf_page(vp.rect, doc, pno - 1)
         for i in figs:
             r = pymupdf.Rect(i["img"])
-            sh = vp.new_shape(); sh.draw_rect(r); sh.finish(color=(0.9, 0.05, 0.05) if i["header_hits"] else (0.1, 0.35, 0.95), width=2); sh.commit()
+            sh = vp.new_shape()
+            sh.draw_rect(r)
+            sh.finish(color=(0.9, 0.05, 0.05) if i["header_hits"] else (0.1, 0.35, 0.95), width=2)
+            sh.commit()
         pv = b64(vp.get_pixmap(matrix=pymupdf.Matrix(0.75, 0.75)).tobytes("png"))
         crops = "".join(
             f"<figure><img src='{b64((RUN / Path(name).stem / i['file']).read_bytes())}'><figcaption>{i['file']}"
