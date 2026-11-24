@@ -31,6 +31,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.26 | 4.682 (89,0%) | 362 | 114 | 101 | 214 | 9 | 593 | 89,0% | 0,35 |
 | v1.1.27 – v1.1.28 | 4.698 (89,3%) | 357 | 115 | 89 | 215 | 9 | 578 | 89,1% | 0,36 |
 | v1.1.29 | 4.698 (89,3%) | 357 | 115 | 89 | 213 | 9 | 576 | 89,1% | 0,36 |
+| v1.1.30 | 4.735 (90,0%) | 322 | 113 | 89 | 213 | 9 | 545 | 89,2% | 0,39 |
 
 ¹ **Tốc độ chỉ mang tính tương đối:** phụ thuộc cấu hình máy và điều kiện lúc đo (số tiến trình song song, máy có đang chạy việc khác không). Các lần đo v1.1.23 và v1.1.24 chạy khi máy đang bận việc khác. Đừng so tốc độ giữa các dòng như số liệu chính xác.
 
@@ -49,6 +50,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.26 | 3.183 · 423 | 835 · 112 | 348 · 22 | 316 · 36 |
 | v1.1.27 – v1.1.28 | 3.199 · 408 | 835 · 112 | 348 · 22 | 316 · 36 |
 | v1.1.29 | 3.199 · 406 | 835 · 112 | 348 · 22 | 316 · 36 |
+| v1.1.30 | 3.223 · 385 | 841 · 108 | 350 · 19 | 321 · 33 |
 
 ## Nguồn số liệu
 
@@ -63,6 +65,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.26 | `8d92c1a` | 2026-11-24 | `172519787d7789f6` |
 | v1.1.27 – v1.1.28 | `b3b1347` | 2026-11-25 | `c412ca96d270a58f` |
 | v1.1.29 | `a2d634e` | 2026-11-25 | `4e80451c3f26ec75` |
+| v1.1.30 | `fc13ee4` | 2026-11-25 | `03569fac1d52d2c8` |
 
 Dấu vân tay là mã băm của `tools/src/figure_detector/*.py` và `tools/src/image_ops.py`; kết quả từng trang nằm trong `%TEMP%\luka_doclaynet_eval\pages\<dấu vân tay>.jsonl` (bộ đệm cục bộ, có thể bị xóa).
 
@@ -75,3 +78,4 @@ Dấu vân tay là mã băm của `tools/src/figure_detector/*.py` và `tools/sr
 - **v1.1.26:** bước gắn nhãn không vượt khe giữa hai cột chữ; 9 trang đổi (tune 6, holdout 3), đều tốt hơn: ảnh dính chữ 220 → 214, trang lỗi nặng 598 → 593.
 - **v1.1.27:** bộ đếm đường cong tính cả đường gấp khúc gồm nhiều đoạn chéo li ti, nên biểu đồ đường không còn bị luật nhận bảng loại; 21 trang đổi (tune 20, holdout 1), bỏ sót 101 → 89; chấm mù AB7 bản mới thắng 14/14.
 - **v1.1.29:** khe giữa hai cột tính cả khung hình và chú thích, nên tìm được khe bên cạnh cột chỉ có hình; 2 trang tune đổi, đều tốt hơn: ảnh dính chữ 215 → 213, trang lỗi nặng 578 → 576. (v1.1.28 chỉ đổi tài liệu, gộp vào dòng v1.1.27.)
+- **v1.1.30:** nhãn nối với hình bằng một nét kẻ mảnh (đường dẫn nhãn, trục, đường mốc) được lấy trọn vào ảnh; 258 trang đổi, 41 trang tốt hơn theo điểm, 0 trang kém hơn: hình đúng 4.698 → 4.735, trang lỗi nặng 576 → 545; chấm mù AB8 bản mới thắng 31/32 cặp phân định. Chậm hơn khoảng 8% (0,36 → 0,39 giây/trang) vì dò nét kẻ trên mỗi trang.
