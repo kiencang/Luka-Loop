@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.25] - 2026-11-24
 ### Added
 - Thực thi giới hạn thời gian **30 giây/trang** cho bộ tách hình (`DetectorConfig.max_page_seconds = 30.0`, `PageContext.budget_exceeded()`): chốt kiểm tra hợp tác bằng đồng hồ thực đặt tại các bước phân tích nặng từ Pha 1 đến Pha 6 (cắt viền trắng ảnh raster, lọc/gom cụm/đánh giá vector, `find_tables`, cứu chú thích mồ côi, Pha 3b cứu mảnh vector nhỏ, nới nhãn trục và tra bảng metadata). Khi vượt 30 s, công cụ bỏ các bước nặng còn lại (cắt viền trắng, gom cụm nếu chưa gom, `find_tables`, cứu chú thích mồ côi, Pha 3b) nhưng vẫn chấm các cụm vector đã gom (tối đa 40 cụm lớn nhất, `DetectorConfig.budget_late_clusters`), vẫn chạy các bước rẻ (nới nhãn trục, gộp lần hai, gắn nhãn theo dòng, khử tiêu đề chạy) và in cảnh báo ra `stderr`; các trang chạy dưới ngưỡng 30 s giữ nguyên 100% luồng xử lý và kết quả. Giới hạn là "mềm": chỉ kiểm tra giữa các bước, nên một lệnh PyMuPDF lớn đang chạy (đọc nét vẽ, gom cụm) có thể kéo trang quá 30 s vài giây. Bổ sung các ca kiểm thử dùng đồng hồ giả trong `tests/test_detector_fixes.py`.
 
