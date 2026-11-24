@@ -67,7 +67,7 @@ python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune --disabl
   - 99% số trang dưới 10 s;
   - không trang nào được phép chạy quá 30 s: quá ngưỡng thì bỏ các bước phân tích nặng và giữ kết quả đơn giản đã có.
 
-  Mốc v1.1.14: trung bình 0,43 s, 99% dưới 5,4 s, trang chậm nhất 178 s. Mốc sau khi tối ưu các điểm nghẽn và thực thi giới hạn 30 s/trang (`DetectorConfig.max_page_seconds = 30.0`, dùng `time.monotonic` khi chạy thật và `time.process_time` trong `eval_doclaynet.py` nhiều worker): trên toàn bộ 14.117 trang DocLayNet đạt trung bình ~0,42 s, 99% dưới 5,3 s, trang chậm nhất đo đơn luồng 26,15 s (`0` trang chạm timeout, `0` sai lệch với chế độ không giới hạn).
+  Mốc v1.1.14: trung bình 0,43 s, 99% dưới 5,4 s, trang chậm nhất 178 s. Mốc sau khi tối ưu các điểm nghẽn và thực thi giới hạn 30 s/trang (`DetectorConfig.max_page_seconds = 30.0`, đo bằng `time.monotonic`): trên toàn bộ 14.117 trang DocLayNet đạt trung bình ~0,42 s, 99% dưới 5,3 s, trang chậm nhất đo đơn luồng 26,15 s. `eval_doclaynet.py` chạy bộ tách hình **không** giới hạn thời gian, vì các worker song song làm chậm nhau (cả thời gian thực lẫn CPU) và giới hạn sẽ cắt nhầm trang; cột `pages_over_budget` trong báo cáo chỉ là cờ để đo lại đơn luồng.
 
 ### Chấm mù trái/phải (A/B)
 

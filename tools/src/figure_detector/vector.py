@@ -714,15 +714,27 @@ def detect_vector_regions(
     )
     raw_count = len(raw_clusters)
     kept: list[pymupdf.Rect] = []
-    for c in raw_clusters:
-        if ctx.budget_exceeded(f"vector_clusters kept={len(kept)}/{raw_count}"):
-            break
+
+    def judge(c: pymupdf.Rect) -> None:
         dec = _evaluate_vector_cluster(ctx, c, filtered, raster_rects, raw_count, cfg=cfg)
         ctx.log(f"vector:{dec.reason} {[round(v, 1) for v in c]}")
         if dec.keep:
             kept.append(c)
         elif dec.reason == "reject:too_small":
             ctx.small_vector_rejects.append(pymupdf.Rect(c))
+
+    for k, c in enumerate(raw_clusters):
+        if ctx.budget_exceeded():
+            # Clustering is the costly step and it is already paid for; judging a cluster is cheap once the budget
+            # is gone (table lookups are skipped). Judge the remaining clusters largest-first, up to a fixed count,
+            # instead of dropping figures that were found on a slow page.
+            rest = sorted(raw_clusters[k:], key=lambda r: -r.get_area())
+            late = rest[: cfg.budget_late_clusters]
+            ctx.log(f"budget:late_clusters judged={len(late)}/{len(rest)} kept_before={len(kept)}")
+            for c2 in late:
+                judge(c2)
+            break
+        judge(c)
     return kept, filtered, raw_count
 
 

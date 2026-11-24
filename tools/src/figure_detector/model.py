@@ -95,6 +95,8 @@ class DetectorConfig:
     touching_merge_gap: float = 4.0
     # Per-page wall-clock budget (seconds); <= 0 disables the cap.
     max_page_seconds: float = 30.0
+    # Vector clusters still judged (largest first, table lookups skipped) when the budget runs out mid-phase
+    budget_late_clusters: int = 40
 
 
 DEFAULT_CONFIG = DetectorConfig()
@@ -231,10 +233,17 @@ class PageContext:
         return covered >= 0.5 * rect.get_area()
 
     def _table_paths_kwargs(self) -> dict:
-        """Reuse `self.drawings` for `find_tables()` with cloned rects (PyMuPDF mutates path rects in place)."""
+        """Reuse `self.drawings` for `find_tables()` on private copies.
+
+        PyMuPDF's table finder edits the paths it is given: it widens `rect` in place and appends a closing
+        segment to `items` of every closed line path. Both are cloned so the detector's own drawings (whose item
+        counts several rules read) stay as extracted, however many times tables are searched.
+        """
         if getattr(self.page, "rotation", 0) % 360 != 0:
             return {}
-        return {"paths": [{**dr, "rect": pymupdf.Rect(dr["rect"])} for dr in self.drawings]}
+        return {
+            "paths": [{**dr, "rect": pymupdf.Rect(dr["rect"]), "items": list(dr["items"])} for dr in self.drawings]
+        }
 
     def find_tables_in_clip(self, clip: pymupdf.Rect) -> list[PageTableInfo]:
         """Run `find_tables(clip=...)` reusing already-extracted page drawings."""

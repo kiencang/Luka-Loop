@@ -404,6 +404,36 @@ class TestWordBandEquivalence(unittest.TestCase):
                 self.assertEqual(got, expected, f"probe={r}, half_v={half_v}")
 
 
+class TestTablePathReuse(unittest.TestCase):
+    """`find_tables()` gets copies of the page drawings, so table searches never edit the detector's own paths."""
+
+    def test_table_searches_leave_drawing_items_and_rects_unchanged(self) -> None:
+        from figure_detector.text import analyze_page
+
+        doc = pymupdf.open()
+        self.addCleanup(doc.close)
+        page = doc.new_page(width=612, height=792)
+        # A ruled 3x3 grid with text (a table) and a closed triangle drawn with line segments.
+        for k in range(4):
+            page.draw_line((100, 100 + 30 * k), (400, 100 + 30 * k))
+            page.draw_line((100 + 100 * k, 100), (100 + 100 * k, 190))
+        for r in range(3):
+            for c in range(3):
+                page.insert_text((110 + 100 * c, 120 + 30 * r), f"cell {r}{c}", fontsize=BODY)
+        page.draw_polyline([(150, 300), (300, 450), (120, 420)])
+        ctx = analyze_page(page)
+        # PyMuPDF 1.28 reports closed line paths with an explicit closing segment and closePath=False; other
+        # versions may report closePath=True instead, which is when find_tables appends a segment. Model that form.
+        tri = next(dr for dr in ctx.drawings if dr["rect"].y0 >= 290)
+        tri["closePath"] = True
+        before = [(len(dr["items"]), tuple(dr["rect"])) for dr in ctx.drawings]
+        ctx.get_page_tables()
+        ctx.find_tables_in_clip(pymupdf.Rect(90, 90, 410, 200))
+        ctx.find_tables_in_clip(pymupdf.Rect(100, 280, 320, 470))
+        after = [(len(dr["items"]), tuple(dr["rect"])) for dr in ctx.drawings]
+        self.assertEqual(after, before)
+
+
 class TestPageBudget(unittest.TestCase):
     """Per-page 30 s budget: never alters pages below the limit, and cleanly skips heavy passes once exceeded."""
 
@@ -491,7 +521,7 @@ class TestPageBudget(unittest.TestCase):
         self.assertEqual(len(cands), 1, cands)
         self.assertLess(cands[0].rect.x1, 290, "left main plot kept, Phase 3b cell panel skipped on timeout")
 
-    def test_timeout_before_label_lines_skips_find_tables_and_still_clears_running_heads(self) -> None:
+    def test_timeout_before_label_lines_still_attaches_labels_without_find_tables(self) -> None:
         from unittest import mock
 
         import figure_detector.pipeline as pipe
@@ -519,9 +549,33 @@ class TestPageBudget(unittest.TestCase):
             )
 
         self.assertTrue(ctx.timed_out)
-        self.assertIn("budget:skip attach_label_lines", ctx.trace)
+        self.assertIn("budget:skip find_tables", ctx.trace)
+        self.assertTrue(any(t.startswith("labels:attach_lines") for t in ctx.trace), "cheap label pass must still run")
         self.assertEqual(len(cands), 1, cands)
         self.assertGreaterEqual(cands[0].rect.y0, head_rect.y1 + 4.0, "running heads must still be cleared after timeout")
+
+    def test_timeout_after_clustering_still_judges_the_clusters(self) -> None:
+        from figure_detector.model import DetectorConfig
+        from figure_detector.pipeline import _run_page_pipeline
+
+        page = TestSmallVectorRescue()._page()
+        now = [0.0]
+        orig_cluster = page.cluster_drawings
+
+        def slow_cluster(*args, **kwargs):
+            out = orig_cluster(*args, **kwargs)
+            now[0] = 35.0  # clustering used up the budget
+            return out
+
+        page.cluster_drawings = slow_cluster
+        ctx, cands, _ = _run_page_pipeline(page, cfg=DetectorConfig(max_page_seconds=30.0), clock=lambda: now[0])
+        _, ref, _ = _run_page_pipeline(TestSmallVectorRescue()._page(), cfg=DetectorConfig(small_rescue_gap=0.0))
+
+        self.assertTrue(ctx.timed_out)
+        self.assertTrue(any(t.startswith("budget:late_clusters") for t in ctx.trace), ctx.trace)
+        self.assertEqual(len(cands), 1, "the plot found by clustering must not be dropped")
+        self.assertEqual(tuple(round(v, 1) for v in cands[0].rect), tuple(round(v, 1) for v in ref[0].rect),
+                         "same box as an unhurried run without the small-piece rescue (skipped after timeout)")
 
     def test_extract_images_warns_to_stderr_on_timeout_and_keeps_valid_outputs(self) -> None:
         import io

@@ -49,6 +49,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO_ROOT / "tools" / "src"
+PAGE_BUDGET_SECONDS = 30.0  # DetectorConfig.max_page_seconds, used only to report slow pages
 
 SPLIT_DIRS = {"train": "DocLayNet-train", "val": "DocLayNet-val", "test": "DocLayNet-test"}
 SUBSETS = ("tune", "holdout", "val", "test")
@@ -377,7 +378,9 @@ def summarize(results: list[dict]) -> dict:
     return {
         "pages": len(results),
         "page_errors": len(results) - len(ok),
-        "pages_timed_out": sum(1 for r in results if r.get("timed_out")),
+        # Detection runs without the per-page budget here (see _run_group); this counts pages whose wall time in this
+        # run exceeded it. Parallel workers slow each other, so recheck such pages single-threaded before trusting it.
+        "pages_over_budget": sum(1 for r in results if r.get("seconds", 0.0) > PAGE_BUDGET_SECONDS),
         "pages_with_pictures": sum(1 for r in ok if r["eval"]["n_gt"]),
         "severity": {
             "pages_with_severe_error": severe_pages,
@@ -603,7 +606,10 @@ def _run_group(file: str, rg: int, entries: list[dict]) -> list[dict]:
     import pyarrow.parquet as pq
     import pymupdf
     from figure_detector.extract import _detect_table_placement
+    from figure_detector.model import DetectorConfig
     from figure_detector.pipeline import _run_page_pipeline, unrotated_page
+
+    no_budget = DetectorConfig(max_page_seconds=0.0)
 
     rows = pq.ParquetFile(file).read_row_group(rg, columns=["pdf"]).to_pylist()
     out = []
@@ -614,9 +620,10 @@ def _run_group(file: str, rg: int, entries: list[dict]) -> list[dict]:
             with pymupdf.open(stream=rows[e["row"]]["pdf"], filetype="pdf") as doc:
                 page = doc[0]
                 # Same as extract_images: detect unrotated, report boxes on the displayed page (DocLayNet's frame).
-                # Use process_time in multi-worker eval runs so parallel CPU contention does not trigger false timeouts.
+                # The 30 s page budget is off: parallel workers inflate both wall and CPU time, so a budget would cut
+                # pages that finish well inside it when run alone, mixing machine load into the quality numbers.
                 with unrotated_page(page) as to_display:
-                    ctx, candidates, is_scanned = _run_page_pipeline(page, clock=time.process_time)
+                    ctx, candidates, is_scanned = _run_page_pipeline(page, cfg=no_budget)
                     tables = [t.rect for t in ctx.get_page_tables()] if any(c.caption_idx is None for c in candidates) else []
                     res["pred_meta"] = [
                         {"source": c.source, "captioned": c.caption_idx is not None,
@@ -625,7 +632,6 @@ def _run_group(file: str, rg: int, entries: list[dict]) -> list[dict]:
                     ]
                 res["preds"] = [[round(v, 2) for v in c.rect * to_display] for c in candidates]
                 res["is_scanned"] = is_scanned
-                res["timed_out"] = ctx.timed_out
         except Exception as exc:  # noqa: BLE001 - one broken page must not stop a 12k-page run
             res["error"] = f"{type(exc).__name__}: {exc}"
             res["traceback"] = traceback.format_exc(limit=3)

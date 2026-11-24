@@ -74,8 +74,6 @@ def _expand_plot_axis_labels(candidates: list[CandidateBox], ctx: PageContext) -
     Prevents vector chart crops from slicing off Y-axis numbers, rotated Y-axis titles,
     X-axis labels, and subpanel markers that live just outside the vector axis frame.
     """
-    if ctx.budget_exceeded("expand_axis_labels"):
-        return
     all_captions = ctx.fig_captions + ctx.tab_captions
     prose_blocks = [
         tb
@@ -95,8 +93,6 @@ def _expand_plot_axis_labels(candidates: list[CandidateBox], ctx: PageContext) -
         return
 
     for idx, cand in enumerate(candidates):
-        if ctx.budget_exceeded("expand_axis_labels"):
-            break
         if cand.source == "raster" and cand.caption_idx is None:
             continue
         orig = pymupdf.Rect(cand.rect)
@@ -250,8 +246,6 @@ def _attach_adjacent_label_lines(candidates: list[CandidateBox], ctx: PageContex
     two neighbouring panels (too wide to attach) or straddle the box edge (matching no side). Working on lines,
     with side-specific gaps, recovers those labels. Never crosses captions, prose, another figure or page margins.
     """
-    if ctx.budget_exceeded("attach_label_lines"):
-        return
     lines = _label_lines(ctx)
     if not lines:
         return
@@ -270,8 +264,6 @@ def _attach_adjacent_label_lines(candidates: list[CandidateBox], ctx: PageContex
         return table_cache[0]
 
     for idx, cand in enumerate(candidates):
-        if ctx.budget_exceeded("attach_label_lines"):
-            break
         if cand.source == "raster" and cand.caption_idx is None:
             continue
         orig = pymupdf.Rect(cand.rect)
@@ -393,7 +385,7 @@ def _run_page_pipeline(
 
     _annotate_candidate_origins(candidates, raster_rects, filtered_rects)
     _expand_plot_axis_labels(candidates, ctx)
-    if len(candidates) >= 2 and not ctx.budget_exceeded("second_merge"):
+    if len(candidates) >= 2:
         candidates = merge_candidates(ctx, candidates, cfg=cfg)
         _annotate_candidate_origins(candidates, raster_rects, filtered_rects)
         _expand_plot_axis_labels(candidates, ctx)
