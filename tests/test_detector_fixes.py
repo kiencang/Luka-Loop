@@ -404,5 +404,177 @@ class TestWordBandEquivalence(unittest.TestCase):
                 self.assertEqual(got, expected, f"probe={r}, half_v={half_v}")
 
 
+class TestPageBudget(unittest.TestCase):
+    """Per-page 30 s budget: never alters pages below the limit, and cleanly skips heavy passes once exceeded."""
+
+    def test_budget_disabled_and_enabled_give_identical_results_below_threshold(self) -> None:
+        from figure_detector.model import DetectorConfig
+        from figure_detector.pipeline import _run_page_pipeline, unrotated_page
+
+        samples = sorted((REPO_ROOT / "tests" / "layout_samples").glob("*.pdf"))
+        self.assertTrue(samples)
+        for pdf_path in samples:
+            with pymupdf.open(pdf_path) as doc_off, pymupdf.open(pdf_path) as doc_on:
+                for p_off, p_on in zip(doc_off, doc_on):
+                    with unrotated_page(p_off):
+                        ctx_off, cands_off, scan_off = _run_page_pipeline(p_off, cfg=DetectorConfig(max_page_seconds=0.0))
+                    with unrotated_page(p_on):
+                        ctx_on, cands_on, scan_on = _run_page_pipeline(p_on, cfg=DetectorConfig(max_page_seconds=30.0))
+                    self.assertFalse(ctx_off.timed_out)
+                    self.assertFalse(ctx_on.timed_out)
+                    self.assertEqual(scan_on, scan_off, pdf_path.name)
+                    self.assertEqual(
+                        [(tuple(round(v, 3) for v in c.rect), c.source, c.caption_idx) for c in cands_on],
+                        [(tuple(round(v, 3) for v in c.rect), c.source, c.caption_idx) for c in cands_off],
+                        f"30s budget changed output on fast page of {pdf_path.name}",
+                    )
+
+    def test_timeout_after_phase1_keeps_untrimmed_raster_and_skips_vector_clustering(self) -> None:
+        from unittest import mock
+
+        from figure_detector.model import DetectorConfig
+        from figure_detector.pipeline import _run_page_pipeline
+
+        doc = pymupdf.open()
+        self.addCleanup(doc.close)
+        page = doc.new_page(width=612, height=792)
+        _paragraph(page, 90, 3)
+        page.insert_image(pymupdf.Rect(72, 120, 540, 420), stream=_png_with_white_margin(936, 600, (216, 100, 716, 440)))
+        page.insert_text((72, 440), "Figure 1: Response of the sensor array under load.", fontsize=BODY)
+        # Also draw a vector plot below so we can verify Phase 3 is skipped when expired before Phase 2 trim.
+        page.draw_rect(pymupdf.Rect(100, 500, 340, 640), color=(0, 0, 0), width=1.0)
+
+        ticks = iter([0.0, 31.0])
+        cur_t = [0.0]
+
+        def fake_clock() -> float:
+            try:
+                cur_t[0] = next(ticks)
+            except StopIteration:
+                pass
+            return cur_t[0]
+
+        with mock.patch.object(page, "cluster_drawings", side_effect=AssertionError("must skip cluster_drawings")):
+            ctx, cands, _ = _run_page_pipeline(page, cfg=DetectorConfig(max_page_seconds=30.0), clock=fake_clock)
+
+        self.assertTrue(ctx.timed_out)
+        self.assertIn("budget:skip raster_trim", ctx.trace)
+        self.assertIn("budget:skip vector_phase", ctx.trace)
+        self.assertEqual(len(cands), 1, cands)
+        self.assertAlmostEqual(cands[0].rect.y0, 120.0, delta=1.5, msg="untrimmed raster placement box must be preserved")
+
+    def test_timeout_before_phase3b_keeps_main_figure_and_skips_small_rescue(self) -> None:
+        from figure_detector.model import DetectorConfig
+        from figure_detector.pipeline import _run_page_pipeline
+
+        page = TestSmallVectorRescue()._page()
+        now = [0.0]
+
+        def clock() -> float:
+            return now[0]
+
+        orig_rescue = fd.vector.rescue_small_vector_pieces
+
+        def expire_at_phase3b(*args, **kwargs):
+            now[0] = 35.0
+            return orig_rescue(*args, **kwargs)
+
+        from unittest import mock
+
+        import figure_detector.pipeline as pipe
+
+        with mock.patch.object(pipe, "rescue_small_vector_pieces", side_effect=expire_at_phase3b):
+            ctx, cands, _ = _run_page_pipeline(page, cfg=DetectorConfig(max_page_seconds=30.0), clock=clock)
+
+        self.assertTrue(ctx.timed_out)
+        self.assertIn("budget:skip rescue_small", ctx.trace)
+        self.assertEqual(len(cands), 1, cands)
+        self.assertLess(cands[0].rect.x1, 290, "left main plot kept, Phase 3b cell panel skipped on timeout")
+
+    def test_timeout_before_label_lines_skips_find_tables_and_still_clears_running_heads(self) -> None:
+        from unittest import mock
+
+        import figure_detector.pipeline as pipe
+        from figure_detector.model import DetectorConfig
+        from figure_detector.pipeline import _run_page_pipeline
+
+        page, frame = TestAxisLabelLineAttachment()._plot_page()
+        head_rect = pymupdf.Rect(170, 200, 470, 214)  # running head overlapping top of figure frame
+        now = [0.0]
+        orig_attach = pipe._attach_adjacent_label_lines
+
+        def expire_at_labels(*args, **kwargs):
+            now[0] = 35.0
+            return orig_attach(*args, **kwargs)
+
+        with (
+            mock.patch.object(pipe, "_attach_adjacent_label_lines", side_effect=expire_at_labels),
+            mock.patch.object(page, "find_tables", side_effect=AssertionError("find_tables must not run after timeout")),
+        ):
+            ctx, cands, _ = _run_page_pipeline(
+                page,
+                cfg=DetectorConfig(max_page_seconds=30.0),
+                running_heads=[head_rect],
+                clock=lambda: now[0],
+            )
+
+        self.assertTrue(ctx.timed_out)
+        self.assertIn("budget:skip attach_label_lines", ctx.trace)
+        self.assertEqual(len(cands), 1, cands)
+        self.assertGreaterEqual(cands[0].rect.y0, head_rect.y1 + 4.0, "running heads must still be cleared after timeout")
+
+    def test_extract_images_warns_to_stderr_on_timeout_and_keeps_valid_outputs(self) -> None:
+        import io
+        import json
+        import shutil
+        import tempfile
+        from contextlib import redirect_stderr, redirect_stdout
+        from unittest import mock
+
+        import figure_detector.pipeline as pipe
+        from figure_detector.extract import extract_images
+        from figure_detector.model import DetectorConfig
+
+        tmp = Path(tempfile.mkdtemp(prefix="luka_budget_"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        pdf_path = tmp / "sample.pdf"
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        page.insert_image(pymupdf.Rect(100, 120, 420, 360), stream=_blue_png(320, 240))
+        page.insert_text((100, 380), "Figure 1: Sample raster figure.", fontsize=BODY)
+        doc.save(pdf_path)
+        doc.close()
+
+        orig_run = pipe._run_page_pipeline
+
+        def timed_out_pipeline(p, cfg=DetectorConfig(), running_heads=None):
+            ticks = iter([0.0, 31.0])
+            cur = [0.0]
+
+            def clk() -> float:
+                try:
+                    cur[0] = next(ticks)
+                except StopIteration:
+                    pass
+                return cur[0]
+
+            return orig_run(p, cfg=cfg, running_heads=running_heads, clock=clk)
+
+        out_dir = tmp / "out"
+        out_buf, err_buf = io.StringIO(), io.StringIO()
+        with (
+            mock.patch("figure_detector.extract._run_page_pipeline", side_effect=timed_out_pipeline),
+            redirect_stdout(out_buf),
+            redirect_stderr(err_buf),
+        ):
+            saved = extract_images(pdf_path, out_dir, dpi=72, write_meta=True, stdout_meta=True)
+
+        self.assertEqual(len(saved), 1)
+        self.assertIn("WARNING: Page 1 exceeded 30s detection budget", err_buf.getvalue())
+        self.assertIn("=== MANIFEST JSON START ===", out_buf.getvalue())
+        meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(meta["figures"]), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

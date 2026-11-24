@@ -20,6 +20,7 @@ from .geometry import (
     _rect_gap,
 )
 from .model import (
+    DEFAULT_CONFIG,
     RENDER_PAD,
     CandidateBox,
     PageContext,
@@ -161,6 +162,12 @@ def extract_images(
                             "placement": _detect_table_placement(candidates, idx0, ctx, table_bboxes),
                         }
                     found.append((cand, cand.rect * to_display, meta))
+            if ctx.timed_out:
+                print(
+                    f"WARNING: Page {pno} exceeded {DEFAULT_CONFIG.max_page_seconds:g}s detection budget; "
+                    f"skipped remaining heavy passes and kept {len(found)} figure(s) found so far.",
+                    file=sys.stderr,
+                )
             if is_scanned:
                 scanned_pages.append(pno)
             page_rect = page.rect

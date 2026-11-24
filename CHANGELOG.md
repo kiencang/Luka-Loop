@@ -3,13 +3,16 @@
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
 ## [Unreleased]
+### Added
+- Thực thi giới hạn thời gian **30 giây/trang** cho bộ tách hình (`DetectorConfig.max_page_seconds = 30.0`, `PageContext.budget_exceeded()`): chốt kiểm tra hợp tác bằng đồng hồ thực đặt tại các bước phân tích nặng từ Pha 1 đến Pha 6 (cắt viền trắng ảnh raster, lọc/gom cụm/đánh giá vector, `find_tables`, cứu chú thích mồ côi, Pha 3b cứu mảnh vector nhỏ, nới nhãn trục và tra bảng metadata). Khi vượt 30 s, công cụ giữ nguyên các hình đã tìm thấy, vẫn chạy khử tiêu đề chạy và in cảnh báo ra `stderr`; các trang chạy dưới ngưỡng 30 s giữ nguyên 100% luồng xử lý và kết quả. Bổ sung 6 ca kiểm thử dùng đồng hồ giả trong `tests/test_detector_fixes.py` và ghi nhận trường `timed_out` trong `dev/eval_doclaynet.py`.
+
 ### Changed
 - Tối ưu các điểm nghẽn lớn nhất của bộ tách hình mà không đánh đổi độ chính xác trên trang thường:
   - Bỏ cờ `TEXT_PRESERVE_IMAGES` khi đọc `page.get_text("dict")` trong `analyze_page` (tránh giải mã hàng nghìn ảnh nhúng rồi bỏ đi — trang chậm nhất `1001.2338.pdf` p20 giảm từ 49 s xuống 0,12 s ở Pha 1);
   - Chỉ yêu cầu `xrefs=True` trong `get_image_info` khi trang thực sự có ảnh XObject (`page.get_images(full=False)` khác rỗng);
   - Đánh chỉ mục `word_rects` theo dải tọa độ `y` 16 pt trong `_filter_drawings` thay cho quét $O(\text{drawings} \times \text{words})$;
   - Tái sử dụng `ctx.drawings` (nhân bản `rect` an toàn) khi gọi `find_tables()` để không trích lại nét vẽ lần 2.
-  - Kết quả trên toàn bộ 14.117 trang DocLayNet (so với v1.1.24): thời gian trung bình giảm `0,514 s → 0,422 s/trang`, `p99` giảm `6,46 s → 5,25 s`, trang chậm nhất đo đơn luồng giảm xuống `26,15 s`; 14.110/14.117 trang trùng khớp tuyệt đối từng hộp, 7 trang thay đổi do bỏ `TEXT_PRESERVE_IMAGES` đều cải thiện (`pages_with_severe_error: 601 → 598`, `figures_ok: 4.679 → 4.682`, `0` tụt chất lượng); `dev/header-pdf` (50 trang) và 6/6 golden snapshot giữ nguyên 100%.
+  - Kết quả trên toàn bộ 14.117 trang DocLayNet (so với v1.1.24): thời gian trung bình giảm `0,514 s → 0,422 s/trang`, `p99` giảm `6,46 s → 5,25 s`, trang chậm nhất đo đơn luồng giảm xuống `26,15 s` (`0` trang vượt 30 s); 14.110/14.117 trang trùng khớp tuyệt đối từng hộp, 7 trang thay đổi do bỏ `TEXT_PRESERVE_IMAGES` đều cải thiện (`pages_with_severe_error: 601 → 598`, `figures_ok: 4.679 → 4.682`, `0` tụt chất lượng); `dev/header-pdf` (50 trang), 32 bài báo `dev/arxiv-b1` (461 trang) và 6/6 golden snapshot giữ nguyên 100%.
 
 ## [1.1.24] - 2026-11-24
 ### Fixed

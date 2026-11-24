@@ -113,16 +113,19 @@ def detect_raster_regions(
         # Trim white image margins only after the page-background checks above, so a scanned page with white
         # borders is still recognised as a background instead of turning into one giant "figure".
         if trim_allowed and r.get_area() >= cfg.min_raster_area:
-            ink = _image_ink_rect(ctx, info, cfg)
-            if ink is not None:
-                trimmed = ink & r
-                if trimmed.is_empty:
-                    ctx.log(f"raster:skip blank_image {r}")
-                    continue
-                if trimmed.get_area() < (1.0 - cfg.raster_trim_min_gain) * r.get_area():
-                    trimmed = _reattach_overlaid_labels(ctx, r, trimmed)
-                    ctx.log(f"raster:trim_white_margin {r} -> {trimmed}")
-                    r = trimmed
+            if ctx.budget_exceeded("raster_trim"):
+                trim_allowed = False
+            else:
+                ink = _image_ink_rect(ctx, info, cfg)
+                if ink is not None:
+                    trimmed = ink & r
+                    if trimmed.is_empty:
+                        ctx.log(f"raster:skip blank_image {r}")
+                        continue
+                    if trimmed.get_area() < (1.0 - cfg.raster_trim_min_gain) * r.get_area():
+                        trimmed = _reattach_overlaid_labels(ctx, r, trimmed)
+                        ctx.log(f"raster:trim_white_margin {r} -> {trimmed}")
+                        r = trimmed
         raw_rects.append(r)
 
     merged = _merge_touching(raw_rects, pad=cfg.touch_pad)

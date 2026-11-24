@@ -94,6 +94,8 @@ def _filter_drawings(
 
     filtered: list[dict] = []
     for idx, dr in enumerate(ctx.drawings):
+        if (idx & 1023) == 1023 and ctx.budget_exceeded("filter_drawings"):
+            return []
         if drop_wm and idx in wm_indices:
             continue
         r = dr["rect"]
@@ -672,6 +674,8 @@ def detect_vector_regions(
     """Phase 3: Filter page drawings, cluster vector graphics, and classify valid figure clusters."""
     if not ctx.drawings:
         return [], [], 0
+    if ctx.budget_exceeded("vector_phase"):
+        return [], [], 0
     if len(ctx.drawings) > cfg.max_page_drawings:
         ctx.log(f"vector:skip excessive_drawings count={len(ctx.drawings)} limit={cfg.max_page_drawings}")
         pno = getattr(ctx.page, "number", 0) + 1
@@ -703,12 +707,16 @@ def detect_vector_regions(
         )
         return [], [], 0
 
+    if ctx.budget_exceeded("cluster_drawings"):
+        return [], [], 0
     raw_clusters = ctx.page.cluster_drawings(
         drawings=filtered, x_tolerance=cfg.cluster_tol_x, y_tolerance=cfg.cluster_tol_y
     )
     raw_count = len(raw_clusters)
     kept: list[pymupdf.Rect] = []
     for c in raw_clusters:
+        if ctx.budget_exceeded(f"vector_clusters kept={len(kept)}/{raw_count}"):
+            break
         dec = _evaluate_vector_cluster(ctx, c, filtered, raster_rects, raw_count, cfg=cfg)
         ctx.log(f"vector:{dec.reason} {[round(v, 1) for v in c]}")
         if dec.keep:
@@ -762,6 +770,8 @@ def rescue_small_vector_pieces(
     pass the whole `_VECTOR_CLUSTER_RULES` chain; kept unions are returned so the normal touch/caption merge
     steps fold them into the figure they belong to.
     """
+    if ctx.budget_exceeded("rescue_small"):
+        return []
     covered = [pymupdf.Rect(r) for r in anchors]
     pieces = [s for s in ctx.small_vector_rejects if not any(c.contains(s) for c in covered)]
     if not pieces or len(pieces) > cfg.small_rescue_max_pieces:
@@ -776,6 +786,8 @@ def rescue_small_vector_pieces(
     rects = covered + pieces
     rescued: list[pymupdf.Rect] = []
     for members in _groups_within(rects, cfg.small_rescue_gap):
+        if ctx.budget_exceeded("rescue_small_loop"):
+            break
         if all(i < len(covered) for i in members):
             continue
         if sum(i < len(covered) for i in members) >= 2:

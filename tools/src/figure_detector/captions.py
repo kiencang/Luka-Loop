@@ -205,11 +205,15 @@ def _recover_orphan_caption_vectors(
     """Recover disconnected vector charts (e.g., axis-less bar groups or sparse schematics) near orphaned captions."""
     if not filtered_drawings or not ctx.fig_captions:
         return []
+    if ctx.budget_exceeded("orphan_recovery"):
+        return []
     assigned = {c.caption_idx for c in candidates if c.caption_idx is not None}
     existing_rects = [c.rect for c in candidates if c.caption_idx is not None]
     extra_vecs: list[pymupdf.Rect] = []
 
     for cap_idx, cap in enumerate(ctx.fig_captions):
+        if ctx.budget_exceeded("orphan_recovery_loop"):
+            break
         if cap_idx in assigned:
             continue
         for direction in (1, -1):

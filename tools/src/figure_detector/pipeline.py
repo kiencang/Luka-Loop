@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 
 from .captions import (
@@ -74,6 +74,8 @@ def _expand_plot_axis_labels(candidates: list[CandidateBox], ctx: PageContext) -
     Prevents vector chart crops from slicing off Y-axis numbers, rotated Y-axis titles,
     X-axis labels, and subpanel markers that live just outside the vector axis frame.
     """
+    if ctx.budget_exceeded("expand_axis_labels"):
+        return
     all_captions = ctx.fig_captions + ctx.tab_captions
     prose_blocks = [
         tb
@@ -93,6 +95,8 @@ def _expand_plot_axis_labels(candidates: list[CandidateBox], ctx: PageContext) -
         return
 
     for idx, cand in enumerate(candidates):
+        if ctx.budget_exceeded("expand_axis_labels"):
+            break
         if cand.source == "raster" and cand.caption_idx is None:
             continue
         orig = pymupdf.Rect(cand.rect)
@@ -246,6 +250,8 @@ def _attach_adjacent_label_lines(candidates: list[CandidateBox], ctx: PageContex
     two neighbouring panels (too wide to attach) or straddle the box edge (matching no side). Working on lines,
     with side-specific gaps, recovers those labels. Never crosses captions, prose, another figure or page margins.
     """
+    if ctx.budget_exceeded("attach_label_lines"):
+        return
     lines = _label_lines(ctx)
     if not lines:
         return
@@ -264,6 +270,8 @@ def _attach_adjacent_label_lines(candidates: list[CandidateBox], ctx: PageContex
         return table_cache[0]
 
     for idx, cand in enumerate(candidates):
+        if ctx.budget_exceeded("attach_label_lines"):
+            break
         if cand.source == "raster" and cand.caption_idx is None:
             continue
         orig = pymupdf.Rect(cand.rect)
@@ -340,6 +348,8 @@ def _run_page_pipeline(
     page: pymupdf.Page,
     cfg: DetectorConfig = DEFAULT_CONFIG,
     running_heads: list[pymupdf.Rect] | None = None,
+    *,
+    clock: Callable[[], float] | None = None,
 ) -> tuple[PageContext, list[CandidateBox], bool]:
     """Execute Phases 1–5 on `page` and return `(PageContext, candidates, is_scanned)`.
 
@@ -348,7 +358,7 @@ def _run_page_pipeline(
     """
     _ensure_pymupdf()
     # Phase 1
-    ctx = analyze_page(page, cfg=cfg)
+    ctx = analyze_page(page, cfg=cfg, clock=clock)
     ctx.running_heads = list(running_heads or [])
     # Phase 2
     raster_rects, has_full_page_img = detect_raster_regions(ctx, cfg=cfg)
@@ -383,7 +393,7 @@ def _run_page_pipeline(
 
     _annotate_candidate_origins(candidates, raster_rects, filtered_rects)
     _expand_plot_axis_labels(candidates, ctx)
-    if len(candidates) >= 2:
+    if len(candidates) >= 2 and not ctx.budget_exceeded("second_merge"):
         candidates = merge_candidates(ctx, candidates, cfg=cfg)
         _annotate_candidate_origins(candidates, raster_rects, filtered_rects)
         _expand_plot_axis_labels(candidates, ctx)

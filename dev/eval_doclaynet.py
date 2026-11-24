@@ -377,6 +377,7 @@ def summarize(results: list[dict]) -> dict:
     return {
         "pages": len(results),
         "page_errors": len(results) - len(ok),
+        "pages_timed_out": sum(1 for r in results if r.get("timed_out")),
         "pages_with_pictures": sum(1 for r in ok if r["eval"]["n_gt"]),
         "severity": {
             "pages_with_severe_error": severe_pages,
@@ -613,8 +614,9 @@ def _run_group(file: str, rg: int, entries: list[dict]) -> list[dict]:
             with pymupdf.open(stream=rows[e["row"]]["pdf"], filetype="pdf") as doc:
                 page = doc[0]
                 # Same as extract_images: detect unrotated, report boxes on the displayed page (DocLayNet's frame).
+                # Use process_time in multi-worker eval runs so parallel CPU contention does not trigger false timeouts.
                 with unrotated_page(page) as to_display:
-                    ctx, candidates, is_scanned = _run_page_pipeline(page)
+                    ctx, candidates, is_scanned = _run_page_pipeline(page, clock=time.process_time)
                     tables = [t.rect for t in ctx.get_page_tables()] if any(c.caption_idx is None for c in candidates) else []
                     res["pred_meta"] = [
                         {"source": c.source, "captioned": c.caption_idx is not None,
@@ -623,6 +625,7 @@ def _run_group(file: str, rg: int, entries: list[dict]) -> list[dict]:
                     ]
                 res["preds"] = [[round(v, 2) for v in c.rect * to_display] for c in candidates]
                 res["is_scanned"] = is_scanned
+                res["timed_out"] = ctx.timed_out
         except Exception as exc:  # noqa: BLE001 - one broken page must not stop a 12k-page run
             res["error"] = f"{type(exc).__name__}: {exc}"
             res["traceback"] = traceback.format_exc(limit=3)

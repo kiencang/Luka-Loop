@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from image_ops import ensure_pymupdf
@@ -91,6 +93,8 @@ class DetectorConfig:
     same_caption_merge_gap: float = 68.0
     same_caption_row_merge_gap: float = 74.0
     touching_merge_gap: float = 4.0
+    # Per-page wall-clock budget (seconds); <= 0 disables the cap.
+    max_page_seconds: float = 30.0
 
 
 DEFAULT_CONFIG = DetectorConfig()
@@ -201,6 +205,23 @@ class PageContext:
     running_heads: list[pymupdf.Rect] = field(default_factory=list)  # repeated heads/folios (running_heads.py)
     small_vector_rejects: list[pymupdf.Rect] = field(default_factory=list)  # clusters rejected as too_small
     _page_tables: list[PageTableInfo] | None = None
+    deadline: float | None = None
+    _clock: Callable[[], float] = field(default=time.monotonic, repr=False)
+    timed_out: bool = False
+
+    def budget_exceeded(self, stage: str = "") -> bool:
+        """True once the per-page time budget has elapsed (sticky once triggered).
+
+        Pages finishing under the budget never trigger this, keeping their code path identical.
+        """
+        if not self.timed_out and self.deadline is not None and self._clock() >= self.deadline:
+            self.timed_out = True
+            self.log("budget:exceeded")
+        if self.timed_out:
+            if stage:
+                self.log(f"budget:skip {stage}")
+            return True
+        return False
 
     def is_running_head(self, rect: pymupdf.Rect) -> bool:
         """True when at least half of `rect` is covered by running heads or folios of the document."""
@@ -217,6 +238,8 @@ class PageContext:
 
     def find_tables_in_clip(self, clip: pymupdf.Rect) -> list[PageTableInfo]:
         """Run `find_tables(clip=...)` reusing already-extracted page drawings."""
+        if self.budget_exceeded("find_tables_clip"):
+            return []
         return [
             PageTableInfo(pymupdf.Rect(t.bbox), t.row_count, t.col_count)
             for t in self.page.find_tables(clip=clip, **self._table_paths_kwargs()).tables
@@ -225,6 +248,8 @@ class PageContext:
     def get_page_tables(self) -> list[PageTableInfo]:
         """Lazily run whole-page `find_tables()` at most once per page."""
         if self._page_tables is None:
+            if self.budget_exceeded("find_tables"):
+                return []
             self._page_tables = [
                 PageTableInfo(pymupdf.Rect(t.bbox), t.row_count, t.col_count)
                 for t in self.page.find_tables(**self._table_paths_kwargs()).tables

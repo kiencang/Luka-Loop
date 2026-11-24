@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import time
+from collections.abc import Callable
 
 from .geometry import (
     _horiz_overlap,
@@ -194,9 +196,16 @@ def _collect_separator_rules(drawings: list[dict], pw: float, ph: float) -> list
     return rules
 
 
-def analyze_page(page: pymupdf.Page, cfg: DetectorConfig = DEFAULT_CONFIG) -> PageContext:
+def analyze_page(
+    page: pymupdf.Page,
+    cfg: DetectorConfig = DEFAULT_CONFIG,
+    *,
+    clock: Callable[[], float] | None = None,
+) -> PageContext:
     """Phase 1: Build reusable `PageContext` once per page."""
     _ensure_pymupdf()
+    clock_fn = time.monotonic if clock is None else clock
+    deadline = (clock_fn() + cfg.max_page_seconds) if cfg.max_page_seconds > 0 else None
     page_rect = page.rect
     pw, ph = page_rect.width, page_rect.height
 
@@ -229,6 +238,8 @@ def analyze_page(page: pymupdf.Page, cfg: DetectorConfig = DEFAULT_CONFIG) -> Pa
         word_rects=word_rects,
         drawings=drawings,
         separator_rules=rules,
+        deadline=deadline,
+        _clock=clock_fn,
     )
 
 
