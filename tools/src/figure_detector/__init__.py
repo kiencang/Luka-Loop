@@ -17,7 +17,8 @@ Submodules, in layering order (each imports only from the ones listed before it)
   vector         Phase 3
   captions       Phase 4
   merge          Phase 5
-  pipeline       Phases 1–5 per page (+ origin annotation, axis-label expansion)
+  running_heads  repeated page heads/folios found across the whole document (imports only `model`)
+  pipeline       Phases 1–5 per page (+ origin annotation, axis-label expansion; takes the page's running heads)
   extract        Phase 6 (PNG rendering + manifest entries)
 
 This package keeps the public names of the former single-file `figure_detector.py`.

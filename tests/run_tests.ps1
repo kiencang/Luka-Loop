@@ -30,7 +30,7 @@ if ($LASTEXITCODE -ne 0) {
 
 if ($IncludePython) {
     Write-Output ''
-    Write-Output '>>> Running Python dev unit suite (tests\test_extract_assets.py)...'
+    Write-Output '>>> Running Python unit suite (tests\test_*.py)...'
     $pyCmd = Get-Command python -ErrorAction SilentlyContinue
     if (-not $pyCmd) {
         throw 'System python executable not found (required when -IncludePython is specified).'

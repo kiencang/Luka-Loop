@@ -12,7 +12,7 @@ Rất đơn giản, bạn tải trực tiếp gói dựng sẵn mới nhất t�
 - **Tải bản mới nhất:** [luka-loop-win-x64.zip](https://github.com/kiencang/Luka-Loop/releases/latest/download/luka-loop-win-x64.zip)
 - *(Nếu mở trang [GitHub Releases](https://github.com/kiencang/Luka-Loop/releases), hãy chọn tệp **`luka-loop-win-x64.zip`** trong mục **Assets** — không tải `Source code (zip)` vì gói mã nguồn thô từ Git không kèm sẵn `extract_assets.exe`).*
 
-Sau đó giải nén file zip đó ở bất kỳ thư mục làm việc nào mà bạn muốn. Khi giải nén, nhớ chọn tùy chọn `Extract Here`, mở thư mục `luka-loop` vừa giải nén thấy ngay file có tên `AGENTS.md` nghĩa là bạn đã giải nén thành công (nếu thích, bạn có thể đổi tên thư mục `luka-loop` sang tên khác cũng không vấn đề gì). PS: Nếu giải nén theo kiểu `Etract to` sẽ tạo thành 2 thư mục lồng nhau và sẽ không dùng được, nên bạn nhớ dùng `Extract Here` nhé! 
+Sau đó giải nén file zip đó ở bất kỳ thư mục làm việc nào mà bạn muốn. Khi giải nén, nhớ chọn tùy chọn `Extract Here`, mở thư mục `luka-loop` vừa giải nén thấy ngay file có tên `AGENTS.md` nghĩa là bạn đã giải nén thành công (nếu thích, bạn có thể đổi tên thư mục `luka-loop` sang tên khác cũng không vấn đề gì). PS: Nếu giải nén theo kiểu `Extract to` sẽ tạo thành 2 thư mục lồng nhau và sẽ không dùng được, nên bạn nhớ dùng `Extract Here` nhé! 
 
 Phần khó nhất đã xong! Giờ để dùng công cụ dịch, bạn chỉ việc vào Antigravity, chọn `Workspace > Create Project > Add Folder`, rồi bạn thêm thư mục vừa giải nén xong là OK.
 
@@ -40,7 +40,7 @@ Ngoài Antigravity, bạn có thể dùng công cụ với **Claude Code** (tab 
 - **Trình duyệt (tùy chọn để tự động xuất PDF):** Công cụ dùng Microsoft Edge (ưu tiên) hoặc Google Chrome để xuất tệp PDF. Nếu không có, quy trình vẫn xuất hoàn chỉnh tệp `*_vi.html`.
 
 ## Lý do tồn tại
-Tôi đã có sản phẩm https://github.com/kiencang/PDF-silaTranslator có chức năng tương đương, nhưng hiện tại chỉ API Key trả phí mới sử dụng được. Mặc dù ngưỡng miễn phí của Antigavity không lớn, nhưng nếu dịch tài liệu nhỏ vẫn được, còn với tài liệu dài, dịch nhiều vẫn cần các tài khoản có phí (nhưng tính trên trung bình, vẫn rẻ hơn khá nhiều so với việc dịch bằng cách mua API Key). 
+Tôi đã có sản phẩm https://github.com/kiencang/PDF-silaTranslator có chức năng tương đương, nhưng hiện tại chỉ API Key trả phí mới sử dụng được. Mặc dù ngưỡng miễn phí của Antigravity không lớn, nhưng nếu dịch tài liệu nhỏ vẫn được, còn với tài liệu dài, dịch nhiều vẫn cần các tài khoản có phí (nhưng tính trên trung bình, vẫn rẻ hơn khá nhiều so với việc dịch bằng cách mua API Key). 
 
 Ngoài ra, việc sử dụng các thư viện python chất lượng cao như PyMuPDF giúp công cụ có sự cải tiến tốt hơn trong khả năng tách ảnh, khi bạn thử, bạn sẽ thấy đa số các file PDF nó có khả năng bảo toàn định dạng rất tốt.
 
