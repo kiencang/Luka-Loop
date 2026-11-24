@@ -370,6 +370,117 @@ def _attach_adjacent_label_lines(candidates: list[CandidateBox], ctx: PageContex
         cand.rect = cur & ctx.page_rect
 
 
+def _stroke_segments(ctx: PageContext) -> list[tuple[pymupdf.Point, pymupdf.Point]]:
+    """Thin straight strokes that may join a figure to a label: line items of stroked paths no wider than 1 pt,
+    5 pt to 40% of the page width long. Display-fraction bars (text centred right above and right below the middle
+    of a horizontal stroke) are left out: the numerator is not a label of the figure beside the equation.
+    """
+    segs = []
+    for d in ctx.drawings:
+        if "s" not in (d.get("type") or "") or (d.get("width") or 0) > 1.0:
+            continue
+        for it in d["items"]:
+            if it[0] == "l" and 5.0 <= abs(it[2] - it[1]) <= 0.4 * ctx.pw:
+                segs.append((pymupdf.Point(it[1]), pymupdf.Point(it[2])))
+    if not segs:
+        return segs
+    word_rects = [pymupdf.Rect(w[:4]) for w in ctx.words]
+
+    def fraction_bar(a: pymupdf.Point, b: pymupdf.Point) -> bool:
+        if abs(a.y - b.y) > 0.5:
+            return False
+        x0, x1, y = min(a.x, b.x), max(a.x, b.x), a.y
+        m0, m1 = x0 + 0.2 * (x1 - x0), x1 - 0.2 * (x1 - x0)  # over the middle, not at an end (a leader's label)
+        over = [w for w in word_rects if m0 <= (w.x0 + w.x1) / 2 <= m1]
+        return any(0 <= y - w.y1 <= 8 for w in over) and any(0 <= w.y0 - y <= 8 for w in over)
+
+    return [s for s in segs if not fraction_bar(*s)]
+
+
+def _attach_stroke_labels(candidates: list[CandidateBox], ctx: PageContext, cfg: DetectorConfig) -> None:
+    """Take in short labels joined to a figure by a thin straight stroke running out of the box.
+
+    A leader line in an anatomy atlas, an axis or a dashed reference line in a plot: one end lies inside the box,
+    the other touches a line of text outside it. The whole text block of that line is taken (labels set on 2-3
+    lines), even across a column gutter, in the top band of the page or farther than the side gaps of
+    `_attach_adjacent_label_lines`. The block must be a short label (at most 10 words, no line over 8 words, not a
+    caption, section heading or running head, not inside another figure), and the grown box must touch no caption,
+    other figure or paragraph and grow at most `stroke_label_max_growth` pt on any side.
+    """
+    segs = _stroke_segments(ctx)
+    if not segs:
+        return
+    touch = cfg.stroke_label_touch
+    lines: dict[tuple[int, int], pymupdf.Rect] = {}
+    nwords: dict[tuple[int, int], int] = {}
+    for w in ctx.words:
+        key, r = (w[5], w[6]), pymupdf.Rect(w[:4])
+        lines[key] = lines[key] | r if key in lines else r
+        nwords[key] = nwords.get(key, 0) + 1
+    captions = [tb.rect for tb in ctx.fig_captions + ctx.tab_captions]
+    prose = [tb.rect for tb in ctx.text_blocks if tb.kind == "text" and tb.word_count >= 12]
+    # spatial index: grid cell -> lines within `touch` of it (a page can hold thousands of strokes)
+    cell = 24.0
+    grid: dict[tuple[int, int], list[tuple[int, int]]] = {}
+    for key, r in lines.items():
+        for gx in range(int((r.x0 - touch) // cell), int((r.x1 + touch) // cell) + 1):
+            for gy in range(int((r.y0 - touch) // cell), int((r.y1 + touch) // cell) + 1):
+                grid.setdefault((gx, gy), []).append(key)
+
+    def owner(r: pymupdf.Rect):
+        c = pymupdf.Point((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2)
+        return next((tb for tb in ctx.text_blocks if (tb.rect + (-0.5, -0.5, 0.5, 0.5)).contains(c)), None)
+
+    def has_long_line(tb) -> bool:
+        box = tb.rect + (-0.5, -0.5, 0.5, 0.5)
+        return any(nwords[k] > 8 and box.contains((r.tl + r.br) / 2) for k, r in lines.items())
+
+    g = cfg.stroke_label_max_growth
+    for idx, cand in enumerate(candidates):
+        if cand.source == "raster" and cand.caption_idx is None:
+            continue
+        orig = pymupdf.Rect(cand.rect)
+        cur = pymupdf.Rect(orig)
+        others = [c.rect for j, c in enumerate(candidates) if j != idx]
+        deep = orig + (1, 1, -1, -1)
+        for a, b in segs:
+            for pin, pout in ((a, b), (b, a)):
+                if not deep.contains(pin):
+                    continue
+                best = None
+                for key in grid.get((int(pout.x // cell), int(pout.y // cell)), ()):
+                    lr = lines[key]
+                    if cur.contains(lr):
+                        continue
+                    d = abs(pymupdf.Point(max(lr.x0 - pout.x, 0, pout.x - lr.x1), max(lr.y0 - pout.y, 0, pout.y - lr.y1)))
+                    if d <= touch and (best is None or d < best[0]):
+                        best = (d, lr)
+                if best is None:
+                    continue
+                tb = owner(best[1])
+                if tb is None or tb.kind != "text" or tb.word_count > 10 or has_long_line(tb):
+                    continue
+                if _SECTION_HEADING_RE.match(_clean_text(tb.text)) or ctx.is_running_head(tb.rect):
+                    continue
+                lab = pymupdf.Rect(tb.rect)
+                if any(o.intersects(lab) for o in others):
+                    continue
+                exp = cur | lab
+                if (orig.x0 - exp.x0 > g or exp.x1 - orig.x1 > g
+                        or orig.y0 - exp.y0 > g or exp.y1 - orig.y1 > g):
+                    continue
+                if any(exp.intersects(c + (-2, -2, 2, 2)) for c in captions):
+                    continue
+                if any(exp.intersects(o + (1, 1, -1, -1)) for o in others if not o.is_empty):
+                    continue
+                if any(not orig.intersects(p) and (exp & p).get_area() >= 0.25 * max(1.0, p.get_area()) for p in prose):
+                    continue
+                cur = exp
+        if cur != orig:
+            ctx.log(f"labels:stroke {orig} -> {cur}")
+            cand.rect = cur & ctx.page_rect
+
+
 def _clear_running_heads(candidates: list[CandidateBox], ctx: PageContext) -> None:
     """Pull each box edge back past a running head or folio that the box (with its render padding) would show.
 
@@ -445,6 +556,7 @@ def _run_page_pipeline(
         _annotate_candidate_origins(candidates, raster_rects, filtered_rects)
         _expand_plot_axis_labels(candidates, ctx)
     _attach_adjacent_label_lines(candidates, ctx, cfg)
+    _attach_stroke_labels(candidates, ctx, cfg)
     _clear_running_heads(candidates, ctx)
     min_uncap_vec_dim = cfg.min_vector_dim * max(1.0, min(ctx.pw, ctx.ph) / 792.0)
     candidates = [

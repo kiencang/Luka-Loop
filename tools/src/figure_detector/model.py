@@ -67,6 +67,9 @@ class DetectorConfig:
     label_gap_top: float = 18.0
     label_gap_bottom: float = 26.0
     label_max_growth: float = 60.0
+    # Phase 6b: labels joined to a figure by a thin stroke (leader line, axis, reference line)
+    stroke_label_touch: float = 6.0          # max distance from the stroke's outer end to the label line, pt
+    stroke_label_max_growth: float = 100.0   # max growth per side from the box before this step, pt
     # Phase 3: Vector clustering & text density
     cluster_tol_x: float = 5.0
     cluster_tol_y: float = 5.0

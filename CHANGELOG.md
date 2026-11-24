@@ -2,6 +2,14 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Nhãn nối với hình bằng một nét kẻ bị bỏ ra ngoài ảnh:** nhãn trong sách giải phẫu/hướng dẫn thường được nối vào hình bằng đường dẫn nhãn (leader line), và có thể nằm xa hình hơn khoảng cách gắn nhãn thông thường, vắt qua khe cột hoặc nằm ở dải đầu trang; tên trục, số mốc và tên ô của đồ thị cũng hay nằm ở đầu một trục hay đường mốc. Bước mới `_attach_stroke_labels` (sau bước gắn nhãn theo dòng): một nét thẳng mảnh (≤ 1 pt, dài 5 pt đến 40% bề rộng trang) có một đầu nằm trong khung hình và đầu kia chạm (≤ 6 pt) một dòng chữ ngoài khung thì lấy trọn khối chữ của dòng đó (nhãn 2–3 dòng). Điều kiện: khối ≤ 10 từ, không dòng nào > 8 từ, không phải chú thích, tiêu đề mục hay tiêu đề chạy, không nằm trong hình khác; khung nới ra không chạm chú thích, hình khác hay đoạn văn và nới tối đa 100 pt mỗi phía. Gạch phân số của công thức (có chữ ngay trên và ngay dưới phần giữa nét ngang) không được coi là nét nối.
+  - DocLayNet: 258 trang đổi (tune 176, holdout 52, val 14, test 16); 41 trang tốt hơn theo điểm, 0 trang kém hơn; hình đúng 4.698 → 4.735, trang lỗi nặng 576 → 545; bỏ sót (89) và ảnh dính chữ (213) không đổi.
+  - Chấm mù AB8 (60 hình tune: đủ 27 trang tốt hơn theo điểm và 33 trang cùng điểm chọn ngẫu nhiên): bản mới tốt hơn 31, bản cũ 1 (khung cao thêm ~4 pt sát mép trang), như nhau 27, cả hai tệ 1 (khung ảnh rộng hơn phần nhìn thấy, có từ trước).
+  - 4 cuốn sách tiêu biểu: Surgical Atlas 14 trang tốt hơn; Book of Proofs có 5 hình đổi nhỏ (lấy thêm tên trục hoặc số bài), không hình nào hỏng.
+  - Thêm test `TestStrokeLabels`.
+
 ## [1.1.29] - 2026-11-25
 ### Fixed
 - **Hình nằm ở cột chỉ có hình kéo chữ của cột bên cạnh vào ảnh:** khe giữa hai cột (v1.1.26) trước đây chỉ tìm từ đoạn văn, nên cần đoạn văn ở cả hai bên. Khi một cột chỉ chứa hình và chú thích (sách Surgical Atlas p361), không tìm ra khe và bước gắn nhãn kéo một dòng của cột chữ bên cạnh vào hình. Nay khung hình và chú thích hình/bảng cũng được tính là nội dung cột: mỗi bên khe cần nội dung chiếm ≥ 15% chiều cao trang, và ít nhất một bên có đoạn văn chiếm ≥ 15%.

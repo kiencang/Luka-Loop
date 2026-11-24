@@ -470,6 +470,49 @@ class TestColumnGutter(unittest.TestCase):
         self.assertGreaterEqual(rects[0].y1, 412, f"tick labels under the plot must still be attached: {rects[0]}")
 
 
+class TestStrokeLabels(unittest.TestCase):
+    """A label joined to the figure by a thin stroke (leader line, axis) is taken in whole, even beyond the side
+    gaps (Surgical Atlas leader lines, DocLayNet axis titles); the bar of a display fraction is not a leader."""
+
+    @staticmethod
+    def _image_page() -> tuple[pymupdf.Page, pymupdf.Rect]:
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        frame = pymupdf.Rect(150, 300, 450, 500)
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 300, 200), False)
+        pix.clear_with(150)
+        page.insert_image(frame, pixmap=pix)
+        page.insert_text((150, 522), "Figure 1: Knee joint seen from the front.", fontsize=BODY)
+        return page, frame
+
+    @staticmethod
+    def _stroke(page: pymupdf.Page, a: tuple[float, float], b: tuple[float, float]) -> None:
+        shape = page.new_shape()
+        shape.draw_line(a, b)
+        shape.finish(color=(0, 0, 0), width=0.4)
+        shape.commit()
+
+    def test_leader_line_takes_the_whole_label(self) -> None:
+        page, frame = self._image_page()
+        page.insert_text((322, 238), "Medial collateral\nligament", fontsize=9)  # 2-line label, 44 pt above
+        self.assertEqual(fd.collect_page_figures(page)[0], [frame], "no stroke: the label is too far to attach")
+
+        self._stroke(page, (345, 360), (345, 255))  # from inside the image up to the label
+        rects = fd.collect_page_figures(page)[0]
+        self.assertEqual(len(rects), 1, rects)
+        self.assertLess(rects[0].y0, 232, f"both label lines must be taken: {rects[0]}")
+        self.assertEqual((rects[0].x0, rects[0].x1, rects[0].y1), (frame.x0, frame.x1, frame.y1), rects[0])
+
+    def test_fraction_bar_is_not_a_leader(self) -> None:
+        page, frame = self._image_page()
+        self._stroke(page, (440, 400), (522, 400))
+        page.insert_text((475, 396), "alpha beta", fontsize=BODY)  # touches the stroke's outer end
+        self.assertGreater(fd.collect_page_figures(page)[0][0].x1, 515, "a stroke to a label: taken")
+
+        page.insert_text((490, 413), "2z", fontsize=BODY)  # a denominator turns the stroke into a fraction bar
+        self.assertEqual(fd.collect_page_figures(page)[0], [frame])
+
+
 class TestFinePolylinePlot(unittest.TestCase):
     """A line plot whose curves are fine polylines is a figure, not a table (DocLayNet 1002.0011 p19 and 11 more).
 
