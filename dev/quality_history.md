@@ -1,6 +1,18 @@
 # Lịch sử chất lượng tách hình
 
-Chất lượng của bộ tách hình (`extract_assets.exe`) qua từng bản phát hành, đo trên **14.117 trang khoa học của DocLayNet** (tune 9.881 · holdout 2.349 · val 944 · test 943; 5.259 hình có nhãn) bằng `dev/eval_doclaynet.py`. Mọi dòng được chấm lại bằng **cùng một bộ chấm** (bản hiện tại), nên các dòng so sánh trực tiếp được với nhau. Định nghĩa các chỉ số: xem mục *Đánh giá bộ tách hình trên DocLayNet* trong [DEVELOPMENT.md](DEVELOPMENT.md).
+Chất lượng của bộ tách hình (`extract_assets.exe`) qua từng bản phát hành, đo trên **14.117 trang khoa học của DocLayNet** (tune 9.881 · holdout 2.349 · val 944 · test 943; 5.259 hình có nhãn) bằng `dev/eval_doclaynet.py`. Mọi dòng được chấm lại bằng **cùng một bộ chấm** (bản hiện tại), nên các dòng so sánh trực tiếp được với nhau. Cách chạy và chi tiết bộ chấm: mục *Đánh giá bộ tách hình trên DocLayNet* trong [DEVELOPMENT.md](DEVELOPMENT.md).
+
+## Cách tính
+
+Mỗi hình có nhãn `Picture` của DocLayNet được so với các ảnh công cụ xuất ra (đã nới lề 4 pt, đúng như ảnh thật):
+
+- **Bỏ sót:** các ảnh xuất ra phủ dưới 50% diện tích hình.
+- **Bị cắt nặng:** từ 3 ô chữ của hình trở lên (nhãn trục, số chia, chú giải) nằm ngoài ảnh và có mực thật ở chỗ đó, hoặc hình bị cắt mất hơn 10% diện tích.
+- **Bị cắt nhẹ:** chỉ 1–2 ô chữ nằm ngoài ảnh, thường là nhãn panel kiểu "(a)". Không tính là lỗi nặng.
+- **Hình đúng:** hình không bị bỏ sót và không bị cắt, kể cả cắt nhẹ; nghĩa là ảnh xuất ra chứa trọn hình và đủ chữ của hình. Bốn cột *hình đúng + cắt nặng + cắt nhẹ + bỏ sót* cộng lại đúng 5.259 hình (vd v1.1.25: 4.682 + 362 + 114 + 101).
+- **Ảnh dính chữ:** số ảnh xuất ra có chữ của nội dung khác (chú thích, đoạn văn, công thức, bảng, tiêu đề trang…) lọt vào. Đếm theo ảnh xuất ra, không theo hình có nhãn, nên không cộng vào 5.259.
+- **Gộp lệch:** ảnh vừa bao nhiều hình vừa dính chữ (đã nằm trong cột *ảnh dính chữ*). Ảnh bao nhiều hình mà không dính chữ thì chấp nhận được.
+- **Trang lỗi nặng:** trang có ít nhất một hình bị bỏ sót hoặc cắt nặng, hoặc một ảnh dính chữ.
 
 Trang scan: cả tập chỉ có **1 trang** bị công cụ nhận là trang scan (thuộc tune, có 1 hình). Với trang scan, công cụ không tách hình mà để agent render cả trang, nên hình đó luôn bị tính là *bỏ sót* ở mọi bản; mức ảnh hưởng 1/5.259 hình, như nhau giữa các dòng.
 
