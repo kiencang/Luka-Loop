@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.28] - 2026-11-25
 ### Changed
 - Cập nhật bộ chuyển đổi Antigravity (`.agents/adapters/antigravity.md`) và dấu hiệu nhận diện môi trường trong `AGENTS.md` cùng 2 `SKILL.md` cho khớp Antigravity 2.0 thực tế (vẫn tương thích bản cũ):
   - Nhận diện qua `App Data Directory` / `Artifact Directory Path` trong `<user_information>` (giữ `appDataDir` cho bản cũ) và dùng thẳng `<Artifact Directory Path>` cho `-TranscriptPath`;
