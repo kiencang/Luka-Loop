@@ -404,6 +404,51 @@ class TestWordBandEquivalence(unittest.TestCase):
                 self.assertEqual(got, expected, f"probe={r}, half_v={half_v}")
 
 
+class TestColumnGutter(unittest.TestCase):
+    """A figure set in one text column takes no label line from the column beside it (DocLayNet 1001.1552 p11)."""
+
+    @staticmethod
+    def _two_column_page() -> pymupdf.Page:
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        text = "Measured response follows the expected trend here"
+        for i in range(12):  # left column paragraph above the figure
+            page.insert_text((54, 72 + i * 12), text, fontsize=BODY)
+        frame = pymupdf.Rect(70, 260, 296, 400)
+        shape = page.new_shape()
+        shape.draw_rect(frame)
+        shape.draw_polyline([pymupdf.Point(frame.x0 + i * 11, frame.y1 - 10 - (i * i) % 120) for i in range(21)])
+        for i in range(10):
+            shape.draw_circle(pymupdf.Point(frame.x0 + 20 + i * 20, frame.y0 + 30 + (i % 4) * 25), 3)
+        shape.finish(color=(0, 0, 0), width=0.8)
+        shape.commit()
+        for i, x in enumerate(range(70, 297, 45)):
+            page.insert_text((x - 3, 412), str(i), fontsize=8)
+        page.insert_text((54, 440), "Figure 1: Response against time for all runs.", fontsize=BODY)
+        for i in range(14):  # right column paragraph above the equation
+            page.insert_text((316, 72 + i * 12), text, fontsize=BODY)
+        page.insert_text((316, 300), "= a + b", fontsize=BODY)  # short display-equation line, 20 pt from the frame
+        for i in range(14):  # right column paragraph below the equation
+            page.insert_text((316, 340 + i * 12), text, fontsize=BODY)
+        return page
+
+    def test_equation_line_in_the_next_column_stays_outside(self) -> None:
+        from unittest import mock
+
+        import figure_detector.pipeline as pipe
+
+        page = self._two_column_page()
+        with mock.patch.object(pipe, "_column_gutters", return_value=[]):
+            before = fd.collect_page_figures(page)[0]
+        self.assertEqual(len(before), 1, before)
+        self.assertGreater(before[0].x1, 316, f"fixture must reproduce the crossing without the rule: {before}")
+
+        rects = fd.collect_page_figures(page)[0]
+        self.assertEqual(len(rects), 1, rects)
+        self.assertLess(rects[0].x1, 300, f"figure must stop at its own column: {rects[0]}")
+        self.assertGreaterEqual(rects[0].y1, 412, f"tick labels under the plot must still be attached: {rects[0]}")
+
+
 class TestTablePathReuse(unittest.TestCase):
     """`find_tables()` gets copies of the page drawings, so table searches never edit the detector's own paths."""
 

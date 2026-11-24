@@ -2,6 +2,15 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Hình ở một cột kéo chữ của cột bên cạnh vào ảnh** (dòng phương trình, đoạn văn ngắn của cột kia): bước gắn nhãn theo dòng (`_attach_adjacent_label_lines`) nay biết khe giữa hai cột chữ. Khe được tìm từ vị trí các đoạn văn (khối chữ ≥ 12 từ) chiếu xuống trục ngang: khoảng trống ≥ 6 pt nằm ở phần giữa trang (15–85% bề rộng), mỗi bên có đoạn văn chiếm ≥ 15% chiều cao trang. Hình không vượt qua đường giữa khe thì không nhận dòng chữ có tâm ở bên kia khe; hình rộng vắt qua đường giữa và trang không có khe (một cột, hoặc có đoạn văn chạy ngang cả trang) giữ cách cũ.
+  - DocLayNet: tune 6 trang đổi, holdout 3 trang đổi, val/test không đổi; ảnh dính chữ tune 163 → 159, holdout 20 → 18; trang lỗi nặng tune 517 → 514, holdout 138 → 136; số hình đúng và bỏ sót không đổi. Xem ảnh cả 6 trang tune: đều tốt hơn, trong đó có `1001.1552.pdf` p11, ca duy nhất bản cũ thắng khi chấm mù luật cứu mảnh nhỏ (v1.1.24).
+  - 32 bài báo đầy đủ (có nhận diện tiêu đề chạy): 4 trang đổi, đều tốt hơn; 6 cuốn sách tiêu biểu và `dev/header-pdf`: không đổi.
+
+### Added
+- `dev/quality_history.md`: lịch sử chất lượng tách hình theo từng bản phát hành (v1.1.13 → v1.1.25), chấm lại bằng cùng một bộ chấm trên 14.117 trang DocLayNet, kèm F1 theo quy ước DocLayNet (IoU ≥ 0,5) để tham khảo.
+
 ## [1.1.25] - 2026-11-24
 ### Added
 - Thực thi giới hạn thời gian **30 giây/trang** cho bộ tách hình (`DetectorConfig.max_page_seconds = 30.0`, `PageContext.budget_exceeded()`): chốt kiểm tra hợp tác bằng đồng hồ thực đặt tại các bước phân tích nặng từ Pha 1 đến Pha 6 (cắt viền trắng ảnh raster, lọc/gom cụm/đánh giá vector, `find_tables`, cứu chú thích mồ côi, Pha 3b cứu mảnh vector nhỏ, nới nhãn trục và tra bảng metadata). Khi vượt 30 s, công cụ bỏ các bước nặng còn lại (cắt viền trắng, gom cụm nếu chưa gom, `find_tables`, cứu chú thích mồ côi, Pha 3b) nhưng vẫn chấm các cụm vector đã gom (tối đa 40 cụm lớn nhất, `DetectorConfig.budget_late_clusters`), vẫn chạy các bước rẻ (nới nhãn trục, gộp lần hai, gắn nhãn theo dòng, khử tiêu đề chạy) và in cảnh báo ra `stderr`; các trang chạy dưới ngưỡng 30 s giữ nguyên 100% luồng xử lý và kết quả. Giới hạn là "mềm": chỉ kiểm tra giữa các bước, nên một lệnh PyMuPDF lớn đang chạy (đọc nét vẽ, gom cụm) có thể kéo trang quá 30 s vài giây. Bổ sung các ca kiểm thử dùng đồng hồ giả trong `tests/test_detector_fixes.py`.

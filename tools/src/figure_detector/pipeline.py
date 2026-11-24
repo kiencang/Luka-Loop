@@ -239,16 +239,61 @@ def _label_lines(ctx: PageContext) -> list[tuple[pymupdf.Rect, bool]]:
     return out
 
 
+def _column_gutters(ctx: PageContext) -> list[tuple[float, float]]:
+    """Gaps between text columns, as (x0, x1), found from where body paragraphs sit across the page width.
+
+    Paragraphs (text blocks of 12+ words) are projected onto the x-axis; an empty stretch at least 6 pt wide,
+    centred in the middle 70% of the page, with paragraphs filling at least 15% of the page height on each side,
+    is a column gutter. A paragraph running across the columns (a full-width abstract) fills the gap, so such a
+    page reports no gutter and keeps the old behaviour.
+    """
+    prose = [tb.rect for tb in ctx.text_blocks if tb.kind == "text" and tb.word_count >= 12]
+    if len(prose) < 2:
+        return []
+    spans: list[list[float]] = []
+    for x0, x1 in sorted((r.x0, r.x1) for r in prose):
+        if spans and x0 <= spans[-1][1]:
+            spans[-1][1] = max(spans[-1][1], x1)
+        else:
+            spans.append([x0, x1])
+    gutters = []
+    for (_, left_end), (right_start, _) in zip(spans, spans[1:]):
+        mid = (left_end + right_start) / 2 - ctx.page_rect.x0
+        if right_start - left_end < 6.0 or not 0.15 * ctx.pw <= mid <= 0.85 * ctx.pw:
+            continue
+        left = sum(r.height for r in prose if r.x1 <= left_end + 0.5)
+        right = sum(r.height for r in prose if r.x0 >= right_start - 0.5)
+        if left >= 0.15 * ctx.ph and right >= 0.15 * ctx.ph:
+            gutters.append((left_end, right_start))
+    return gutters
+
+
+def _across_gutter(box: pymupdf.Rect, line: pymupdf.Rect, gutters: list[tuple[float, float]]) -> bool:
+    """True when `box` stays on one side of a gutter's midline and the centre of `line` lies on the other side.
+
+    The midline, not the gutter edge, decides the side: a figure may reach a little into the gutter (its frame or
+    last tick label set wider than the paragraphs) and still belongs to its own column.
+    """
+    centre = (line.x0 + line.x1) / 2
+    for g0, g1 in gutters:
+        mid = (g0 + g1) / 2
+        if (box.x1 <= mid and centre >= mid) or (box.x0 >= mid and centre <= mid):
+            return True
+    return False
+
+
 def _attach_adjacent_label_lines(candidates: list[CandidateBox], ctx: PageContext, cfg: DetectorConfig) -> None:
     """Grow figure boxes line by line to take in adjacent axis titles, tick values and legends.
 
     Complements `_expand_plot_axis_labels`, which works on whole text blocks: a block can join the tick values of
     two neighbouring panels (too wide to attach) or straddle the box edge (matching no side). Working on lines,
-    with side-specific gaps, recovers those labels. Never crosses captions, prose, another figure or page margins.
+    with side-specific gaps, recovers those labels. Never crosses captions, prose, another figure, page margins or
+    a column gutter (a figure set in one text column takes no line from the column beside it).
     """
     lines = _label_lines(ctx)
     if not lines:
         return
+    gutters = _column_gutters(ctx)
     captions = [tb.rect for tb in ctx.fig_captions + ctx.tab_captions]
     prose = [
         tb.rect
@@ -291,6 +336,8 @@ def _attach_adjacent_label_lines(candidates: list[CandidateBox], ctx: PageContex
                 else:
                     ok = False
                 if not ok:
+                    continue
+                if gutters and _across_gutter(orig, lr, gutters):
                     continue
                 expanded = cur | lr
                 g = cfg.label_max_growth

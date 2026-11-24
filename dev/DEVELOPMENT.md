@@ -94,4 +94,5 @@ python -X utf8 dev\ab_judge.py score AB5:LREX...
   - Sau mọi thay đổi ở các tệp này, chạy `test_skill_contracts.py`: test đối chiếu tham số, giá trị mặc định, dòng stdout, liên kết và kích thước tệp SI với mã thật.
 - **Đổi dòng stdout của exe:** nếu `SKILL.md` dựa vào dòng đó, cập nhật `SKILL.md` cùng lúc (test đối chiếu sẽ báo nếu quên).
 - **CHANGELOG:** ghi thay đổi vào mục `[Unreleased]`. Khi phát hành, đổi `[Unreleased]` thành số phiên bản, commit, rồi đẩy tag `vX.Y.Z` để CI build và đóng gói.
+- **Lịch sử chất lượng:** bản phát hành nào đổi mã bộ tách hình (`tools/src/figure_detector/`, `tools/src/image_ops.py`) thì chạy `dev/eval_doclaynet.py` trên cả 4 tập và thêm một dòng vào [quality_history.md](quality_history.md) (cả hai bảng và bảng nguồn số liệu: commit, ngày, dấu vân tay). Bản không đổi mã tách hình thì gộp vào dòng của bản trước.
 - **Commit:** tách theo chủ đề, tiêu đề tiếng Anh dạng `fix: …`, `feat: …`, `test: …`, `refactor: …`, `chore: …`, `docs: …`. Không commit `output\`, `work\`, `tools\extract_assets\`.
