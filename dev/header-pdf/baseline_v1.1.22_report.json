@@ -1,0 +1,1147 @@
+{
+ "01_two_column_letter.pdf": {
+  "items": [
+   {
+    "file": "fig_p2_1.png",
+    "page": 2,
+    "img": [
+     310.6,
+     49.1,
+     559.1,
+     201.2
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p3_1.png",
+    "page": 3,
+    "img": [
+     310.6,
+     24.5,
+     562.1,
+     186.2
+    ],
+    "header_hits": [
+     "3"
+    ]
+   },
+   {
+    "file": "fig_p4_1.png",
+    "page": 4,
+    "img": [
+     310.6,
+     212.2,
+     559.1,
+     365.9
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_1.png",
+    "page": 5,
+    "img": [
+     310.6,
+     49.1,
+     559.1,
+     201.2
+    ],
+    "header_hits": []
+   }
+  ],
+  "figures": [
+   {
+    "page": 2,
+    "no": 1,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 3,
+    "no": 2,
+    "kind": "panels",
+    "control": null,
+    "loose_top": 14.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 4,
+    "no": 3,
+    "kind": "lines",
+    "control": "title",
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 5,
+    "no": 4,
+    "kind": "scatter",
+    "control": "top_ticks",
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   }
+  ]
+ },
+ "02_journal_running_title.pdf": {
+  "items": [
+   {
+    "file": "fig_p2_1.png",
+    "page": 2,
+    "img": [
+     307.3,
+     27.1,
+     551.1,
+     211.9
+    ],
+    "header_hits": [
+     "2"
+    ]
+   },
+   {
+    "file": "fig_p2_2.png",
+    "page": 2,
+    "img": [
+     45.4,
+     50.7,
+     311.2,
+     211.9
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p3_1.png",
+    "page": 3,
+    "img": [
+     302.0,
+     27.1,
+     551.1,
+     201.8
+    ],
+    "header_hits": [
+     "3"
+    ]
+   },
+   {
+    "file": "fig_p4_1.png",
+    "page": 4,
+    "img": [
+     302.0,
+     215.7,
+     548.1,
+     377.8
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_1.png",
+    "page": 5,
+    "img": [
+     302.0,
+     49.9,
+     499.9,
+     212.8
+    ],
+    "header_hits": []
+   }
+  ],
+  "figures": [
+   {
+    "page": 2,
+    "no": 1,
+    "kind": "panels",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 3,
+    "no": 2,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 10.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 4,
+    "no": 3,
+    "kind": "bars",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 5,
+    "no": 4,
+    "kind": "heat",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "cut",
+    "outside_share": 0.0486,
+    "outside_sample": [
+     [
+      505.6,
+      57.0
+     ],
+     [
+      506.6,
+      57.0
+     ],
+     [
+      507.6,
+      57.0
+     ],
+     [
+      508.6,
+      57.0
+     ],
+     [
+      509.6,
+      57.0
+     ]
+    ]
+   }
+  ]
+ },
+ "03_book_chapter_deep_margin.pdf": {
+  "items": [
+   {
+    "file": "fig_p2_1.png",
+    "page": 2,
+    "img": [
+     105.5,
+     90.3,
+     527.3,
+     328.1
+    ],
+    "header_hits": [
+     "Spectral analysis of turbulent wakes"
+    ]
+   },
+   {
+    "file": "fig_p3_1.png",
+    "page": 3,
+    "img": [
+     105.5,
+     117.2,
+     488.0,
+     328.1
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p4_1.png",
+    "page": 4,
+    "img": [
+     105.5,
+     282.2,
+     488.0,
+     493.1
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_1.png",
+    "page": 5,
+    "img": [
+     105.5,
+     115.5,
+     488.0,
+     328.1
+    ],
+    "header_hits": []
+   }
+  ],
+  "figures": [
+   {
+    "page": 2,
+    "no": 1,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 3,
+    "no": 2,
+    "kind": "panels",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 4,
+    "no": 3,
+    "kind": "scatter",
+    "control": "title",
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 5,
+    "no": 4,
+    "kind": "lines",
+    "control": "top_ticks",
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   }
+  ]
+ },
+ "04_thesis_rule.pdf": {
+  "items": [
+   {
+    "file": "fig_p2_1.png",
+    "page": 2,
+    "img": [
+     75.8,
+     81.0,
+     481.4,
+     313.0
+    ],
+    "header_hits": [
+     "Chapter 3. Adaptive control of quadrotor swarms"
+    ]
+   },
+   {
+    "file": "fig_p3_1.png",
+    "page": 3,
+    "img": [
+     75.8,
+     81.0,
+     481.4,
+     313.0
+    ],
+    "header_hits": [
+     "Chapter 3. Adaptive control of quadrotor swarms"
+    ]
+   },
+   {
+    "file": "fig_p4_1.png",
+    "page": 4,
+    "img": [
+     112.7,
+     274.7,
+     481.4,
+     478.0
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_1.png",
+    "page": 5,
+    "img": [
+     75.8,
+     81.0,
+     423.7,
+     313.0
+    ],
+    "header_hits": [
+     "Chapter 3. Adaptive control of quadrotor swarms"
+    ]
+   }
+  ],
+  "figures": [
+   {
+    "page": 2,
+    "no": 1,
+    "kind": "bars",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 3,
+    "no": 2,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 4,
+    "no": 3,
+    "kind": "lines",
+    "control": "top_ticks",
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 5,
+    "no": 4,
+    "kind": "heat",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "cut",
+    "outside_share": 0.0339,
+    "outside_sample": [
+     [
+      436.8,
+      117.0
+     ],
+     [
+      437.8,
+      117.0
+     ],
+     [
+      438.8,
+      117.0
+     ],
+     [
+      439.8,
+      117.0
+     ],
+     [
+      440.8,
+      117.0
+     ]
+    ]
+   }
+  ]
+ },
+ "05_preprint_loose_bbox.pdf": {
+  "items": [
+   {
+    "file": "fig_p2_1.png",
+    "page": 2,
+    "img": [
+     310.6,
+     22.1,
+     556.0,
+     178.2
+    ],
+    "header_hits": [
+     "2"
+    ]
+   },
+   {
+    "file": "fig_p3_1.png",
+    "page": 3,
+    "img": [
+     310.6,
+     22.1,
+     556.0,
+     182.2
+    ],
+    "header_hits": [
+     "3"
+    ]
+   },
+   {
+    "file": "fig_p4_1.png",
+    "page": 4,
+    "img": [
+     310.6,
+     212.2,
+     553.0,
+     363.6
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_1.png",
+    "page": 5,
+    "img": [
+     57.8,
+     40.4,
+     537.7,
+     186.2
+    ],
+    "header_hits": []
+   }
+  ],
+  "figures": [
+   {
+    "page": 2,
+    "no": 1,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 20.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 3,
+    "no": 2,
+    "kind": "scatter",
+    "control": null,
+    "loose_top": 16.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 4,
+    "no": 3,
+    "kind": "panels",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 5,
+    "no": 4,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 12.0,
+    "raster": false,
+    "status": "cut",
+    "outside_share": 0.0532,
+    "outside_sample": [
+     [
+      540.0,
+      48.0
+     ],
+     [
+      549.0,
+      48.0
+     ],
+     [
+      540.0,
+      49.0
+     ],
+     [
+      549.0,
+      49.0
+     ],
+     [
+      540.0,
+      50.0
+     ]
+    ]
+   }
+  ]
+ },
+ "06_report_centred_folio.pdf": {
+  "items": [
+   {
+    "file": "fig_p2_1.png",
+    "page": 2,
+    "img": [
+     103.7,
+     24.6,
+     489.7,
+     237.2
+    ],
+    "header_hits": [
+     "2"
+    ]
+   },
+   {
+    "file": "fig_p3_1.png",
+    "page": 3,
+    "img": [
+     103.7,
+     24.6,
+     489.7,
+     237.2
+    ],
+    "header_hits": [
+     "3"
+    ]
+   },
+   {
+    "file": "fig_p4_1.png",
+    "page": 4,
+    "img": [
+     103.7,
+     209.0,
+     489.7,
+     402.2
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_1.png",
+    "page": 5,
+    "img": [
+     104.3,
+     33.9,
+     431.4,
+     227.1
+    ],
+    "header_hits": [
+     "5"
+    ]
+   }
+  ],
+  "figures": [
+   {
+    "page": 2,
+    "no": 1,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 3,
+    "no": 2,
+    "kind": "bars",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 4,
+    "no": 3,
+    "kind": "scatter",
+    "control": "title",
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 5,
+    "no": 4,
+    "kind": "heat",
+    "control": null,
+    "loose_top": 10.0,
+    "raster": false,
+    "status": "cut",
+    "outside_share": 0.0324,
+    "outside_sample": [
+     [
+      445.4,
+      46.0
+     ],
+     [
+      453.4,
+      46.0
+     ],
+     [
+      445.4,
+      47.0
+     ],
+     [
+      453.4,
+      47.0
+     ],
+     [
+      445.4,
+      48.0
+     ]
+    ]
+   }
+  ]
+ },
+ "07_supplement_raster.pdf": {
+  "items": [
+   {
+    "file": "fig_p2_1.png",
+    "page": 2,
+    "img": [
+     90.6,
+     29.7,
+     504.6,
+     254.0
+    ],
+    "header_hits": [
+     "Supplementary Information"
+    ]
+   },
+   {
+    "file": "fig_p3_1.png",
+    "page": 3,
+    "img": [
+     90.6,
+     33.9,
+     504.6,
+     254.0
+    ],
+    "header_hits": [
+     "Supplementary Information"
+    ]
+   },
+   {
+    "file": "fig_p4_1.png",
+    "page": 4,
+    "img": [
+     90.6,
+     210.7,
+     504.6,
+     419.1
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_1.png",
+    "page": 5,
+    "img": [
+     90.6,
+     45.7,
+     504.6,
+     254.0
+    ],
+    "header_hits": []
+   }
+  ],
+  "figures": [
+   {
+    "page": 2,
+    "no": 1,
+    "kind": "heat",
+    "control": null,
+    "loose_top": 16.0,
+    "raster": true,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 3,
+    "no": 2,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 12.0,
+    "raster": true,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 4,
+    "no": 3,
+    "kind": "panels",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": true,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 5,
+    "no": 4,
+    "kind": "scatter",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": true,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   }
+  ]
+ },
+ "08_conference_wide_figs.pdf": {
+  "items": [
+   {
+    "file": "fig_p2_1.png",
+    "page": 2,
+    "img": [
+     45.6,
+     23.7,
+     568.3,
+     218.6
+    ],
+    "header_hits": [
+     "2"
+    ]
+   },
+   {
+    "file": "fig_p3_1.png",
+    "page": 3,
+    "img": [
+     45.6,
+     41.1,
+     548.7,
+     206.0
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p4_1.png",
+    "page": 4,
+    "img": [
+     310.6,
+     212.2,
+     565.2,
+     384.2
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_1.png",
+    "page": 5,
+    "img": [
+     45.6,
+     45.9,
+     319.2,
+     218.6
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_2.png",
+    "page": 5,
+    "img": [
+     315.5,
+     45.9,
+     565.2,
+     218.6
+    ],
+    "header_hits": []
+   }
+  ],
+  "figures": [
+   {
+    "page": 2,
+    "no": 1,
+    "kind": "panels",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 3,
+    "no": 2,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 12.0,
+    "raster": false,
+    "status": "cut",
+    "outside_share": 0.0596,
+    "outside_sample": [
+     [
+      552.0,
+      48.0
+     ],
+     [
+      561.0,
+      48.0
+     ],
+     [
+      552.0,
+      49.0
+     ],
+     [
+      561.0,
+      49.0
+     ],
+     [
+      552.0,
+      50.0
+     ]
+    ]
+   },
+   {
+    "page": 4,
+    "no": 3,
+    "kind": "bars",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 5,
+    "no": 4,
+    "kind": "panels",
+    "control": "top_ticks",
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   }
+  ]
+ },
+ "09_proceedings_alternating.pdf": {
+  "items": [
+   {
+    "file": "fig_p2_1.png",
+    "page": 2,
+    "img": [
+     57.3,
+     59.1,
+     529.6,
+     214.5
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p3_1.png",
+    "page": 3,
+    "img": [
+     302.0,
+     29.7,
+     539.2,
+     214.5
+    ],
+    "header_hits": [
+     "3"
+    ]
+   },
+   {
+    "file": "fig_p4_1.png",
+    "page": 4,
+    "img": [
+     302.0,
+     218.3,
+     536.2,
+     379.5
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_1.png",
+    "page": 5,
+    "img": [
+     57.3,
+     60.0,
+     515.9,
+     214.5
+    ],
+    "header_hits": []
+   }
+  ],
+  "figures": [
+   {
+    "page": 2,
+    "no": 1,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "cut",
+    "outside_share": 0.1673,
+    "outside_sample": [
+     [
+      95.0,
+      57.0
+     ],
+     [
+      96.0,
+      57.0
+     ],
+     [
+      97.0,
+      57.0
+     ],
+     [
+      98.0,
+      57.0
+     ],
+     [
+      99.0,
+      57.0
+     ]
+    ]
+   },
+   {
+    "page": 3,
+    "no": 2,
+    "kind": "panels",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 4,
+    "no": 3,
+    "kind": "scatter",
+    "control": "title",
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 5,
+    "no": 4,
+    "kind": "bars",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "cut",
+    "outside_share": 0.0204,
+    "outside_sample": [
+     [
+      87.0,
+      57.0
+     ],
+     [
+      88.0,
+      57.0
+     ],
+     [
+      89.0,
+      57.0
+     ],
+     [
+      90.0,
+      57.0
+     ],
+     [
+      91.0,
+      57.0
+     ]
+    ]
+   }
+  ]
+ },
+ "10_monograph_deep_raster.pdf": {
+  "items": [
+   {
+    "file": "fig_p2_1.png",
+    "page": 2,
+    "img": [
+     72.2,
+     86.1,
+     485.6,
+     315.5
+    ],
+    "header_hits": [
+     "Protein folding kinetics"
+    ]
+   },
+   {
+    "file": "fig_p3_1.png",
+    "page": 3,
+    "img": [
+     72.2,
+     86.1,
+     486.2,
+     314.7
+    ],
+    "header_hits": [
+     "Protein folding kinetics"
+    ]
+   },
+   {
+    "file": "fig_p4_1.png",
+    "page": 4,
+    "img": [
+     109.7,
+     277.2,
+     486.2,
+     479.7
+    ],
+    "header_hits": []
+   },
+   {
+    "file": "fig_p5_1.png",
+    "page": 5,
+    "img": [
+     109.1,
+     113.0,
+     485.0,
+     314.7
+    ],
+    "header_hits": []
+   }
+  ],
+  "figures": [
+   {
+    "page": 2,
+    "no": 1,
+    "kind": "heat",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": true,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 3,
+    "no": 2,
+    "kind": "lines",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": true,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 4,
+    "no": 3,
+    "kind": "lines",
+    "control": "title",
+    "loose_top": 0.0,
+    "raster": true,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   },
+   {
+    "page": 5,
+    "no": 4,
+    "kind": "panels",
+    "control": null,
+    "loose_top": 0.0,
+    "raster": false,
+    "status": "ok",
+    "outside_share": 0.0,
+    "outside_sample": []
+   }
+  ]
+ }
+}

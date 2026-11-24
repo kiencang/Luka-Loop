@@ -1,0 +1,1717 @@
+{
+ "01_two_column_letter.pdf": {
+  "pages": 5,
+  "plan": [
+   "title",
+   "top:lines",
+   "top:panels:loose14",
+   "mid:lines:title",
+   "top:scatter:top_ticks"
+  ],
+  "truth": {
+   "2": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "2",
+      "rect": [
+       553.0,
+       30.8,
+       558.0,
+       40.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 1,
+      "kind": "lines",
+      "placement": [
+       313.0,
+       50.0,
+       558.0,
+       200.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "3": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "3",
+      "rect": [
+       553.0,
+       30.8,
+       558.0,
+       40.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 2,
+      "kind": "panels",
+      "placement": [
+       313.0,
+       36.0,
+       558.0,
+       200.0
+      ],
+      "loose_top": 14.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "4": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "4",
+      "rect": [
+       553.0,
+       30.8,
+       558.0,
+       40.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 3,
+      "kind": "lines",
+      "placement": [
+       313.0,
+       215.0,
+       558.0,
+       365.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": "title"
+     }
+    ]
+   },
+   "5": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "5",
+      "rect": [
+       553.0,
+       30.8,
+       558.0,
+       40.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 4,
+      "kind": "scatter",
+      "placement": [
+       313.0,
+       50.0,
+       558.0,
+       200.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": "top_ticks"
+     }
+    ]
+   }
+  }
+ },
+ "02_journal_running_title.pdf": {
+  "pages": 5,
+  "plan": [
+   "title",
+   "top-wide:panels",
+   "top:lines:loose10",
+   "mid:bars",
+   "top:heat"
+  ],
+  "truth": {
+   "1": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "1",
+      "rect": [
+       542.8,
+       33.6,
+       547.3,
+       42.0
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "J. Appl. Hydrodyn. 41 (2026)",
+      "rect": [
+       48,
+       33.6,
+       149.8,
+       42.0
+      ]
+     }
+    ],
+    "figures": []
+   },
+   "2": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "2",
+      "rect": [
+       542.8,
+       33.6,
+       547.3,
+       42.0
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "J. Appl. Hydrodyn. 41 (2026)",
+      "rect": [
+       48,
+       33.6,
+       149.8,
+       42.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 1,
+      "kind": "panels",
+      "placement": [
+       48.0,
+       52.0,
+       547.3,
+       212.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "3": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "3",
+      "rect": [
+       542.8,
+       33.6,
+       547.3,
+       42.0
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "J. Appl. Hydrodyn. 41 (2026)",
+      "rect": [
+       48,
+       33.6,
+       149.8,
+       42.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 2,
+      "kind": "lines",
+      "placement": [
+       304.6,
+       42.0,
+       547.3,
+       212.0
+      ],
+      "loose_top": 10.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "4": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "4",
+      "rect": [
+       542.8,
+       33.6,
+       547.3,
+       42.0
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "J. Appl. Hydrodyn. 41 (2026)",
+      "rect": [
+       48,
+       33.6,
+       149.8,
+       42.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 3,
+      "kind": "bars",
+      "placement": [
+       304.6,
+       217.0,
+       547.3,
+       377.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "5": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "5",
+      "rect": [
+       542.8,
+       33.6,
+       547.3,
+       42.0
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "J. Appl. Hydrodyn. 41 (2026)",
+      "rect": [
+       48,
+       33.6,
+       149.8,
+       42.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 4,
+      "kind": "heat",
+      "placement": [
+       304.6,
+       52.0,
+       547.3,
+       212.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   }
+  }
+ },
+ "03_book_chapter_deep_margin.pdf": {
+  "pages": 5,
+  "plan": [
+   "title",
+   "top:lines",
+   "top:panels",
+   "mid:scatter:title",
+   "top:lines:top_ticks"
+  ],
+  "truth": {
+   "1": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "1",
+      "rect": [
+       518.3,
+       96.8,
+       523.3,
+       106.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Spectral analysis of turbulent wakes",
+      "rect": [
+       72,
+       96.8,
+       215.6,
+       106.2
+      ]
+     }
+    ],
+    "figures": []
+   },
+   "2": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "2",
+      "rect": [
+       72,
+       96.8,
+       77.0,
+       106.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Spectral analysis of turbulent wakes",
+      "rect": [
+       379.7,
+       96.8,
+       523.3,
+       106.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 1,
+      "kind": "lines",
+      "placement": [
+       108.1,
+       118.0,
+       487.2,
+       328.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "3": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "3",
+      "rect": [
+       518.3,
+       96.8,
+       523.3,
+       106.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Spectral analysis of turbulent wakes",
+      "rect": [
+       72,
+       96.8,
+       215.6,
+       106.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 2,
+      "kind": "panels",
+      "placement": [
+       108.1,
+       118.0,
+       487.2,
+       328.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "4": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "4",
+      "rect": [
+       72,
+       96.8,
+       77.0,
+       106.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Spectral analysis of turbulent wakes",
+      "rect": [
+       379.7,
+       96.8,
+       523.3,
+       106.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 3,
+      "kind": "scatter",
+      "placement": [
+       108.1,
+       283.0,
+       487.2,
+       493.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": "title"
+     }
+    ]
+   },
+   "5": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "5",
+      "rect": [
+       518.3,
+       96.8,
+       523.3,
+       106.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Spectral analysis of turbulent wakes",
+      "rect": [
+       72,
+       96.8,
+       215.6,
+       106.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 4,
+      "kind": "lines",
+      "placement": [
+       108.1,
+       118.0,
+       487.2,
+       328.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": "top_ticks"
+     }
+    ]
+   }
+  }
+ },
+ "04_thesis_rule.pdf": {
+  "pages": 5,
+  "plan": [
+   "title",
+   "top:bars",
+   "top:lines",
+   "mid:lines:top_ticks",
+   "top:heat"
+  ],
+  "truth": {
+   "1": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "1",
+      "rect": [
+       509.7,
+       88.0,
+       515.3,
+       98.5
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Chapter 3. Adaptive control of quadrotor swarms",
+      "rect": [
+       80,
+       88.0,
+       295.1,
+       98.5
+      ]
+     }
+    ],
+    "figures": []
+   },
+   "2": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "2",
+      "rect": [
+       509.7,
+       88.0,
+       515.3,
+       98.5
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Chapter 3. Adaptive control of quadrotor swarms",
+      "rect": [
+       80,
+       88.0,
+       295.1,
+       98.5
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 1,
+      "kind": "bars",
+      "placement": [
+       114.8,
+       112.0,
+       480.5,
+       312.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "3": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "3",
+      "rect": [
+       509.7,
+       88.0,
+       515.3,
+       98.5
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Chapter 3. Adaptive control of quadrotor swarms",
+      "rect": [
+       80,
+       88.0,
+       295.1,
+       98.5
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 2,
+      "kind": "lines",
+      "placement": [
+       114.8,
+       112.0,
+       480.5,
+       312.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "4": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "4",
+      "rect": [
+       509.7,
+       88.0,
+       515.3,
+       98.5
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Chapter 3. Adaptive control of quadrotor swarms",
+      "rect": [
+       80,
+       88.0,
+       295.1,
+       98.5
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 3,
+      "kind": "lines",
+      "placement": [
+       114.8,
+       277.0,
+       480.5,
+       477.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": "top_ticks"
+     }
+    ]
+   },
+   "5": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "5",
+      "rect": [
+       509.7,
+       88.0,
+       515.3,
+       98.5
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Chapter 3. Adaptive control of quadrotor swarms",
+      "rect": [
+       80,
+       88.0,
+       295.1,
+       98.5
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 4,
+      "kind": "heat",
+      "placement": [
+       114.8,
+       112.0,
+       480.5,
+       312.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   }
+  }
+ },
+ "05_preprint_loose_bbox.pdf": {
+  "pages": 5,
+  "plan": [
+   "title",
+   "top:lines:loose20",
+   "top:scatter:loose16",
+   "mid:panels",
+   "top-wide:lines:loose12"
+  ],
+  "truth": {
+   "1": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "1",
+      "rect": [
+       547.0,
+       28.8,
+       552.0,
+       38.2
+      ]
+     }
+    ],
+    "figures": []
+   },
+   "2": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "2",
+      "rect": [
+       547.0,
+       28.8,
+       552.0,
+       38.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 1,
+      "kind": "lines",
+      "placement": [
+       313.0,
+       28.0,
+       552.0,
+       198.0
+      ],
+      "loose_top": 20.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "3": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "3",
+      "rect": [
+       547.0,
+       28.8,
+       552.0,
+       38.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 2,
+      "kind": "scatter",
+      "placement": [
+       313.0,
+       32.0,
+       552.0,
+       198.0
+      ],
+      "loose_top": 16.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "4": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "4",
+      "rect": [
+       547.0,
+       28.8,
+       552.0,
+       38.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 3,
+      "kind": "panels",
+      "placement": [
+       313.0,
+       213.0,
+       552.0,
+       363.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "5": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "5",
+      "rect": [
+       547.0,
+       28.8,
+       552.0,
+       38.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 4,
+      "kind": "lines",
+      "placement": [
+       60.0,
+       36.0,
+       552.0,
+       198.0
+      ],
+      "loose_top": 12.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   }
+  }
+ },
+ "06_report_centred_folio.pdf": {
+  "pages": 5,
+  "plan": [
+   "title",
+   "top:lines",
+   "top:bars",
+   "mid:scatter:title",
+   "top:heat:loose10"
+  ],
+  "truth": {
+   "1": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "1",
+      "rect": [
+       295.1,
+       30.8,
+       300.1,
+       40.2
+      ]
+     }
+    ],
+    "figures": []
+   },
+   "2": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "2",
+      "rect": [
+       295.1,
+       30.8,
+       300.1,
+       40.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 1,
+      "kind": "lines",
+      "placement": [
+       106.4,
+       46.0,
+       488.9,
+       236.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "3": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "3",
+      "rect": [
+       295.1,
+       30.8,
+       300.1,
+       40.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 2,
+      "kind": "bars",
+      "placement": [
+       106.4,
+       46.0,
+       488.9,
+       236.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "4": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "4",
+      "rect": [
+       295.1,
+       30.8,
+       300.1,
+       40.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 3,
+      "kind": "scatter",
+      "placement": [
+       106.4,
+       211.0,
+       488.9,
+       401.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": "title"
+     }
+    ]
+   },
+   "5": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "5",
+      "rect": [
+       295.1,
+       30.8,
+       300.1,
+       40.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 4,
+      "kind": "heat",
+      "placement": [
+       106.4,
+       36.0,
+       488.9,
+       236.0
+      ],
+      "loose_top": 10.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   }
+  }
+ },
+ "07_supplement_raster.pdf": {
+  "pages": 5,
+  "plan": [
+   "title",
+   "top:heat:raster:loose16",
+   "top:lines:raster:loose12",
+   "mid:panels:raster",
+   "top:scatter:raster"
+  ],
+  "truth": {
+   "1": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "S1",
+      "rect": [
+       528.3,
+       32.8,
+       539.3,
+       42.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Supplementary Information",
+      "rect": [
+       56,
+       32.8,
+       164.0,
+       42.2
+      ]
+     }
+    ],
+    "figures": []
+   },
+   "2": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "S2",
+      "rect": [
+       528.3,
+       32.8,
+       539.3,
+       42.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Supplementary Information",
+      "rect": [
+       56,
+       32.8,
+       164.0,
+       42.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 1,
+      "kind": "heat",
+      "placement": [
+       94.7,
+       34.0,
+       500.6,
+       250.0
+      ],
+      "loose_top": 16.0,
+      "raster": true,
+      "control": null
+     }
+    ]
+   },
+   "3": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "S3",
+      "rect": [
+       528.3,
+       32.8,
+       539.3,
+       42.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Supplementary Information",
+      "rect": [
+       56,
+       32.8,
+       164.0,
+       42.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 2,
+      "kind": "lines",
+      "placement": [
+       94.7,
+       38.0,
+       500.6,
+       250.0
+      ],
+      "loose_top": 12.0,
+      "raster": true,
+      "control": null
+     }
+    ]
+   },
+   "4": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "S4",
+      "rect": [
+       528.3,
+       32.8,
+       539.3,
+       42.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Supplementary Information",
+      "rect": [
+       56,
+       32.8,
+       164.0,
+       42.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 3,
+      "kind": "panels",
+      "placement": [
+       94.7,
+       215.0,
+       500.6,
+       415.0
+      ],
+      "loose_top": 0.0,
+      "raster": true,
+      "control": null
+     }
+    ]
+   },
+   "5": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "S5",
+      "rect": [
+       528.3,
+       32.8,
+       539.3,
+       42.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Supplementary Information",
+      "rect": [
+       56,
+       32.8,
+       164.0,
+       42.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 4,
+      "kind": "scatter",
+      "placement": [
+       94.7,
+       50.0,
+       500.6,
+       250.0
+      ],
+      "loose_top": 0.0,
+      "raster": true,
+      "control": null
+     }
+    ]
+   }
+  }
+ },
+ "08_conference_wide_figs.pdf": {
+  "pages": 5,
+  "plan": [
+   "title",
+   "top-wide:panels",
+   "top-wide:lines:loose12",
+   "mid:bars",
+   "top-wide:panels:top_ticks"
+  ],
+  "truth": {
+   "1": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "1",
+      "rect": [
+       559.6,
+       29.6,
+       564.0,
+       38.0
+      ]
+     }
+    ],
+    "figures": []
+   },
+   "2": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "2",
+      "rect": [
+       559.6,
+       29.6,
+       564.0,
+       38.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 1,
+      "kind": "panels",
+      "placement": [
+       48.0,
+       48.0,
+       564.0,
+       218.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "3": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "3",
+      "rect": [
+       559.6,
+       29.6,
+       564.0,
+       38.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 2,
+      "kind": "lines",
+      "placement": [
+       48.0,
+       36.0,
+       564.0,
+       218.0
+      ],
+      "loose_top": 12.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "4": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "4",
+      "rect": [
+       559.6,
+       29.6,
+       564.0,
+       38.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 3,
+      "kind": "bars",
+      "placement": [
+       313.0,
+       213.0,
+       564.0,
+       383.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "5": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "5",
+      "rect": [
+       559.6,
+       29.6,
+       564.0,
+       38.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 4,
+      "kind": "panels",
+      "placement": [
+       48.0,
+       48.0,
+       564.0,
+       218.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": "top_ticks"
+     }
+    ]
+   }
+  }
+ },
+ "09_proceedings_alternating.pdf": {
+  "pages": 5,
+  "plan": [
+   "title",
+   "top-wide:lines",
+   "top:panels",
+   "mid:scatter:title",
+   "top-wide:bars"
+  ],
+  "truth": {
+   "1": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "1",
+      "rect": [
+       530.8,
+       35.6,
+       535.3,
+       44.0
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Proc. Mech. Metamater. 2026",
+      "rect": [
+       60,
+       35.6,
+       165.4,
+       44.0
+      ]
+     }
+    ],
+    "figures": []
+   },
+   "2": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "2",
+      "rect": [
+       60,
+       35.6,
+       64.4,
+       44.0
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Proc. Mech. Metamater. 2026",
+      "rect": [
+       429.9,
+       35.6,
+       535.3,
+       44.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 1,
+      "kind": "lines",
+      "placement": [
+       60.0,
+       54.0,
+       535.3,
+       214.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "3": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "3",
+      "rect": [
+       530.8,
+       35.6,
+       535.3,
+       44.0
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Proc. Mech. Metamater. 2026",
+      "rect": [
+       60,
+       35.6,
+       165.4,
+       44.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 2,
+      "kind": "panels",
+      "placement": [
+       304.6,
+       54.0,
+       535.3,
+       214.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   },
+   "4": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "4",
+      "rect": [
+       60,
+       35.6,
+       64.4,
+       44.0
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Proc. Mech. Metamater. 2026",
+      "rect": [
+       429.9,
+       35.6,
+       535.3,
+       44.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 3,
+      "kind": "scatter",
+      "placement": [
+       304.6,
+       219.0,
+       535.3,
+       379.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": "title"
+     }
+    ]
+   },
+   "5": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "5",
+      "rect": [
+       530.8,
+       35.6,
+       535.3,
+       44.0
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Proc. Mech. Metamater. 2026",
+      "rect": [
+       60,
+       35.6,
+       165.4,
+       44.0
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 4,
+      "kind": "bars",
+      "placement": [
+       60.0,
+       54.0,
+       535.3,
+       214.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   }
+  }
+ },
+ "10_monograph_deep_raster.pdf": {
+  "pages": 5,
+  "plan": [
+   "title",
+   "top:heat:raster",
+   "top:lines:raster",
+   "mid:lines:raster:title",
+   "top:panels"
+  ],
+  "truth": {
+   "1": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "1",
+      "rect": [
+       514.3,
+       92.8,
+       519.3,
+       102.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Protein folding kinetics",
+      "rect": [
+       76,
+       92.8,
+       166.0,
+       102.2
+      ]
+     }
+    ],
+    "figures": []
+   },
+   "2": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "2",
+      "rect": [
+       514.3,
+       92.8,
+       519.3,
+       102.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Protein folding kinetics",
+      "rect": [
+       76,
+       92.8,
+       166.0,
+       102.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 1,
+      "kind": "heat",
+      "placement": [
+       111.5,
+       114.0,
+       483.8,
+       314.0
+      ],
+      "loose_top": 0.0,
+      "raster": true,
+      "control": null
+     }
+    ]
+   },
+   "3": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "3",
+      "rect": [
+       514.3,
+       92.8,
+       519.3,
+       102.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Protein folding kinetics",
+      "rect": [
+       76,
+       92.8,
+       166.0,
+       102.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 2,
+      "kind": "lines",
+      "placement": [
+       111.5,
+       114.0,
+       483.8,
+       314.0
+      ],
+      "loose_top": 0.0,
+      "raster": true,
+      "control": null
+     }
+    ]
+   },
+   "4": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "4",
+      "rect": [
+       514.3,
+       92.8,
+       519.3,
+       102.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Protein folding kinetics",
+      "rect": [
+       76,
+       92.8,
+       166.0,
+       102.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 3,
+      "kind": "lines",
+      "placement": [
+       111.5,
+       279.0,
+       483.8,
+       479.0
+      ],
+      "loose_top": 0.0,
+      "raster": true,
+      "control": "title"
+     }
+    ]
+   },
+   "5": {
+    "running": [
+     {
+      "kind": "folio",
+      "text": "5",
+      "rect": [
+       514.3,
+       92.8,
+       519.3,
+       102.2
+      ]
+     },
+     {
+      "kind": "head",
+      "text": "Protein folding kinetics",
+      "rect": [
+       76,
+       92.8,
+       166.0,
+       102.2
+      ]
+     }
+    ],
+    "figures": [
+     {
+      "no": 4,
+      "kind": "panels",
+      "placement": [
+       111.5,
+       114.0,
+       483.8,
+       314.0
+      ],
+      "loose_top": 0.0,
+      "raster": false,
+      "control": null
+     }
+    ]
+   }
+  }
+ }
+}
