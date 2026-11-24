@@ -2,6 +2,10 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Changed
+- CI (`ci.yml`) nay cũng chạy khi chỉ đổi `.claude/**`, `CLAUDE.md` hoặc `dev/**` (các tệp mà `test_skill_contracts.py`, `test_eval_doclaynet.py`, `test_ab_judge.py` kiểm tra trực tiếp) và có thêm bước `ruff check tools/src tests` (ghim `ruff==0.15.7`).
+
 ## [1.1.30] - 2026-11-25
 ### Fixed
 - **Nhãn nối với hình bằng một nét kẻ bị bỏ ra ngoài ảnh:** nhãn trong sách giải phẫu/hướng dẫn thường được nối vào hình bằng đường dẫn nhãn (leader line), và có thể nằm xa hình hơn khoảng cách gắn nhãn thông thường, vắt qua khe cột hoặc nằm ở dải đầu trang; tên trục, số mốc và tên ô của đồ thị cũng hay nằm ở đầu một trục hay đường mốc. Bước mới `_attach_stroke_labels` (sau bước gắn nhãn theo dòng): một nét thẳng mảnh (≤ 1 pt, dài 5 pt đến 40% bề rộng trang) có một đầu nằm trong khung hình và đầu kia chạm (≤ 6 pt) một dòng chữ ngoài khung thì lấy trọn khối chữ của dòng đó (nhãn 2–3 dòng). Điều kiện: khối ≤ 10 từ, không dòng nào > 8 từ, không phải chú thích, tiêu đề mục hay tiêu đề chạy, không nằm trong hình khác; khung nới ra không chạm chú thích, hình khác hay đoạn văn và nới tối đa 100 pt mỗi phía. Gạch phân số của công thức (có chữ ngay trên và ngay dưới phần giữa nét ngang) không được coi là nét nối.
