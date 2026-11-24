@@ -673,4 +673,93 @@ def detect_vector_regions(
         ctx.log(f"vector:{dec.reason} {[round(v, 1) for v in c]}")
         if dec.keep:
             kept.append(c)
+        elif dec.reason == "reject:too_small":
+            ctx.small_vector_rejects.append(pymupdf.Rect(c))
     return kept, filtered, raw_count
+
+
+def _axis_gap(a: pymupdf.Rect, b: pymupdf.Rect) -> float:
+    """Larger of the horizontal and vertical gaps between two rectangles (0 if they overlap)."""
+    return max(max(a.x0, b.x0) - min(a.x1, b.x1), max(a.y0, b.y0) - min(a.y1, b.y1), 0.0)
+
+
+def _groups_within(rects: list[pymupdf.Rect], gap: float) -> list[list[int]]:
+    """Union-find groups (of 2+ members) of rectangles chained by `_axis_gap` <= `gap`."""
+    parent = list(range(len(rects)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i in range(len(rects)):
+        for j in range(i + 1, len(rects)):
+            if _axis_gap(rects[i], rects[j]) <= gap:
+                parent[find(i)] = find(j)
+    groups: dict[int, list[int]] = {}
+    for i in range(len(rects)):
+        groups.setdefault(find(i), []).append(i)
+    return [m for m in groups.values() if len(m) >= 2]
+
+
+def rescue_small_vector_pieces(
+    ctx: PageContext,
+    filtered_drawings: list[dict],
+    raster_rects: list[pymupdf.Rect],
+    anchors: list[pymupdf.Rect],
+    page_raw_clusters: int,
+    cfg: DetectorConfig = DEFAULT_CONFIG,
+) -> list[pymupdf.Rect]:
+    """Phase 3b: regroup figures that the 5 pt clustering split into pieces each rejected as too_small.
+
+    Grid cells, dotted schematics, legend marks and vector-drawn tick labels often sit more than 5 pt apart,
+    so every piece fails `min_dim` on its own. Pieces not already inside an `anchors` rect (current
+    candidates and recovered vectors) are chained with each other and with the anchors when their gap is
+    <= `small_rescue_gap`; pieces touching prose (captions, sentences: equation bars and radicals) are left
+    out. A group is skipped when it chains two anchors, when it has no anchor and no figure caption of its
+    own (catalog headings drawn as outlines), or when its union swallows a caption. Otherwise the union must
+    pass the whole `_VECTOR_CLUSTER_RULES` chain; kept unions are returned so the normal touch/caption merge
+    steps fold them into the figure they belong to.
+    """
+    covered = [pymupdf.Rect(r) for r in anchors]
+    pieces = [s for s in ctx.small_vector_rejects if not any(c.contains(s) for c in covered)]
+    if not pieces or len(pieces) > cfg.small_rescue_max_pieces:
+        return []
+    prose = [
+        tb.rect
+        for tb in ctx.text_blocks
+        if tb.kind != "text" or (tb.word_count >= 6 and not _is_short_axis_label(tb, vertical_ok=True))
+    ]
+    pieces = [s for s in pieces if not any(s.intersects(p + (-0.5, -0.5, 0.5, 0.5)) for p in prose)]
+    captions = [tb.rect for tb in ctx.text_blocks if tb.kind != "text"]
+    rects = covered + pieces
+    rescued: list[pymupdf.Rect] = []
+    for members in _groups_within(rects, cfg.small_rescue_gap):
+        if all(i < len(covered) for i in members):
+            continue
+        if sum(i < len(covered) for i in members) >= 2:
+            # Pieces chaining two figures (dashed separators, heading bars, icons on catalog pages): the
+            # normal merge steps decide whether those figures belong together, not the rescue.
+            ctx.log(f"vector:rescue_small:skip two_anchors members={len(members)}")
+            continue
+        union = pymupdf.Rect(rects[members[0]])
+        for i in members[1:]:
+            union |= rects[i]
+        swallowed = [p for p in captions if union.contains((p.tl + p.br) / 2)]
+        if any(not any(rects[i].contains((p.tl + p.br) / 2) for i in members) for p in swallowed):
+            # The pieces bridge two figures across the caption between them.
+            ctx.log(f"vector:rescue_small:skip prose_inside {[round(v, 1) for v in union]} members={len(members)}")
+            continue
+        if not any(i < len(covered) for i in members) and not _ClusterFeatures(
+            ctx, union, filtered_drawings, raster_rects, page_raw_clusters, cfg
+        ).has_fig_cap:
+            # A new figure made only of pieces needs its own caption: on catalog pages the pieces are
+            # often headings drawn as outlines.
+            ctx.log(f"vector:rescue_small:skip uncaptioned {[round(v, 1) for v in union]} members={len(members)}")
+            continue
+        dec = _evaluate_vector_cluster(ctx, union, filtered_drawings, raster_rects, page_raw_clusters, cfg=cfg)
+        ctx.log(f"vector:rescue_small:{dec.reason} {[round(v, 1) for v in union]} members={len(members)}")
+        if dec.keep:
+            rescued.append(union)
+    return rescued

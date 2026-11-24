@@ -75,6 +75,9 @@ class DetectorConfig:
     dense_drawing_downsample_threshold: int = 2500
     dense_drawing_grid_pt: float = 6.0
     max_clustered_drawings: int = 12000
+    # Phase 3b: regroup too_small pieces of figures split by the 5 pt clustering (gap per axis, pt)
+    small_rescue_gap: float = 20.0
+    small_rescue_max_pieces: int = 400
     # Phase 4: Caption linking & sibling propagation
     caption_below_max_gap: float = 64.0
     caption_below_bridge_gap: float = 96.0
@@ -196,6 +199,7 @@ class PageContext:
     separator_rules: list[pymupdf.Rect]
     trace: list[str] = field(default_factory=list)
     running_heads: list[pymupdf.Rect] = field(default_factory=list)  # repeated heads/folios (running_heads.py)
+    small_vector_rejects: list[pymupdf.Rect] = field(default_factory=list)  # clusters rejected as too_small
     _page_tables: list[PageTableInfo] | None = None
 
     def is_running_head(self, rect: pymupdf.Rect) -> bool:

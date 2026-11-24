@@ -301,5 +301,73 @@ class TestRunningHeads(unittest.TestCase):
             self.assertLess(fig["box"][1] * 842, 52, f"the plot frame itself must stay whole: {fig}")
 
 
+class TestSmallVectorRescue(unittest.TestCase):
+    """Vector clustering joins drawings only within 5 pt, so a panel of small cells (or dots, legend marks,
+    vector-drawn tick labels) spaced a little wider broke into pieces that were each rejected as too_small, and
+    the panel was cut off the figure (DocLayNet tune: 98 clipped and 11 missed figures recovered).
+    """
+
+    def _page(self) -> pymupdf.Page:
+        doc = pymupdf.open()
+        self.addCleanup(doc.close)
+        page = doc.new_page(width=595, height=842)
+        y = _paragraph(page, 90, 8)
+        frame = pymupdf.Rect(110, y + 20, 280, y + 130)
+        page.draw_rect(frame, color=(0, 0, 0), width=0.8)
+        pts = [pymupdf.Point(frame.x0 + 3 * i, frame.y1 - 10 - 80 * abs(((i * 7) % 40) - 20) / 20) for i in range(56)]
+        page.draw_polyline(pts, color=(0.1, 0.3, 0.8), width=1.2)
+        # Right panel: 8 x 5 cells of 10 pt, 8 pt apart -- every cell is its own cluster.
+        for i in range(8):
+            for j in range(5):
+                x, top = 296 + 18 * i, frame.y0 + 10 + 18 * j
+                page.draw_rect(pymupdf.Rect(x, top, x + 10, top + 10), color=(0, 0, 0), fill=(0.2, 0.4, 0.8), width=0.6)
+        page.insert_text(
+            (110, frame.y1 + 24), "Figure 1. Load curve (left) and the map of active sensor cells (right).", fontsize=BODY
+        )
+        _paragraph(page, frame.y1 + 50, 10)
+        # Control: short equation bars inside prose lines must not become a figure.
+        for k in range(6):
+            page.insert_text((72, 640 + k * 13), "the ratio of the two measured loads equals", fontsize=BODY)
+            page.draw_line((300, 637 + k * 13), (316, 637 + k * 13), width=0.5)
+            page.draw_line((330, 637 + k * 13), (346, 637 + k * 13), width=0.5)
+        return page
+
+    def test_panel_of_small_cells_joins_the_figure(self) -> None:
+        from figure_detector.model import DetectorConfig
+        from figure_detector.pipeline import _run_page_pipeline
+
+        page = self._page()
+        _, before, _ = _run_page_pipeline(page, cfg=DetectorConfig(small_rescue_gap=0.0))
+        self.assertEqual(len(before), 1, before)
+        self.assertLess(before[0].rect.x1, 290, f"precondition: the cell panel is cut off without the rescue: {before}")
+
+        rects, _ = fd.collect_page_figures(page)
+        self.assertEqual(len(rects), 1, f"one figure, no figure from the equation bars: {rects}")
+        self.assertLessEqual(rects[0].x0, 110.5, rects)
+        self.assertGreaterEqual(rects[0].x1, 431.5, f"all 8 cell columns inside the image: {rects}")
+        self.assertLess(rects[0].y1, 340, f"caption stays out of the image: {rects}")
+
+    def test_pieces_never_bridge_two_figures_across_a_caption(self) -> None:
+        from figure_detector.pipeline import _run_page_pipeline
+
+        doc = pymupdf.open()
+        self.addCleanup(doc.close)
+        page = doc.new_page(width=595, height=842)
+        for n, top in ((1, 90), (2, 262)):
+            frame = pymupdf.Rect(120, top, 400, top + 130)
+            page.draw_rect(frame, color=(0, 0, 0), width=0.8)
+            pts = [pymupdf.Point(frame.x0 + 3 * i, frame.y1 - 10 - 60 * abs(((i * 7) % 40) - 20) / 20) for i in range(93)]
+            page.draw_polyline(pts, color=(0.1, 0.3, 0.8), width=1.2)
+            page.insert_text((120, frame.y1 + 20), f"Figure {n}. Strain on the beam.", fontsize=BODY)
+        # A column of small markers 8 pt apart beside both plots chains them past the caption of Figure 1.
+        for k in range(17):
+            page.draw_rect(pymupdf.Rect(412, 96 + 18 * k, 422, 106 + 18 * k), color=(0, 0, 0), fill=(0.8, 0.2, 0.2), width=0.6)
+        ctx, cands, _ = _run_page_pipeline(page)
+        self.assertTrue(any("rescue_small:skip" in t for t in ctx.trace), ctx.trace)
+        self.assertEqual(len(cands), 2, [c.rect for c in cands])
+        for c in cands:
+            self.assertFalse(c.rect.contains(pymupdf.Point(200, 236)), f"caption of Figure 1 inside an image: {c.rect}")
+
+
 if __name__ == "__main__":
     unittest.main()

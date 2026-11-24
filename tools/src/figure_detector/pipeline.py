@@ -40,6 +40,7 @@ from .text import (
 )
 from .vector import (
     detect_vector_regions,
+    rescue_small_vector_pieces,
 )
 
 
@@ -366,6 +367,11 @@ def _run_page_pipeline(
     # Orphan-caption vector recovery (e.g., axis-less bar groups beneath an unclaimed caption)
     extra_vecs = _recover_orphan_caption_vectors(
         ctx, filtered_drawings, raster_rects, candidates, raw_cluster_count, cfg=cfg
+    )
+    # Phase 3b runs after the orphan-caption recovery so that step keeps first claim on its caption
+    # (it also gathers vector-drawn axis titles that sit farther away than the rescue gap).
+    extra_vecs += rescue_small_vector_pieces(
+        ctx, filtered_drawings, raster_rects, [c.rect for c in candidates] + extra_vecs, raw_cluster_count, cfg=cfg
     )
     if extra_vecs:
         base_rects = _merge_touching(

@@ -2,6 +2,25 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- Hình không còn bị cắt mất phần hay bỏ sót khi được vẽ bằng nhiều mảnh nhỏ rời nhau (lưới ô vuông, sơ đồ chấm, ký hiệu chú giải, nhãn trục vẽ bằng nét). Bộ dò chỉ gom các nét cách nhau tối đa 5 pt, nên những hình như vậy vỡ thành nhiều cụm, mỗi cụm nhỏ hơn 42 pt và bị loại vì "quá nhỏ". Nay, sau các bước dò hình sẵn có, những mảnh bị loại mà chưa nằm trong hình nào được gom lại với nhau và với các hình đã tìm thấy khi cách nhau tối đa 20 pt. Mỗi khối gom được phải qua lại toàn bộ luật lọc như một cụm bình thường. Ba chốt chặn đi kèm:
+  - mảnh nằm đè lên câu văn hay chú thích (gạch phân số, dấu căn trong công thức) không được gom;
+  - nhóm mảnh nối liền hai hình có sẵn thì bỏ qua, để các bước gộp sẵn có quyết định;
+  - khối chỉ gồm mảnh vụn phải có chú thích "Figure" riêng, và không khối nào được nuốt chú thích nằm giữa hai hình. Chốt này thêm vào sau khi thấy catalog kỹ thuật vẽ tiêu đề, mục bằng nét bị gom cả trang thành một hình.
+
+  Kết quả:
+  - DocLayNet tune: 96 hình cắt hụt hoặc bỏ sót nay lấy đủ (cắt hụt 444 → 354, bỏ sót 84 → 78).
+  - DocLayNet holdout cũng tốt lên: cắt hụt 148 → 115, bỏ sót 26 → 21.
+  - Không có hình giả mới, tốc độ không đổi.
+  - Chấm mù 50 trang (bản chưa có hai chốt sau): code mới tốt hơn 36, ngang 13, code cũ tốt hơn 1.
+  - Kiểm tra trên 6 cuốn sách thật (280 trang): 3 trang đổi, 1 tốt hơn, 1 ngang, 1 xấu hơn nhẹ (hình kéo theo một dòng tiêu đề phụ vẽ bằng nét).
+  - Còn vài trang hình kéo theo số trang ở đầu trang. Trên tài liệu nhiều trang, bộ lọc tiêu đề chạy (bản 1.1.23) gỡ được số trang này; đã kiểm trên bài gốc từ arXiv.
+  - Bộ đề `dev/header-pdf`: vẫn 0 ảnh dính tiêu đề/số trang, hình cắt hụt giảm từ 7 xuống 4.
+
+### Added
+- Đưa bộ đề tự sinh `dev/header-pdf` (10 PDF × 5 trang, đáp án, bộ sinh và công cụ chấm) vào repo làm tài liệu tham khảo cho dev, kèm README.
+
 ## [1.1.23] - 2026-11-23
 ### Fixed
 - Ảnh tách ra không còn dính tiêu đề chạy (tên tạp chí, tên chương) và số trang in sát phía trên hình. Trước khi dò hình, công cụ quét cả tài liệu, tìm dòng trên cùng/dưới cùng lặp lại ở cùng độ cao trên ít nhất 2 trang khác gần đó (số trang phải thay đổi như bộ đếm, nên số trên trục biểu đồ không bị nhầm). Các dòng này không bao giờ được gom vào hình, và mép hình chạm vào chúng được kéo lùi lại. Trên bộ đề 10 tệp × 5 trang (`dev/header-pdf`), số ảnh dính tiêu đề/số trang giảm từ 18/42 xuống 0, không thêm hình cắt hụt hay bỏ sót. Trên tài liệu thật: 56 trang lỗi dính tiêu đề của DocLayNet, chạy lại trong bản đầy đủ của 30 bài báo arXiv, code cũ dính cả 56, code mới sạch cả 56 mà không mất phần nào của hình (kiểm bằng máy, chấm mù và xem tận mắt 93 ảnh); 1.007 trang sách thật không đổi khung nào, tốc độ như cũ. Tài liệu một trang giữ nguyên kết quả (DocLayNet: cả 14.117 trang cho khung hình y hệt).
