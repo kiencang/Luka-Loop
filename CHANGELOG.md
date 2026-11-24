@@ -2,6 +2,14 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Changed
+- Cập nhật bộ chuyển đổi Antigravity (`.agents/adapters/antigravity.md`) và dấu hiệu nhận diện môi trường trong `AGENTS.md` cùng 2 `SKILL.md` cho khớp Antigravity 2.0 thực tế (vẫn tương thích bản cũ):
+  - Nhận diện qua `App Data Directory` / `Artifact Directory Path` trong `<user_information>` (giữ `appDataDir` cho bản cũ) và dùng thẳng `<Artifact Directory Path>` cho `-TranscriptPath`;
+  - Đặt `read_file` / `write_file` / `edit_file` làm bộ công cụ chính (giữ `view_file` / `write_to_file` / `replace_file_content` cho bản IDE cũ);
+  - Ghi rõ bắt buộc đường dẫn tuyệt đối với `read_file`/`write_file`/`edit_file`, bỏ chú thích lỗi thời về lần mở đầu tiên 800 dòng, bổ sung `ByteOffset` và dùng `write_file` với `Append: true` cho thao tác ghi nối dần;
+  - Cập nhật kiểm thử hợp đồng trong `tests/test_skill_contracts.py`.
+
 ## [1.1.27] - 2026-11-25
 ### Fixed
 - **Biểu đồ đường bị coi là bảng và mất khỏi bản dịch:** bộ đếm đường cong (`_count_non_grid_detail`) chỉ đếm đoạn chéo dài hơn 2 pt theo cả hai chiều, trong khi phần mềm vẽ đồ thị thường vẽ một đường cong mượt bằng hàng trăm đoạn li ti ngắn hơn thế. Biểu đồ khi đó chỉ còn khung, đường lưới và số chia, nên luật nhận bảng (PyMuPDF `find_tables`) loại cả hình nếu chú thích "FIG." không nối được. Nay một nét vẽ có từ 6 đoạn chéo li ti trở lên (> 0,25 pt mỗi chiều) được tính là đường dữ liệu.

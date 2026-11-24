@@ -32,12 +32,14 @@ PS_HOST_PARAMS = {"NoProfile", "ExecutionPolicy", "File", "Command", "NonInterac
 
 # Details that only make sense inside Antigravity (internal paths, tool names, upload naming).
 # They must live in .agents/adapters/antigravity.md, never in AGENTS.md, SKILL.md or SI files.
-# The environment-detection signal (`<user_information>` / `appDataDir`) is allowed everywhere.
+# The environment-detection signal (`<user_information>` / `App Data Directory` / `Artifact Directory Path` / `appDataDir`) is allowed everywhere.
 ANTIGRAVITY_ONLY_TOKENS = (
     "view_file",
     "read_file",
+    "write_file",
     "StartLine",
     "EndLine",
+    "ByteOffset",
     "edit_file",
     "transcript.jsonl",
     ".system_generated",
@@ -237,7 +239,8 @@ class TestSkillContracts(unittest.TestCase):
                 linked = re.search(r"\]\([./]*(?:\.\./\.\./|\.agents/)adapters/antigravity\.md\)", text)
                 self.assertTrue(linked, "must link the Antigravity adapter")
                 self.assertTrue("`<user_information>`" in text, "must state the environment-detection signal")
-                self.assertTrue("`appDataDir`" in text, "must state the environment-detection signal")
+                self.assertTrue("`App Data Directory`" in text, "must state the current Antigravity detection signal")
+                self.assertTrue("`Artifact Directory Path`" in text, "must state the Artifact Directory Path signal")
 
 
     def test_claude_pointer_skills_mirror_shared_skills(self) -> None:
