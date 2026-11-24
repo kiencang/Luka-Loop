@@ -449,6 +449,58 @@ class TestColumnGutter(unittest.TestCase):
         self.assertGreaterEqual(rects[0].y1, 412, f"tick labels under the plot must still be attached: {rects[0]}")
 
 
+class TestFinePolylinePlot(unittest.TestCase):
+    """A line plot whose curves are fine polylines is a figure, not a table (DocLayNet 1002.0011 p19 and 11 more).
+
+    Every step of such a curve is under 2 pt, so the curve counter used to see only the frame, the panel divider and
+    the tick numbers: PyMuPDF found a table there and the uncaptioned plot was dropped.
+    """
+
+    @staticmethod
+    def _plot_page() -> pymupdf.Page:
+        import math
+
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        _paragraph(page, 72, 10)
+        frame = pymupdf.Rect(130, 230, 480, 470)
+        mid = (frame.x0 + frame.x1) / 2
+        shape = page.new_shape()
+        shape.draw_rect(frame)
+        shape.finish(color=(0, 0, 0), width=0.8)
+        shape.draw_line((mid, frame.y0), (mid, frame.y1))  # divider between panels (A) and (B)
+        shape.finish(color=(0, 0, 0), width=0.8)
+        shape.draw_line((frame.x0, 300), (frame.x1, 300))  # zero line
+        shape.finish(color=(0.6, 0.6, 0.6), width=0.4)
+        for x0, x1 in ((frame.x0, mid), (mid, frame.x1)):
+            ts = [k * 1.2 for k in range(int((x1 - x0) / 1.2))]
+            shape.draw_polyline([pymupdf.Point(x0 + t, 300 + 120 * math.sin(t / 50.0) * t / (x1 - x0)) for t in ts])
+            shape.finish(color=(0, 0, 1), width=0.8)
+        shape.commit()
+        for k, x in enumerate(range(130, 481, 35)):
+            page.insert_text((x - 3, 482), str(k), fontsize=8)
+        for k, y in enumerate(range(240, 471, 40)):
+            page.insert_text((112, y + 3), f"-{k}.5", fontsize=8)
+        page.insert_text((140, 245), "(A) phi(y) sigma(y)", fontsize=9)
+        page.insert_text((315, 245), "(B) phi(y) chi(y)", fontsize=9)
+        page.insert_text((280, 500), "y [M]", fontsize=9)
+        _paragraph(page, 600, 10)
+        return page
+
+    def test_fine_polyline_curves_keep_the_plot(self) -> None:
+        from unittest import mock
+
+        import figure_detector.geometry as geo
+
+        with mock.patch.object(geo, "_POLYLINE_MIN_STEPS", 10**9):
+            before = fd.collect_page_figures(self._plot_page())[0]
+        self.assertEqual(before, [], "fixture must reproduce the table rejection without polyline steps")
+
+        rects = fd.collect_page_figures(self._plot_page())[0]
+        self.assertEqual(len(rects), 1, rects)
+        self.assertTrue(rects[0].contains(pymupdf.Rect(130, 230, 480, 470)), rects[0])
+
+
 class TestTablePathReuse(unittest.TestCase):
     """`find_tables()` gets copies of the page drawings, so table searches never edit the detector's own paths."""
 

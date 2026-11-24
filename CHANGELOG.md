@@ -2,6 +2,13 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Biểu đồ đường bị coi là bảng và mất khỏi bản dịch:** bộ đếm đường cong (`_count_non_grid_detail`) chỉ đếm đoạn chéo dài hơn 2 pt theo cả hai chiều, trong khi phần mềm vẽ đồ thị thường vẽ một đường cong mượt bằng hàng trăm đoạn li ti ngắn hơn thế. Biểu đồ khi đó chỉ còn khung, đường lưới và số chia, nên luật nhận bảng (PyMuPDF `find_tables`) loại cả hình nếu chú thích "FIG." không nối được. Nay một nét vẽ có từ 6 đoạn chéo li ti trở lên (> 0,25 pt mỗi chiều) được tính là đường dữ liệu.
+  - DocLayNet: tune 20 trang đổi, holdout 1, val/test không đổi; hình đúng tune 3.183 → 3.199; bỏ sót tune 78 → 67, holdout 20 → 19; trang lỗi nặng tune 423 → 408 (cả 4 tập 593 → 578). Holdout có 1 trang vừa bớt bỏ sót vừa thêm 1 hình cắt nặng và 1 ảnh dính chữ. 11/12 biểu đồ bị luật bảng loại nhầm trên tune được tách lại; còn lại là biểu đồ cột (không có đường chéo).
+  - Chấm mù AB7 (14 hình tune, mỗi tài liệu một hình): bản mới tốt hơn 14, bản cũ 0, như nhau 0.
+  - Thêm test `TestFinePolylinePlot`.
+
 ## [1.1.26] - 2026-11-24
 ### Fixed
 - **Hình ở một cột kéo chữ của cột bên cạnh vào ảnh** (dòng phương trình, đoạn văn ngắn của cột kia): bước gắn nhãn theo dòng (`_attach_adjacent_label_lines`) nay biết khe giữa hai cột chữ. Khe được tìm từ vị trí các đoạn văn (khối chữ ≥ 12 từ) chiếu xuống trục ngang: khoảng trống ≥ 6 pt nằm ở phần giữa trang (15–85% bề rộng), mỗi bên có đoạn văn chiếm ≥ 15% chiều cao trang. Hình không vượt qua đường giữa khe thì không nhận dòng chữ có tâm ở bên kia khe; hình rộng vắt qua đường giữa và trang không có khe (một cột, hoặc có đoạn văn chạy ngang cả trang) giữ cách cũ.

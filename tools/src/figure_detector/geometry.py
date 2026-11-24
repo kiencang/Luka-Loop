@@ -240,8 +240,17 @@ def _is_simple_box_drawing(dr: dict) -> bool:
     return False
 
 
+# A plot curve sampled finely is a path of many tiny diagonal steps, each under 2 pt in both directions.
+_POLYLINE_STEP_MIN = 0.25
+_POLYLINE_MIN_STEPS = 6
+
+
 def _count_non_grid_detail(drawings: list[dict] | None, rect: pymupdf.Rect, limit: int = 12) -> int:
     """Count true curves/diagonals of `drawings` inside `rect` (ignoring card corners), stopping at `limit`.
+
+    Besides Bezier items and diagonals longer than 2 pt, a path holding at least `_POLYLINE_MIN_STEPS` tiny diagonal
+    steps (a data line drawn as a fine polyline) adds those steps: without them a line plot looks like a bare grid of
+    frame, rules and tick numbers, i.e. a table.
 
     The result is exact below `limit` and equals `limit` once reached, so `count >= k` answers
     "at least k curves?" for every k <= limit in a single pass.
@@ -254,14 +263,21 @@ def _count_non_grid_detail(drawings: list[dict] | None, rect: pymupdf.Rect, limi
             continue
         if _is_rounded_rect_drawing(dr):
             continue
+        steps = 0
         for item in dr.get("items") or ():
             kind = item[0]
             if kind in ("c", "qu"):
                 count += 1
             elif kind == "l" and len(item) >= 3:
-                p0, p1 = item[1], item[2]
-                if abs(p0.x - p1.x) > 2.0 and abs(p0.y - p1.y) > 2.0:
+                dx, dy = abs(item[1].x - item[2].x), abs(item[1].y - item[2].y)
+                if dx > 2.0 and dy > 2.0:
                     count += 1
+                elif dx > _POLYLINE_STEP_MIN and dy > _POLYLINE_STEP_MIN:
+                    steps += 1
+            if count >= limit:
+                return limit
+        if steps >= _POLYLINE_MIN_STEPS:
+            count += steps
             if count >= limit:
                 return limit
     return count
