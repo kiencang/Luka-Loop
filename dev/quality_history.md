@@ -29,6 +29,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.24 | 4.679 (89,0%) | 364 | 114 | 102 | 220 | 9 | 601 | 88,9% | 0,51 |
 | v1.1.25 | 4.682 (89,0%) | 362 | 114 | 101 | 220 | 9 | 598 | 89,0% | 0,35 |
 | v1.1.26 | 4.682 (89,0%) | 362 | 114 | 101 | 214 | 9 | 593 | 89,0% | 0,35 |
+| v1.1.27 | 4.698 (89,3%) | 357 | 115 | 89 | 215 | 9 | 578 | 89,1% | 0,36 |
 
 ¹ **Tốc độ chỉ mang tính tương đối:** phụ thuộc cấu hình máy và điều kiện lúc đo (số tiến trình song song, máy có đang chạy việc khác không). Các lần đo v1.1.23 và v1.1.24 chạy khi máy đang bận việc khác. Đừng so tốc độ giữa các dòng như số liệu chính xác.
 
@@ -45,6 +46,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.24 | 3.183 · 426 | 832 · 117 | 348 · 22 | 316 · 36 |
 | v1.1.25 | 3.183 · 426 | 835 · 114 | 348 · 22 | 316 · 36 |
 | v1.1.26 | 3.183 · 423 | 835 · 112 | 348 · 22 | 316 · 36 |
+| v1.1.27 | 3.199 · 408 | 835 · 112 | 348 · 22 | 316 · 36 |
 
 ## Nguồn số liệu
 
@@ -57,6 +59,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.24 | `f2883a9` | 2026-11-24 | `42d47d183f852106` |
 | v1.1.25 | `61c61d4` | 2026-11-24 | `e05cece7d0df4c2c` |
 | v1.1.26 | `8d92c1a` | 2026-11-24 | `172519787d7789f6` |
+| v1.1.27 | `b3b1347` | 2026-11-25 | `c412ca96d270a58f` |
 
 Dấu vân tay là mã băm của `tools/src/figure_detector/*.py` và `tools/src/image_ops.py`; kết quả từng trang nằm trong `%TEMP%\luka_doclaynet_eval\pages\<dấu vân tay>.jsonl` (bộ đệm cục bộ, có thể bị xóa).
 
@@ -67,3 +70,4 @@ Dấu vân tay là mã băm của `tools/src/figure_detector/*.py` và `tools/sr
 - **v1.1.24:** luật cứu mảnh vector quá nhỏ (+146 hình đúng).
 - **v1.1.25:** giới hạn 30 giây/trang và tăng tốc các trang chậm; 7 trang đổi, đều tốt hơn. Đo không bật giới hạn thời gian.
 - **v1.1.26:** bước gắn nhãn không vượt khe giữa hai cột chữ; 9 trang đổi (tune 6, holdout 3), đều tốt hơn: ảnh dính chữ 220 → 214, trang lỗi nặng 598 → 593.
+- **v1.1.27:** bộ đếm đường cong tính cả đường gấp khúc gồm nhiều đoạn chéo li ti, nên biểu đồ đường không còn bị luật nhận bảng loại; 21 trang đổi (tune 20, holdout 1), bỏ sót 101 → 89; chấm mù AB7 bản mới thắng 14/14.

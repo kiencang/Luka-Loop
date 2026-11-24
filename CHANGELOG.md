@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.27] - 2026-11-25
 ### Fixed
 - **Biểu đồ đường bị coi là bảng và mất khỏi bản dịch:** bộ đếm đường cong (`_count_non_grid_detail`) chỉ đếm đoạn chéo dài hơn 2 pt theo cả hai chiều, trong khi phần mềm vẽ đồ thị thường vẽ một đường cong mượt bằng hàng trăm đoạn li ti ngắn hơn thế. Biểu đồ khi đó chỉ còn khung, đường lưới và số chia, nên luật nhận bảng (PyMuPDF `find_tables`) loại cả hình nếu chú thích "FIG." không nối được. Nay một nét vẽ có từ 6 đoạn chéo li ti trở lên (> 0,25 pt mỗi chiều) được tính là đường dữ liệu.
   - DocLayNet: tune 20 trang đổi, holdout 1, val/test không đổi; hình đúng tune 3.183 → 3.199; bỏ sót tune 78 → 67, holdout 20 → 19; trang lỗi nặng tune 423 → 408 (cả 4 tập 593 → 578). Holdout có 1 trang vừa bớt bỏ sót vừa thêm 1 hình cắt nặng và 1 ảnh dính chữ. 11/12 biểu đồ bị luật bảng loại nhầm trên tune được tách lại; còn lại là biểu đồ cột (không có đường chéo).
