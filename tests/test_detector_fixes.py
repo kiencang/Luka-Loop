@@ -408,11 +408,11 @@ class TestColumnGutter(unittest.TestCase):
     """A figure set in one text column takes no label line from the column beside it (DocLayNet 1001.1552 p11)."""
 
     @staticmethod
-    def _two_column_page() -> pymupdf.Page:
+    def _two_column_page(left_prose: bool = True) -> pymupdf.Page:
         doc = pymupdf.open()
         page = doc.new_page(width=612, height=792)
         text = "Measured response follows the expected trend here"
-        for i in range(12):  # left column paragraph above the figure
+        for i in range(12 if left_prose else 0):  # left column paragraph above the figure
             page.insert_text((54, 72 + i * 12), text, fontsize=BODY)
         frame = pymupdf.Rect(70, 260, 296, 400)
         shape = page.new_shape()
@@ -438,6 +438,27 @@ class TestColumnGutter(unittest.TestCase):
         import figure_detector.pipeline as pipe
 
         page = self._two_column_page()
+        with mock.patch.object(pipe, "_column_gutters", return_value=[]):
+            before = fd.collect_page_figures(page)[0]
+        self.assertEqual(len(before), 1, before)
+        self.assertGreater(before[0].x1, 316, f"fixture must reproduce the crossing without the rule: {before}")
+
+        rects = fd.collect_page_figures(page)[0]
+        self.assertEqual(len(rects), 1, rects)
+        self.assertLess(rects[0].x1, 300, f"figure must stop at its own column: {rects[0]}")
+        self.assertGreaterEqual(rects[0].y1, 412, f"tick labels under the plot must still be attached: {rects[0]}")
+
+    def test_gutter_found_beside_a_column_of_figures_only(self) -> None:
+        """The left column holds only the figure and its caption: the figure box counts as column content
+        (Surgical Atlas p361, where a label line of the text column was pulled into the image)."""
+        from unittest import mock
+
+        import figure_detector.pipeline as pipe
+
+        page = self._two_column_page(left_prose=False)
+        ctx, cands, _ = pipe._run_page_pipeline(page)
+        self.assertEqual(pipe._column_gutters(ctx), [], "precondition: paragraphs and captions alone find no gutter")
+        self.assertTrue(pipe._column_gutters(ctx, [c.rect for c in cands]), "the figure box reveals the gutter")
         with mock.patch.object(pipe, "_column_gutters", return_value=[]):
             before = fd.collect_page_figures(page)[0]
         self.assertEqual(len(before), 1, before)

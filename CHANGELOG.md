@@ -2,6 +2,13 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Hình nằm ở cột chỉ có hình kéo chữ của cột bên cạnh vào ảnh:** khe giữa hai cột (v1.1.26) trước đây chỉ tìm từ đoạn văn, nên cần đoạn văn ở cả hai bên. Khi một cột chỉ chứa hình và chú thích (sách Surgical Atlas p361), không tìm ra khe và bước gắn nhãn kéo một dòng của cột chữ bên cạnh vào hình. Nay khung hình và chú thích hình/bảng cũng được tính là nội dung cột: mỗi bên khe cần nội dung chiếm ≥ 15% chiều cao trang, và ít nhất một bên có đoạn văn chiếm ≥ 15%.
+  - DocLayNet: chỉ 2 trang tune đổi, cả hai tốt hơn (bỏ dính số phương trình và chữ của cột bên cạnh); holdout/val/test không đổi; ảnh dính chữ 215 → 213, trang lỗi nặng 578 → 576 (cả 4 tập); hình đúng, cắt nặng và bỏ sót không đổi. Không chấm mù vì chỉ 2 trang đổi; đã xem ảnh cả 2 trang.
+  - 4 cuốn sách tiêu biểu: chỉ Surgical Atlas p361 đổi, tốt hơn.
+  - Thêm test `test_gutter_found_beside_a_column_of_figures_only`.
+
 ## [1.1.28] - 2026-11-25
 ### Changed
 - Cập nhật bộ chuyển đổi Antigravity (`.agents/adapters/antigravity.md`) và dấu hiệu nhận diện môi trường trong `AGENTS.md` cùng 2 `SKILL.md` cho khớp Antigravity 2.0 thực tế (vẫn tương thích bản cũ):
