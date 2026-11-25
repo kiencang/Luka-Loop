@@ -34,6 +34,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.30 | 4.735 (90,0%) | 322 | 113 | 89 | 213 | 9 | 545 | 89,2% | 0,39 |
 | v1.1.32 | 4.735 (90,0%) | 322 | 113 | 89 | 209 | 9 | 541 | 89,2% | 0,38 |
 | v1.1.33 | 4.735 (90,0%) | 322 | 113 | 89 | 209 | 9 | 541 | 89,2% | 0,38 |
+| v1.1.35 | 4.735 (90,0%) | 322 | 113 | 89 | 209 | 9 | 541 | 89,2% | 0,35 |
 
 ¹ **Tốc độ chỉ mang tính tương đối:** phụ thuộc cấu hình máy và điều kiện lúc đo (số tiến trình song song, máy có đang chạy việc khác không). Các lần đo v1.1.23 và v1.1.24 chạy khi máy đang bận việc khác. Đừng so tốc độ giữa các dòng như số liệu chính xác.
 
@@ -55,6 +56,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.30 | 3.223 · 385 | 841 · 108 | 350 · 19 | 321 · 33 |
 | v1.1.32 | 3.223 · 382 | 841 · 107 | 350 · 19 | 321 · 33 |
 | v1.1.33 | 3.223 · 382 | 841 · 107 | 350 · 19 | 321 · 33 |
+| v1.1.35 | 3.223 · 382 | 841 · 107 | 350 · 19 | 321 · 33 |
 
 ## Nguồn số liệu
 
@@ -72,6 +74,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.30 | `fc13ee4` | 2026-11-25 | `03569fac1d52d2c8` |
 | v1.1.32 | `8eaf219` | 2026-11-25 | `f93752d20e01c2e5` |
 | v1.1.33 | `e76e629` | 2026-11-25 | `c014588549449dac` |
+| v1.1.35 | `10733f0` | 2026-11-26 | `7c6942f87111617c` |
 
 Dấu vân tay là mã băm của `tools/src/figure_detector/*.py` và `tools/src/image_ops.py`; kết quả từng trang nằm trong `%TEMP%\luka_doclaynet_eval\pages\<dấu vân tay>.jsonl` (bộ đệm cục bộ, có thể bị xóa).
 
@@ -87,3 +90,4 @@ Dấu vân tay là mã băm của `tools/src/figure_detector/*.py` và `tools/sr
 - **v1.1.30:** nhãn nối với hình bằng một nét kẻ mảnh (đường dẫn nhãn, trục, đường mốc) được lấy trọn vào ảnh; 258 trang đổi, 41 trang tốt hơn theo điểm, 0 trang kém hơn: hình đúng 4.698 → 4.735, trang lỗi nặng 576 → 545; chấm mù AB8 bản mới thắng 31/32 cặp phân định. Chậm hơn khoảng 8% (0,36 → 0,39 giây/trang) vì dò nét kẻ trên mỗi trang.
 - **v1.1.32:** bước gắn nhãn dừng ở mép cột chữ dóng hàng (≥ 3 đoạn văn cùng bắt đầu hoặc cùng kết thúc tại một x), nên hình ở một cột không lấy chữ của cột bên cạnh; 6 trang đổi (tune 5, holdout 1), 0 trang kém hơn: ảnh dính chữ 213 → 209, trang lỗi nặng 545 → 541. (v1.1.31 chỉ đổi CI, tài liệu và chú thích mã, không đổi kết quả tách hình.)
 - **v1.1.33:** dải loại trừ nhãn ở đầu trang dừng ở tiêu đề chạy thấp nhất (khi tài liệu có tiêu đề chạy), và bản sửa lỗi thu nhỏ ảnh trong bộ nhớ đệm. DocLayNet chấm từng trang riêng, không có tiêu đề chạy, nên khung hình giống hệt v1.1.32 và số liệu không đổi. Hiệu quả đo trên 182 bài arXiv đầy đủ (trang lỗi nặng 132 → 129) và chấm mù AB9 (mới tốt hơn 21, cũ tốt hơn 1).
+- **v1.1.35:** chú thích một–hai dòng nằm cạnh hình được nhận (ngưỡng chồng dọc `min(10 pt, 0,35 × chiều cao chú thích)`). DocLayNet không đổi trang nào nên số liệu giống hệt v1.1.33; hiệu quả đo trên sách Surgical Atlas: 6 trang tốt hơn, chú thích mồ côi 26 → 20. (v1.1.34 chỉ đổi tài liệu, không đổi kết quả tách hình.)

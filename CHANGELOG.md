@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.35] - 2026-11-26
 ### Fixed
 - **Chú thích một–hai dòng nằm cạnh hình không được nhận, làm hình lớn bị gộp với hình bên cạnh:** chú thích nằm ngang (`side`) phải chồng với hình theo chiều dọc ≥ 10 pt, mà chú thích một dòng chỉ cao ~9 pt nên không bao giờ đạt. Hình lớn mồ côi chú thích bị bước gộp ghép vào hình kế bên, khung trùm cả chữ của bài (sách Surgical Atlas p250, p329, p280). Nay ngưỡng là `min(10 pt, 0,35 × chiều cao chú thích)` (`DetectorConfig.caption_side_min_v_overlap`, `caption_side_v_overlap_frac`); chú thích từ 3 dòng trở lên giữ ngưỡng 10 pt như cũ.
   - DocLayNet: 0 trang đổi trên cả 4 tập (14.117 trang).
