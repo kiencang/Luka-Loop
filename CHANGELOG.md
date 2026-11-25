@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.33] - 2026-11-25
 ### Fixed
 - **Nhãn phía trên hình nằm sát đầu trang bị bỏ:** bước gắn nhãn theo dòng (`_label_lines`) loại mọi dòng trong 10% đầu trang vì sợ lấy nhầm tiêu đề chạy, nên hình đặt cao trên trang mất hàng nhãn phía trên (Surgical Atlas p34 "Type I/II/III", p370 "Extensor hallucis"; số trên cùng của trục, chữ (a)/(b), tiêu đề hình trong bài báo). Nay khi tài liệu đã nhận ra tiêu đề chạy ở nửa trên trang, dải loại trừ chỉ tính tới hết tiêu đề chạy thấp nhất; trang không có tiêu đề chạy (trang mở chương, PDF một trang) giữ dải 10% như cũ.
   - DocLayNet (từng trang riêng, không có tiêu đề chạy): không đổi trang nào.
