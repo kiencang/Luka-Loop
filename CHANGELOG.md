@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.38] - 2026-11-26
 ### Fixed
 - **Khung hình vector lấn sang chữ bên cạnh vì "dải ruy băng":** phần mềm vẽ đồ thị thường ghi nguyên một đường cong hoặc đường khớp số liệu rồi đặt vùng nhìn thấy (clip) bằng khung đồ thị, nên phần nét ngoài khung bị che. `get_drawings()` lại trả khung hình học của cả nét, nên khung hình bị kéo sang chữ dù chỗ đó không có mực (DocLayNet 1001.1751 p1: đường cong dôi 68 pt sang trái, đường khớp dôi 46 pt lên trên). Nay khung mỗi nét được cắt theo vùng nhìn thấy (ngăn xếp clip của `get_drawings(extended=True)`), nét nằm hoàn toàn ngoài vùng nhìn thấy bị bỏ (`_clipped_drawings`). Bộ dò bảng vẫn dùng khung gốc (`unclipped_rect`), vì nền trắng bị cắt khít vào hình sẽ thành khung bảng giả và hình bị loại nhầm là bảng (1001.0583 p6).
   - Đo trước khi sửa: 568 / 14.090 trang DocLayNet (245 / 983 tài liệu) có dải ruy băng; 196 khung trên 181 trang bị kéo phình (trung vị 17 pt).
