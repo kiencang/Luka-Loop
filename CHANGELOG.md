@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.36] - 2026-11-26
 ### Fixed
 - **Ô số trang ở góc trên bị tách thành ảnh và lấy mất chú thích của hình thật:** ô màu chứa số trang và số chương (khối vector in tràn mép giấy) vốn bị bỏ vì quá thấp và không có chú thích. Nhưng khi một chú thích đặt bên cạnh hình nằm ngay dưới ô này (cách ~24 pt), chú thích được ghép với ô như chú thích "bên dưới". Ô được giữ thành một ảnh rác, còn hình thật mất chú thích (Surgical Atlas p213, p376). Nay trước bước gắn chú thích, mọi khung tràn ra mép trên hoặc mép dưới trang và nằm gọn trong dải 10% sát mép đó bị bỏ (`DetectorConfig.edge_tab_band_frac`).
   - DocLayNet: 0 trang đổi trên cả 4 tập (14.117 trang).
