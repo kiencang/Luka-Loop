@@ -100,6 +100,10 @@ class DetectorConfig:
     same_caption_row_merge_gap: float = 74.0
     merge_foreign_caption_frac: float = 0.30     # a merge may not cover this share of a caption neither box owns
     touching_merge_gap: float = 4.0
+    # Final pass: a page's last unpaired figure and last unpaired caption are linked
+    orphan_pair_max_gap: float = 150.0           # never link across a wider gap
+    orphan_pair_swap_margin: float = 10.0        # caption this close to a captioned box hints at a mislink: skip
+    orphan_pair_max_caption_lines: int = 10      # a longer "caption" is likely body text that starts with "Figure"
     # Per-page wall-clock budget (seconds); <= 0 disables the cap.
     max_page_seconds: float = 30.0
     # Vector clusters still judged (largest first, table lookups skipped) when the budget runs out mid-phase

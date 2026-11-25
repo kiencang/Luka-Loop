@@ -2,6 +2,16 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Hình và chú thích của nó ở hai chỗ, cả hai đều "mồ côi" vì chú thích nằm hơi xa hoặc có hàng nhãn chen giữa:** ví dụ chú thích đặt bên cạnh, ngang đáy hình nhưng cách 110 pt (Surgical Atlas p109), hoặc hàng nhãn nằm giữa hình và chú thích (p157, p376). Nay sau mọi bước khác, nếu trên trang còn **đúng một** hình chưa có chú thích và **đúng một** chú thích hình chưa có hình, hai thứ được ghép với nhau (`_pair_last_orphan_caption`). Bước này chỉ gắn chú thích, không đổi khung. Ba chốt chặn để tránh ghép sai:
+  - Khoảng cách tối đa 150 pt (`DetectorConfig.orphan_pair_max_gap`).
+  - Không ghép nếu chú thích mồ côi nằm gần một hình đã có chú thích hơn (chênh trong vòng 10 pt) so với chính chú thích của hình đó (`orphan_pair_swap_margin`): dấu hiệu một cặp trước đó đã ghép nhầm (Surgical Atlas p150, p213).
+  - Không ghép "chú thích" dài quá 10 dòng (`orphan_pair_max_caption_lines`): đó thường là đoạn văn mở đầu bằng "Figures 5 (a), (b)..." bị nhận nhầm là chú thích (DocLayNet 1001.1179 p5).
+  - DocLayNet (cả 4 tập, 14.117 trang): 0 trang đổi khung; 162 trang có hình được gắn thêm chú thích (37 hình trong số đó chuyển từ "ô bảng" sang "hình"). Đối chiếu nhãn chuẩn: 159 cặp khớp hình và chú thích, 2 cặp đúng chú thích nhưng khung vốn bị vẽ quá to từ trước (1001.3618 p18, p21), 1 cặp thuộc tập holdout không xem. Chốt 10 dòng bỏ mất 3 cặp đúng có chú thích dài 11, 12, 18 dòng (chấp nhận để ưu tiên chống ghép sai).
+  - Surgical Atlas: chú thích mồ côi 21 → 11, cả 10 cặp mới đều đúng (p27, 68, 109, 155, 157, 192, 257, 291, 373, 376). p150, p213 được chặn đúng; p335 bị chặn bởi chốt 10 pt dù là cặp đúng. 4 sách còn lại trong `dev/typical-pdf`: 0 trang đổi.
+  - Thêm test `TestOrphanCaptionPair`; `TestForeignCaptionBlocksMerge` nay đòi hình trái nhận đúng Fig. 10.25.
+
 ## [1.1.38] - 2026-11-26
 ### Fixed
 - **Khung hình vector lấn sang chữ bên cạnh vì "dải ruy băng":** phần mềm vẽ đồ thị thường ghi nguyên một đường cong hoặc đường khớp số liệu rồi đặt vùng nhìn thấy (clip) bằng khung đồ thị, nên phần nét ngoài khung bị che. `get_drawings()` lại trả khung hình học của cả nét, nên khung hình bị kéo sang chữ dù chỗ đó không có mực (DocLayNet 1001.1751 p1: đường cong dôi 68 pt sang trái, đường khớp dôi 46 pt lên trên). Nay khung mỗi nét được cắt theo vùng nhìn thấy (ngăn xếp clip của `get_drawings(extended=True)`), nét nằm hoàn toàn ngoài vùng nhìn thấy bị bỏ (`_clipped_drawings`). Bộ dò bảng vẫn dùng khung gốc (`unclipped_rect`), vì nền trắng bị cắt khít vào hình sẽ thành khung bảng giả và hình bị loại nhầm là bảng (1001.0583 p6).

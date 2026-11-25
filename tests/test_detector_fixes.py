@@ -998,7 +998,8 @@ class TestForeignCaptionBlocksMerge(unittest.TestCase):
         left, right = sorted(cands, key=lambda c: c.rect.x0)
         self.assertLess(left.rect.x1, 290, left.rect)
         self.assertGreater(right.rect.x0, 290, right.rect)
-        self.assertIsNone(left.caption_idx, "the left drawing must not borrow Fig. 10.26")
+        # never Fig. 10.26; the final orphan pass gives it its own Fig. 10.25
+        self.assertEqual((left.caption_idx, left.caption_side), (0, "below"), "the left drawing must not borrow Fig. 10.26")
         self.assertEqual((right.caption_idx, right.caption_side), (1, "below"))
 
 
@@ -1063,6 +1064,63 @@ class TestClippedDrawings(unittest.TestCase):
         self.assertGreater(cands[0].rect.x0, self.FRAME.x0 - 6, cands[0].rect)
         self.assertEqual(cands[0].caption_side, "below")
 
+
+
+class TestOrphanCaptionPair(unittest.TestCase):
+    """A side caption level with the figure's bottom but 110 pt away stayed unlinked (Surgical Atlas p109). When a
+    page has exactly one uncaptioned figure and one unclaimed caption left, a final pass links them, unless the gap
+    exceeds 150 pt or the caption sits next to a figure that already has its own caption (an earlier mislink,
+    Surgical Atlas p150, p213). Boxes never change."""
+
+    @staticmethod
+    def _page(cap_xy: tuple[float, float], fig: tuple[float, float, float, float]) -> pymupdf.Page:
+        doc = pymupdf.open()
+        page = doc.new_page(width=595, height=791)
+        page.insert_image(pymupdf.Rect(45, 62, 283, 300), stream=_png_with_white_margin(476, 476, (0, 0, 476, 476)))
+        page.insert_text((45, 314), "Fig. 5.1 Schematic representation of microfracture", fontsize=7)
+        page.insert_image(pymupdf.Rect(*fig), stream=_png_with_white_margin(480, 360, (0, 0, 480, 360)))
+        page.insert_text(cap_xy, "Fig. 5.3 Microfracture of the humeral head", fontsize=7)
+        _paragraph(page, 640, 5)
+        return page
+
+    def _run(self, cap_xy, fig, pair: bool = True):
+        from figure_detector import pipeline
+
+        orig = pipeline._pair_last_orphan_caption
+        if not pair:
+            pipeline._pair_last_orphan_caption = lambda *a, **k: None
+        try:
+            _, cands, _ = pipeline._run_page_pipeline(self._page(cap_xy, fig))
+        finally:
+            pipeline._pair_last_orphan_caption = orig
+        return sorted(cands, key=lambda c: c.rect.x0)
+
+    def test_far_side_caption_is_linked(self) -> None:
+        fig = (300, 420, 540, 600)
+        before = self._run((45, 598), fig, pair=False)
+        self.assertEqual([c.caption_idx for c in before], [0, None], f"precondition: the side caption is too far: {before}")
+        after = self._run((45, 598), fig)
+        self.assertEqual([c.rect for c in after], [c.rect for c in before], "boxes never change")
+        self.assertEqual([(c.caption_idx, c.caption_side) for c in after], [(0, "below"), (1, "side")])
+
+    def test_long_caption_stays_unlinked(self) -> None:
+        # A "caption" longer than the cap is body text opening with "Figures 5 (a)..." (DocLayNet 1001.1179 p5).
+        from dataclasses import replace
+
+        from figure_detector import pipeline
+        from figure_detector.model import DEFAULT_CONFIG
+
+        cfg = replace(DEFAULT_CONFIG, orphan_pair_max_caption_lines=0)
+        _, cands, _ = pipeline._run_page_pipeline(self._page((45, 598), (300, 420, 540, 600)), cfg=cfg)
+        self.assertEqual([c.caption_idx for c in sorted(cands, key=lambda c: c.rect.x0)], [0, None])
+
+    def test_too_far_stays_unlinked(self) -> None:
+        cands = self._run((288, 120), (300, 300, 540, 480))  # 178 pt from the figure
+        self.assertEqual([c.caption_idx for c in cands], [0, None])
+
+    def test_caption_beside_a_captioned_figure_stays_unlinked(self) -> None:
+        cands = self._run((290, 200), (300, 300, 540, 480))  # 7 pt from Fig. 5.1's figure, 98 pt from the free one
+        self.assertEqual([c.caption_idx for c in cands], [0, None])
 
 if __name__ == "__main__":
     unittest.main()

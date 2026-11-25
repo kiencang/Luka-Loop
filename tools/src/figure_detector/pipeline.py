@@ -566,6 +566,49 @@ def _drop_page_edge_tabs(
     return kept
 
 
+def _pair_last_orphan_caption(
+    candidates: list[CandidateBox], ctx: PageContext, cfg: DetectorConfig = DEFAULT_CONFIG
+) -> None:
+    """Link the page's only uncaptioned figure to its only unclaimed figure caption.
+
+    Runs last and changes no box. Captions a little beyond the regular reach stay unlinked: a side caption level with
+    the figure's bottom 110 pt away, or a label row between figure and caption (Surgical Atlas p109, p157, p376).
+    When a page has exactly one of each left over, they almost surely belong together. Three guards keep it safe:
+    the caption has at most `orphan_pair_max_caption_lines` lines (a paragraph opening with "Figures 5 (a), (b)..."
+    is read as a caption, DocLayNet 1001.1179 p5); the gap is at most `orphan_pair_max_gap`; and the caption must not
+    sit nearer to an already captioned figure than that figure's own caption (plus `orphan_pair_swap_margin`). That
+    case means an earlier link went wrong, and the leftover pair is not each other's (Surgical Atlas p150, p213).
+    """
+    owned = {c.caption_idx for c in candidates if c.caption_idx is not None}
+    free_caps = [k for k in range(len(ctx.fig_captions)) if k not in owned]
+    free_boxes = [c for c in candidates if c.caption_idx is None]
+    if len(free_caps) != 1 or len(free_boxes) != 1:
+        return
+    k, box = free_caps[0], free_boxes[0]
+    lines = len(ctx.fig_captions[k].text.strip().splitlines())
+    if lines > cfg.orphan_pair_max_caption_lines:
+        ctx.log(f"orphan_pair:skip long_caption lines={lines}")
+        return
+    cr = ctx.fig_captions[k].rect
+    gap = _rect_gap(box.rect, cr)
+    if gap > cfg.orphan_pair_max_gap:
+        ctx.log(f"orphan_pair:skip far gap={gap:.1f}")
+        return
+    for c in candidates:
+        if c.caption_idx is None:
+            continue
+        own = _rect_gap(c.rect, ctx.fig_captions[c.caption_idx].rect)
+        if _rect_gap(c.rect, cr) <= own + cfg.orphan_pair_swap_margin:
+            ctx.log(f"orphan_pair:skip near_captioned {c.rect}")
+            return
+    if min(box.rect.x1, cr.x1) - max(box.rect.x0, cr.x0) > 0:
+        side = "below" if cr.y0 >= box.rect.y1 - 2.0 else "above" if cr.y1 <= box.rect.y0 + 2.0 else "side"
+    else:
+        side = "side"
+    box.caption_idx, box.caption_side, box.caption_score = k, side, gap
+    ctx.log(f"orphan_pair:link {box.rect} cap={k} side={side} gap={gap:.1f}")
+
+
 def _clear_running_heads(candidates: list[CandidateBox], ctx: PageContext) -> None:
     """Pull each box edge back past a running head or folio that the box (with its render padding) would show.
 
@@ -655,6 +698,7 @@ def _run_page_pipeline(
         or c.source != "vector"
         or (c.rect.width >= min_uncap_vec_dim and c.rect.height >= min_uncap_vec_dim)
     ]
+    _pair_last_orphan_caption(candidates, ctx, cfg)
     is_scanned = has_full_page_img and not candidates
     return ctx, candidates, is_scanned
 
