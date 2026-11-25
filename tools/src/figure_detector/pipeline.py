@@ -200,6 +200,11 @@ def _label_lines(ctx: PageContext) -> list[tuple[pymupdf.Rect, bool]]:
         lines[key] = lines[key] | r if key in lines else r
         words.setdefault(key, []).append(w[4])
     top_band = ctx.page_rect.y0 + 0.10 * ctx.ph  # running headers sit in the top ~10%
+    # When the document's running heads are known, the band ends at the lowest head in the top half of the page,
+    # so a figure label set high on the page is not dropped as a header. Pages without heads keep the 10% band.
+    top_heads = [h.y1 for h in ctx.running_heads if h.y0 < ctx.page_rect.y0 + 0.5 * ctx.ph]
+    if top_heads:
+        top_band = min(top_band, max(top_heads))
     bottom_band = ctx.page_rect.y1 - 0.06 * ctx.ph
     # Body font size proxy: median height of horizontal words. Headings and titles are set larger than body text,
     # while axis labels, ticks and legends are the same size or smaller.

@@ -2,6 +2,20 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Nhãn phía trên hình nằm sát đầu trang bị bỏ:** bước gắn nhãn theo dòng (`_label_lines`) loại mọi dòng trong 10% đầu trang vì sợ lấy nhầm tiêu đề chạy, nên hình đặt cao trên trang mất hàng nhãn phía trên (Surgical Atlas p34 "Type I/II/III", p370 "Extensor hallucis"; số trên cùng của trục, chữ (a)/(b), tiêu đề hình trong bài báo). Nay khi tài liệu đã nhận ra tiêu đề chạy ở nửa trên trang, dải loại trừ chỉ tính tới hết tiêu đề chạy thấp nhất; trang không có tiêu đề chạy (trang mở chương, PDF một trang) giữ dải 10% như cũ.
+  - DocLayNet (từng trang riêng, không có tiêu đề chạy): không đổi trang nào.
+  - 182 bài arXiv đầy đủ của tập tune (`dev/arxiv-b1`, `dev/arxiv-b2`, chỉ để trên máy), 2.850 trang khớp với DocLayNet: 24 trang đổi, theo điểm 3 trang tốt hơn, 0 trang kém hơn (hình đúng 1.024 → 1.027, trang lỗi nặng 132 → 129); xem ảnh: 23 trang tốt hơn, 1 trang như cũ, không trang nào lấy nhầm tiêu đề chạy.
+  - 5 cuốn sách tiêu biểu: Surgical Atlas 12 trang đổi, đều tốt hơn; Principles Economics p30 lấy thêm dòng "Why Study Economics?" ngay trên ảnh (khó phân định).
+  - Chấm mù AB9 (39 lượt, sách và bài arXiv đầy đủ, chung với mục dưới): mới tốt hơn 21, cũ tốt hơn 1 (Economics p30: tiêu đề mục bị kéo vào hình), như nhau 14, cả hai đều tệ 3 (lỗi có từ trước: gộp hai hình, cắt nhãn trục tung); kiểm định dấu p = 0,00001.
+  - Thêm test `TestTopBandLabels`.
+- **Cắt lề trắng của ảnh lớn làm đổi ảnh trong bộ nhớ đệm:** `_image_ink_rect` thu nhỏ ngay bản ảnh mà PyMuPDF giữ chung cho cả tài liệu (ảnh lớn hơn 1600 điểm ảnh). Chạy lại bộ tách hình trên một trang đã mở thì trang không còn nhận ra ảnh (dấu vân tay khác), nên bỏ qua bước cắt lề trắng và khung phình ra. Nay thu nhỏ trên bản sao. Công cụ thật xử lý mỗi trang một lần nên kết quả không đổi (5 cuốn sách và DocLayNet: 0 trang đổi); lỗi chỉ làm sai các lần đo chạy lại trên cùng trang.
+  - Thêm test `TestRasterTrimLeavesImageCache`.
+
+### Changed
+- **`dev/ab_judge.py`:** mỗi lượt chấm mù có thêm mục "Xem cả trang" thu gọn, với một khung cam bao vùng hình của cả hai bản (giống nhau cho hai bên, không lộ bên nào là bản mới); lượt nào hai bên cho ra ảnh giống hệt nhau thì tự bỏ. Hàm `make_card` dùng lại được cho các vòng chấm trên sách và bài báo đầy đủ.
+
 ## [1.1.32] - 2026-11-25
 ### Fixed
 - **Chữ của cột bên cạnh lẹm vào hình:** quy tắc khe cột (v1.1.26, v1.1.29) tìm khe từ khoảng trống trên cả trang, nên một hình rộng ở chỗ khác trên trang lấp mất khe; bước gắn nhãn theo khối (`_expand_plot_axis_labels`) cũng không kiểm tra khe. Hình ở cột trái khi đó lấy tiêu đề mục ngắn, dấu gạch đầu dòng hay phần đầu đoạn văn của cột phải (sách Surgical Atlas p42, p110). Nay tìm thêm **mép cột dóng hàng** (`_column_edges`): x nơi ít nhất 3 đoạn văn (≥ 12 từ, không chạm khung hình nào) cùng bắt đầu hoặc cùng kết thúc, lệch ≤ 1,5 pt. Cả ba bước gắn nhãn (theo khối, theo dòng, theo nét kẻ) không lấy nhãn vượt qua mép đó khi khung hình nằm hẳn ở phía bên kia và chồng theo chiều dọc với các đoạn văn của cột. Đoạn văn chạm khung hình không được tính, để chữ trong infographic hay thang màu không tạo mép giả.

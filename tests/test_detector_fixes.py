@@ -513,6 +513,53 @@ class TestStrokeLabels(unittest.TestCase):
         self.assertEqual(fd.collect_page_figures(page)[0], [frame])
 
 
+class TestTopBandLabels(unittest.TestCase):
+    """Label lines in the top 10% of a page were always dropped as possible running heads, so a figure set high on
+    the page lost the labels above it (Surgical Atlas p34, p370). With the document's running heads known, only the
+    lines up to the lowest head are left out."""
+
+    @staticmethod
+    def _page() -> tuple[pymupdf.Page, pymupdf.Rect]:
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        page.insert_text((72, 38), "Chapter 2: Shoulder Surgery", fontsize=8)  # running head, y 32-40
+        page.insert_image(pymupdf.Rect(72, 72, 400, 300), stream=_png_with_white_margin(656, 456, (0, 0, 656, 456)))
+        page.insert_text((80, 66), "Type I", fontsize=9)  # label right above the image, inside the top 10% (y < 79)
+        page.insert_text((300, 66), "Type II", fontsize=9)
+        page.insert_text((72, 318), "Figure 2.1: Different types of acromion morphology.", fontsize=BODY)
+        _paragraph(page, 350, 6)
+        return page, pymupdf.Rect(72, 31, 200, 41)
+
+    def test_label_above_a_high_figure_is_taken_when_running_heads_are_known(self) -> None:
+        from figure_detector.pipeline import _run_page_pipeline
+
+        page, head = self._page()
+        _, alone, _ = _run_page_pipeline(page)
+        self.assertEqual(len(alone), 1, alone)
+        self.assertGreater(alone[0].rect.y0, 66, f"precondition: without heads the top band drops the label: {alone[0].rect}")
+        _, cands, _ = _run_page_pipeline(page, running_heads=[head])
+        self.assertEqual(len(cands), 1, cands)
+        self.assertLessEqual(cands[0].rect.y0, 60, f"label 'Type I' must be inside the image: {cands[0].rect}")
+        self.assertGreater(cands[0].rect.y0, 41, f"the running head stays outside: {cands[0].rect}")
+
+
+class TestRasterTrimLeavesImageCache(unittest.TestCase):
+    def test_trimming_a_large_image_does_not_change_it_for_later_readers(self) -> None:
+        # Shrinking the decoded image in place changed PyMuPDF's cached copy: a second run on the same document lost
+        # the image's xref (digest mismatch) and kept the white margin (found on arXiv 1506.06795 p52).
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        page.insert_image(pymupdf.Rect(72, 100, 540, 568), stream=_png_with_white_margin(2000, 2000, (400, 400, 1600, 1600)))
+        page.insert_text((72, 590), "Figure 1: Response of the sensor array under load.", fontsize=BODY)
+        xref = page.get_images()[0][0]
+        first, _ = fd.collect_page_figures(page)
+        self.assertEqual(pymupdf.Pixmap(doc, xref).width, 2000, "the document's image must keep its size")
+        second, _ = fd.collect_page_figures(page)
+        self.assertEqual(len(first), 1, first)
+        self.assertLess(first[0].width, 300, f"precondition: the white margin is trimmed: {first[0]}")
+        self.assertEqual(first, second)
+
+
 class TestColumnEdge(unittest.TestCase):
     """Paragraphs starting on one x mark a text column: a figure left of it takes no label from the column, even
     where a full-width figure fills the gap between the columns and hides the gutter (Surgical Atlas p42, p110)."""

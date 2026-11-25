@@ -50,6 +50,10 @@ def _image_ink_rect(ctx: PageContext, info: dict, cfg: DetectorConfig) -> pymupd
             mask = pymupdf.Pixmap(doc, int(smask[1].split()[0]))
             if (mask.width, mask.height) == (pix.width, pix.height):
                 pix = pymupdf.Pixmap(pix, mask)  # apply soft mask as alpha
+        if pix.width > 1600 or pix.height > 1600:
+            # Shrink a private copy: Pixmap(doc, xref) can return the document's cached image, and shrinking that in
+            # place changes it for every later reader (its digest no longer matches, so get_image_info loses the xref).
+            pix = pymupdf.Pixmap(pix, 1 if pix.alpha else 0)
         while pix.width > 1600 or pix.height > 1600:
             pix.shrink(1)
         pix = _ensure_rgb_or_gray(pix)
