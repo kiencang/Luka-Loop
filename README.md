@@ -1,5 +1,5 @@
 # Luka-Loop
-![Bản gốc tiếng Anh (trái) và bản dịch tiếng Việt giữ bố cục (phải)](demo/demo.png)
+![Bản gốc tiếng Anh (trái) và bản dịch tiếng Việt giữ bố cục (phải)](demo/demo-2.png)
 
 Công cụ AI Agent tự động dịch tài liệu PDF từ tiếng Anh sang tiếng Việt. Không yêu cầu cài thêm bất cứ phần mềm (ngoài công cụ này và phần mềm desktop Agent mà bạn hay dùng) hỗ trợ nào. Chỉ cần mở thư mục trên các agent như [Antigravity](https://antigravity.google/), [Claude Code](https://claude.com/product/claude-code) là bắt đầu dùng được ngay. Một số agent khác mà bạn có thể thử là [Cursor](https://cursor.com/) và [Goose](https://goose-docs.ai/).
 
