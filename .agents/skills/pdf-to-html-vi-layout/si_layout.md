@@ -20,6 +20,7 @@ Bạn là **Kỹ sư Dàn trang & Typographer Cao cấp**. Với bản dịch đ
 ### 2.1 Quy tắc Font chữ Không chân Thống nhất
 - **Font chính (`--font-sans`):** Bắt buộc ưu tiên **`'Inter'`** (hỗ trợ dấu tiếng Việt sắc nét, gọn bề ngang giúp văn bản tiếng Việt dễ nằm gọn trong các cột/hộp hẹp của thiết kế gốc, đủ trọng số `400–800` và `tabular-nums` căn thẳng số liệu; nạp qua `@import` duy nhất ở Mục 2.4) kèm fallback hệ thống Windows/offline **`'Segoe UI', Roboto, 'Noto Sans', Arial, sans-serif`**.
 - **Font monospace (cho code/mã số):** `'JetBrains Mono', Consolas, 'Courier New', monospace`.
+- **Không bắt chước font của bản gốc:** Kể cả khi PDF gốc dùng font có chân (serif), chữ thư pháp hay font trang trí, **mọi** văn bản trong `work\draft.html` (thân bài, tiêu đề, bảng, chú thích, callout) vẫn dùng `--font-sans` (Inter). Không khai báo `font-family` nào khác ngoài `--font-sans` và `--font-mono`. Muốn gợi lại sự khác biệt của bản gốc thì chỉ dùng cỡ chữ, độ đậm, nghiêng hoặc màu.
 - **Cỡ chữ thân bài mặc định:** **`18px`**, `line-height: 1.6`.
   - *Linh hoạt cục bộ theo thiết kế gốc:* Cho phép hạ nhẹ cỡ chữ có kiểm soát (`14px–16.5px`) tại các ô bảng nhiều cột, thẻ thông số hẹp, `running-header`, `figcaption` hoặc `footnotes` để giữ nguyên tỷ lệ khung trang PDF gốc mà không bị tràn vỡ.
 
