@@ -3,7 +3,9 @@
 The metrics in eval_doclaynet.py can mislead (pdf_cells false positives, overlays that hide cut text), so every
 detector change is also judged by eye: this tool picks figures whose output crops differ between two cached
 eval_doclaynet.py runs, renders exactly the images extract_assets.exe would write (+4 pt padding), shuffles the
-sides and writes a self-contained local HTML page. The judge pastes back a code such as "AB5:LREX..."; `score`
+sides and writes a self-contained local HTML page. Each item also has a collapsible view of the whole page with one
+orange frame around the union of both versions' boxes, identical for both sides, so the crops can be judged in
+context without revealing which side is which. The judge pastes back a code such as "AB5:LREX..."; `score`
 decodes it with the hidden key and reports wins with a sign test.
 
     python -X utf8 dev\\ab_judge.py build --old <fp> --new <fp> --n 50 --seed 5 --code AB5
@@ -129,30 +131,59 @@ def build(args: argparse.Namespace) -> None:
             picked.append(c)
             if len(picked) == args.n:
                 break
-    print(f"picked {len(picked)} figures")
-
-    def render(page, rects, scale=1.6) -> list[str]:
-        out = []
-        for r in rects:
-            pix = page.get_pixmap(clip=pymupdf.Rect(r) & page.rect, matrix=pymupdf.Matrix(scale, scale))
-            out.append(base64.b64encode(pix.tobytes("jpeg", jpg_quality=80)).decode())
-        return out
-
     cards, key = [], []
-    for i, (r, k, a, b) in enumerate(picked, 1):
+    for r, k, a, b in picked:
         rec = pq.ParquetFile(r["file"]).read_row_group(r["rg"], columns=["pdf"]).to_pylist()[r["row"]]
         with pymupdf.open(stream=rec["pdf"], filetype="pdf") as doc:
-            old_imgs, new_imgs = render(doc[0], a), render(doc[0], b)
-        new_on_left = rng.random() < 0.5
-        left, right = (new_imgs, old_imgs) if new_on_left else (old_imgs, new_imgs)
-        cards.append(f'<section class="item" hidden><div class="pair">{_side("Trái", left)}{_side("Phải", right)}</div></section>')
-        key.append({"id": i, "doc": r["doc"], "page_no": r["page_no"], "figure": k, "new_on_left": new_on_left,
+            made = make_card(doc[0], a, b, rng)
+        if made is None:
+            continue  # sub-pixel change: both sides render the same image
+        cards.append(made[0])
+        key.append({"id": len(key) + 1, "doc": r["doc"], "page_no": r["page_no"], "figure": k, "new_on_left": made[1],
                     "old_boxes": a, "new_boxes": b})
+    print(f"picked {len(picked)} figures, {len(picked) - len(key)} dropped as rendering identically")
     (out_dir / f"ab_key_{args.code}.json").write_text(
         json.dumps({"code": args.code, "old_fp": args.old, "new_fp": args.new, "items": key}, indent=1), encoding="utf-8", newline="\n")
     page_path = out_dir / f"ab_judge_{args.code}.html"
     page_path.write_text(PAGE.replace("{CARDS}", "".join(cards)).replace("{CODE}", html.escape(args.code)), encoding="utf-8", newline="\n")
     print(f"wrote {page_path} ({page_path.stat().st_size / 1e6:.1f} MB); key {out_dir / f'ab_key_{args.code}.json'}")
+
+
+def _jpeg(pix) -> str:
+    return base64.b64encode(pix.tobytes("jpeg", jpg_quality=80)).decode()
+
+
+def make_card(page, old_rects: list, new_rects: list, rng: random.Random) -> tuple[str, bool] | None:
+    """One judging item: both versions' crops on shuffled sides plus a collapsible whole-page view.
+
+    The rects are the exact output boxes (padding already applied). The page view frames the union of all old and
+    new boxes in orange, the same for both sides, and draws no predicted boxes, so it shows where the figure is
+    without revealing which side is new. Returns (html, new_on_left), or None when both sides render identically.
+    The frame is drawn onto `page`, so reopen the document before rendering anything else from that page.
+    """
+    import pymupdf
+
+    def crops(rects: list) -> list[str]:
+        return [_jpeg(page.get_pixmap(clip=pymupdf.Rect(r) & page.rect, matrix=pymupdf.Matrix(1.6, 1.6))) for r in rects]
+
+    old_imgs, new_imgs = crops(old_rects), crops(new_rects)
+    if old_imgs == new_imgs:
+        return None
+    frame = pymupdf.Rect()
+    for r in [*old_rects, *new_rects]:
+        frame |= pymupdf.Rect(r)
+    shape = page.new_shape()
+    shape.draw_rect(frame + (-3, -3, 3, 3))
+    shape.finish(color=(1, 0.55, 0), width=2.5)
+    shape.commit()
+    whole = _jpeg(page.get_pixmap(matrix=pymupdf.Matrix(0.8, 0.8)))
+    new_on_left = rng.random() < 0.5
+    left, right = (new_imgs, old_imgs) if new_on_left else (old_imgs, new_imgs)
+    card = ('<section class="item" hidden><details class="ctx"><summary>Xem cả trang (khung cam đánh dấu vị trí hình, '
+            'giống nhau cho hai bên)</summary>'
+            f'<img src="data:image/jpeg;base64,{whole}" alt="cả trang"></details>'
+            f'<div class="pair">{_side("Trái", left)}{_side("Phải", right)}</div></section>')
+    return card, new_on_left
 
 
 def _side(label: str, imgs: list[str]) -> str:
@@ -214,6 +245,8 @@ h1 { font-size:20px; margin:0 0 4px; font-weight:600; }
 .note { color:var(--muted); margin:0 0 14px; }
 .bar { display:flex; align-items:center; gap:12px; margin:0 0 12px; flex-wrap:wrap; }
 .progress { font-weight:600; }
+.ctx { margin:0 0 10px; }
+.ctx img { max-width:100%; height:auto; display:block; margin-top:8px; }
 .pair { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; }
 @media (max-width:700px) { .pair { grid-template-columns:1fr; } }
 .side { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px; }
