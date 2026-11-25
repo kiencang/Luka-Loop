@@ -244,12 +244,17 @@ class PageContext:
 
         PyMuPDF's table finder edits the paths it is given: it widens `rect` in place and appends a closing
         segment to `items` of every closed line path. Both are cloned so the detector's own drawings (whose item
-        counts several rules read) stay as extracted, however many times tables are searched.
+        counts several rules read) stay as extracted, however many times tables are searched. `rect` is the drawn,
+        unclipped bbox: a white page background clipped to a figure would otherwise frame it as a table
+        (DocLayNet 1001.0583 p6).
         """
         if getattr(self.page, "rotation", 0) % 360 != 0:
             return {}
         return {
-            "paths": [{**dr, "rect": pymupdf.Rect(dr["rect"]), "items": list(dr["items"])} for dr in self.drawings]
+            "paths": [
+                {**dr, "rect": pymupdf.Rect(dr.get("unclipped_rect", dr["rect"])), "items": list(dr["items"])}
+                for dr in self.drawings
+            ]
         }
 
     def find_tables_in_clip(self, clip: pymupdf.Rect) -> list[PageTableInfo]:

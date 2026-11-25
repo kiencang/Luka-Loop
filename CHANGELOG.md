@@ -2,6 +2,17 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Khung hình vector lấn sang chữ bên cạnh vì "dải ruy băng":** phần mềm vẽ đồ thị thường ghi nguyên một đường cong hoặc đường khớp số liệu rồi đặt vùng nhìn thấy (clip) bằng khung đồ thị, nên phần nét ngoài khung bị che. `get_drawings()` lại trả khung hình học của cả nét, nên khung hình bị kéo sang chữ dù chỗ đó không có mực (DocLayNet 1001.1751 p1: đường cong dôi 68 pt sang trái, đường khớp dôi 46 pt lên trên). Nay khung mỗi nét được cắt theo vùng nhìn thấy (ngăn xếp clip của `get_drawings(extended=True)`), nét nằm hoàn toàn ngoài vùng nhìn thấy bị bỏ (`_clipped_drawings`). Bộ dò bảng vẫn dùng khung gốc (`unclipped_rect`), vì nền trắng bị cắt khít vào hình sẽ thành khung bảng giả và hình bị loại nhầm là bảng (1001.0583 p6).
+  - Đo trước khi sửa: 568 / 14.090 trang DocLayNet (245 / 983 tài liệu) có dải ruy băng; 196 khung trên 181 trang bị kéo phình (trung vị 17 pt).
+  - DocLayNet (cả 4 tập, 14.117 trang): trang lỗi nặng 541 → 491, ảnh lấn chữ 209 → 157, ô chữ bị lấn 2.241 → 1.436, hình cắt nặng 322 → 314, hình bỏ sót 89 → 75, gộp sai 9 → 5, IoU trung bình 0,937 → 0,942, F1 0,8916 → 0,8908 (mảnh vụn 498 → 542: hình nhiều ô trước đây được gộp nhờ ruy băng chồng lên nhau, nay tách thành từng ô, vẫn đủ ảnh). 56 trang hết lỗi nặng, 13 trang có lỗi mới, chủ yếu nhãn nằm ngoài khung đồ thị không được gắn (trước đây ruy băng tình cờ phủ lên nhãn).
+  - Chấm mù AB10 (49 hình, tập tune): mới tốt hơn 10, cũ tốt hơn 2, như nhau 34, cả hai tệ 3 (p = 0,039).
+  - Surgical Atlas: 2 trang đổi. p330 lệch < 1 pt. p361 xấu đi: dải trắng của ô chương in tràn qua mép trái trang bị cắt về x = 0 rồi bị gom vào hình bên cạnh, khung lấn ra mép trang và dòng chú thích Fig. 24.5 (chưa sửa).
+  - Book of Proofs: p35 khung gọn hơn, vẫn đủ hình; p307 lẫn lộn (hàng ô hình nhỏ bị chia sai ở cả bản cũ lẫn mới). 3 sách còn lại trong `dev/typical-pdf`: 0 trang đổi.
+  - Đã thử và bỏ: không cắt theo cạnh vùng nhìn thấy trùng mép trang. Cách đó sửa được Atlas p361 nhưng làm hỏng 2 trang DocLayNet có đồ thị in tràn mép trang thật (1211.7332 p26 mất một đồ thị, p27 hai đồ thị bị cắt nửa).
+  - Thêm test `TestClippedDrawings`.
+
 ## [1.1.37] - 2026-11-26
 ### Fixed
 - **Hai hình cạnh nhau bị gộp thành một ảnh dù giữa chúng có chú thích của một trong hai hình:** ở Surgical Atlas p157, hàng nhãn chen giữa khiến hình trái không nhận được chú thích Fig. 10.25 của nó. Bước lan chú thích sang ô bên cạnh vì thế gán cho nó chú thích Fig. 10.26 của hình phải, rồi bước gộp ghép hai hình làm một, chú thích 10.25 nằm lọt trong ảnh. Nay một chú thích hình mà không khung nào sở hữu, nằm trong khoảng trống giữa hai khung (vùng hợp trùm ≥ 30% chú thích, mỗi khung chạm < 10%), sẽ chặn cả việc lan chú thích lẫn việc gộp (`_spans_foreign_caption`, `DetectorConfig.merge_foreign_caption_frac`).

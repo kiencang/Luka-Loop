@@ -1002,5 +1002,67 @@ class TestForeignCaptionBlocksMerge(unittest.TestCase):
         self.assertEqual((right.caption_idx, right.caption_side), (1, "below"))
 
 
+class TestClippedDrawings(unittest.TestCase):
+    """A plot draws its curve and fit line in full and shows only the part inside a clip (the plot frame). The
+    drawn geometry ("ribbon") reached into the text column beside the plot, and the figure box followed it
+    (DocLayNet 1001.1751 p1). Drawing boxes are now cut to their clip."""
+
+    FRAME = pymupdf.Rect(320, 100, 520, 250)
+
+    @classmethod
+    def _page(cls) -> pymupdf.Page:
+        doc = pymupdf.open()
+        page = doc.new_page(width=595, height=842)
+        for i in range(12):  # left text column, level with the plot
+            page.insert_text((72, 110 + i * 13), "The measured response follows the trend here", fontsize=BODY)
+        page.insert_text((320, 280), "Figure 1: Response of the sensor array under load.", fontsize=BODY)
+        f = cls.FRAME
+        ops = [
+            "q 0 0 0 RG 1 w",
+            f"{f.x0} {842 - f.y1} {f.width} {f.height} re S",  # plot frame
+            # curve from far left of the frame, shown only inside it (clip = frame)
+            f"q {f.x0} {842 - f.y1} {f.width} {f.height} re W n",
+            f"0 0 1 RG {f.x0 - 150} {842 - 130} m {f.x0 + 60} {842 - 200} {f.x0 + 120} {842 - 240} {f.x1} {842 - 245} c S",
+            "Q",
+            "Q",
+        ]
+        xref = page.get_contents()[0]
+        doc.update_stream(xref, doc.xref_stream(xref) + ("\n" + "\n".join(ops) + "\n").encode())
+        return page
+
+    def test_drawing_rect_is_cut_to_its_clip(self) -> None:
+        from figure_detector.text import _clipped_drawings
+
+        page = self._page()
+        rects = [pymupdf.Rect(d["rect"]) for d in page.get_drawings()]
+        self.assertTrue(any(r.x0 < 200 and r.y1 < 300 for r in rects), f"precondition: raw curve reaches left: {rects}")
+        drawings = _clipped_drawings(page)
+        curve = [d for d in drawings if "unclipped_rect" in d and d["rect"].y1 < 300]
+        self.assertEqual(len(curve), 1, drawings)
+        self.assertGreaterEqual(curve[0]["rect"].x0, self.FRAME.x0 - 0.5)
+        self.assertLess(curve[0]["unclipped_rect"].x0, 200)
+        frame = [d for d in drawings if "unclipped_rect" not in d]
+        self.assertEqual([d["rect"] for d in frame], [self.FRAME], "the unclipped plot frame stays as drawn")
+
+    def test_figure_box_stays_out_of_the_text_column(self) -> None:
+        from figure_detector import pipeline, text
+
+        orig = text._clipped_drawings
+        text._clipped_drawings = lambda p: p.get_drawings()
+        try:
+            _, before, _ = pipeline._run_page_pipeline(self._page())
+        finally:
+            text._clipped_drawings = orig
+        # The drawn curve reaches into the text column: the cluster then reads as a prose box and the figure is lost.
+        self.assertFalse(
+            any(c.rect.x0 > self.FRAME.x0 - 6 for c in before), f"precondition: the ribbon spoils the figure: {before}"
+        )
+
+        _, cands, _ = pipeline._run_page_pipeline(self._page())
+        self.assertEqual(len(cands), 1, cands)
+        self.assertGreater(cands[0].rect.x0, self.FRAME.x0 - 6, cands[0].rect)
+        self.assertEqual(cands[0].caption_side, "below")
+
+
 if __name__ == "__main__":
     unittest.main()

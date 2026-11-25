@@ -196,6 +196,43 @@ def _collect_separator_rules(drawings: list[dict], pw: float, ph: float) -> list
     return rules
 
 
+def _clipped_drawings(page: pymupdf.Page) -> list[dict]:
+    """Page drawings with `rect` cut to the part visible inside their clip path.
+
+    `get_drawings()` reports a path's full geometry, but a PDF often draws a long curve or fit line and shows only
+    the part inside a clip (a plot frame). That "ribbon" reaches far past the visible ink and stretches the figure box
+    into the neighbouring text (DocLayNet 1001.1751 p1: a curve 68 pt left of its plot, a fit line 46 pt above it).
+    The clip stack of `get_drawings(extended=True)` gives each path its effective clip; `rect` becomes the visible
+    part and a path drawn wholly outside its clip is dropped. `items` stay as drawn, and the drawn bbox is kept in
+    `unclipped_rect` for the table finder, whose grid detection was tuned on it.
+    """
+    out: list[dict] = []
+    stack: list[tuple[int, pymupdf.Rect]] = []  # (nesting level, effective clip)
+    for dr in page.get_drawings(extended=True):
+        lvl = dr.get("level", 0)
+        while stack and stack[-1][0] >= lvl:
+            stack.pop()
+        kind = dr.get("type")
+        if kind == "clip":
+            sc = pymupdf.Rect(dr["scissor"])
+            if stack:
+                sc = sc & stack[-1][1]
+            stack.append((lvl, sc))
+            continue
+        if kind not in ("f", "s", "fs"):
+            continue
+        if stack:
+            r, sc = dr["rect"], stack[-1][1]
+            # Intersect by hand: pymupdf calls zero-width/height rects (straight rules) empty and `&` would drop them.
+            v = pymupdf.Rect(max(r.x0, sc.x0), max(r.y0, sc.y0), min(r.x1, sc.x1), min(r.y1, sc.y1))
+            if v.x0 > v.x1 or v.y0 > v.y1:
+                continue
+            dr["unclipped_rect"] = r
+            dr["rect"] = v
+        out.append(dr)
+    return out
+
+
 def analyze_page(
     page: pymupdf.Page,
     cfg: DetectorConfig = DEFAULT_CONFIG,
@@ -209,7 +246,7 @@ def analyze_page(
     page_rect = page.rect
     pw, ph = page_rect.width, page_rect.height
 
-    drawings = page.get_drawings()
+    drawings = _clipped_drawings(page)
     rules = _collect_separator_rules(drawings, pw, ph) if drawings else []
 
     raw_blocks: list[TextBlock] = []
