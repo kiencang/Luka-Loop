@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.37] - 2026-11-26
 ### Fixed
 - **Hai hình cạnh nhau bị gộp thành một ảnh dù giữa chúng có chú thích của một trong hai hình:** ở Surgical Atlas p157, hàng nhãn chen giữa khiến hình trái không nhận được chú thích Fig. 10.25 của nó. Bước lan chú thích sang ô bên cạnh vì thế gán cho nó chú thích Fig. 10.26 của hình phải, rồi bước gộp ghép hai hình làm một, chú thích 10.25 nằm lọt trong ảnh. Nay một chú thích hình mà không khung nào sở hữu, nằm trong khoảng trống giữa hai khung (vùng hợp trùm ≥ 30% chú thích, mỗi khung chạm < 10%), sẽ chặn cả việc lan chú thích lẫn việc gộp (`_spans_foreign_caption`, `DetectorConfig.merge_foreign_caption_frac`).
   - DocLayNet: 0 trang đổi trên cả 4 tập (14.117 trang).
