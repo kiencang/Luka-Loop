@@ -40,9 +40,13 @@ Ngoài Antigravity, bạn có thể dùng công cụ với **Claude Code** (tab 
 - **Trình duyệt (tùy chọn để tự động xuất PDF):** Công cụ dùng Microsoft Edge (ưu tiên) hoặc Google Chrome để xuất tệp PDF. Nếu không có, quy trình vẫn xuất hoàn chỉnh tệp `*_vi.html`.
 
 ## Về chi phí
+Công cụ này dùng được với các Agent cung cấp dịch phụ miễn phí (thường ngưỡng thấp) hoặc API Key (dùng đến đâu trả tiền đến đấy) hoặc gói Sub (trả cố định hàng tháng).
+
 - Với ai dùng API Key sẽ có chi phí đã tiêu mà bên dịch vụ bán cung cấp;
-- Với gói sub (trả tiền hàng tháng, ví dụ 20$/tháng), thường rẻ hơn khá nhiều. 
-- Ví dụ: Dịch 50 trang bảo toàn định dạng hết khoảng 7-10% ngưỡng 5h, và hơn 2-3% ngưỡng cả tuần với Gemini 4 Hydrogen Medium;
+- Với gói sub (trả tiền hàng tháng, ví dụ 20$/tháng), thường rẻ hơn khá nhiều tính trên trung bình;
+- Ví dụ: Dịch 50 trang bảo toàn định dạng hết khoảng 7-10% ngưỡng 5h, tương đương 2-4% ngưỡng cả tuần với Gemini 4 Hydrogen Medium;
+- Dùng các model cao hơn sẽ cho chất lượng bản dịch tốt hơn, cũng như việc bảo toàn định dạng gốc (nếu bạn yêu cầu agent) chính xác hơn;
+- Thường không cần dùng model cao nhất, quy tắc kinh nghiệm là bạn nên chọn model thuộc nhóm gần tốt nhất là đủ cân bằng chi phí & chất lượng;
 
 ## Lý do tồn tại
 Tôi đã có sản phẩm https://github.com/kiencang/PDF-silaTranslator có chức năng tương đương, nhưng hiện tại chỉ API Key trả phí mới sử dụng được. Mặc dù ngưỡng miễn phí của Antigravity không lớn, nhưng nếu dịch tài liệu nhỏ vẫn được, còn với tài liệu dài, dịch nhiều vẫn cần các tài khoản có phí (nhưng tính trên trung bình, vẫn rẻ hơn khá nhiều so với việc dịch bằng cách mua API Key). 
