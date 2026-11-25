@@ -2,6 +2,10 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.34] - 2026-11-25
+### Changed
+- **Chế độ giữ thiết kế không còn chép font của bản gốc:** khi PDF gốc dùng font có chân (serif), agent từng khai báo `Georgia`/serif cho thân bài trong `work\draft.html`, làm một phần bản dịch không dùng Inter. Mục 2.1 của `si_layout.md` nay ghi rõ mọi văn bản (thân bài, tiêu đề, bảng, chú thích, callout) đều dùng `--font-sans` (Inter), không khai báo `font-family` nào khác ngoài `--font-sans` và `--font-mono`; muốn gợi lại bản gốc thì chỉ dùng cỡ chữ, độ đậm, nghiêng hoặc màu.
+
 ## [1.1.33] - 2026-11-25
 ### Fixed
 - **Nhãn phía trên hình nằm sát đầu trang bị bỏ:** bước gắn nhãn theo dòng (`_label_lines`) loại mọi dòng trong 10% đầu trang vì sợ lấy nhầm tiêu đề chạy, nên hình đặt cao trên trang mất hàng nhãn phía trên (Surgical Atlas p34 "Type I/II/III", p370 "Extensor hallucis"; số trên cùng của trục, chữ (a)/(b), tiêu đề hình trong bài báo). Nay khi tài liệu đã nhận ra tiêu đề chạy ở nửa trên trang, dải loại trừ chỉ tính tới hết tiêu đề chạy thấp nhất; trang không có tiêu đề chạy (trang mở chương, PDF một trang) giữ dải 10% như cũ.
