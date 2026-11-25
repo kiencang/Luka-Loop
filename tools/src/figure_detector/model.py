@@ -98,6 +98,7 @@ class DetectorConfig:
     touch_pad: float = 2.0
     same_caption_merge_gap: float = 68.0
     same_caption_row_merge_gap: float = 74.0
+    merge_foreign_caption_frac: float = 0.30     # a merge may not cover this share of a caption neither box owns
     touching_merge_gap: float = 4.0
     # Per-page wall-clock budget (seconds); <= 0 disables the cap.
     max_page_seconds: float = 30.0

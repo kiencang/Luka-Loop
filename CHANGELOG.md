@@ -2,6 +2,16 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Hai hình cạnh nhau bị gộp thành một ảnh dù giữa chúng có chú thích của một trong hai hình:** ở Surgical Atlas p157, hàng nhãn chen giữa khiến hình trái không nhận được chú thích Fig. 10.25 của nó. Bước lan chú thích sang ô bên cạnh vì thế gán cho nó chú thích Fig. 10.26 của hình phải, rồi bước gộp ghép hai hình làm một, chú thích 10.25 nằm lọt trong ảnh. Nay một chú thích hình mà không khung nào sở hữu, nằm trong khoảng trống giữa hai khung (vùng hợp trùm ≥ 30% chú thích, mỗi khung chạm < 10%), sẽ chặn cả việc lan chú thích lẫn việc gộp (`_spans_foreign_caption`, `DetectorConfig.merge_foreign_caption_frac`).
+  - DocLayNet: 0 trang đổi trên cả 4 tập (14.117 trang).
+  - Surgical Atlas: 2 trang đổi, khung ảnh đều đúng. p157 tách đúng hai hình; hình 10.26 đúng chú thích, hình 10.25 chưa có chú thích (nhãn chen giữa). p213 tách hình vẽ 14.7 khỏi ảnh 14.8; hình 14.8 đúng chú thích, hình 14.7 chưa có chú thích, còn hình 14.6 vẫn mang nhầm chú thích 14.7 như trước.
+  - 4 sách còn lại trong `dev/typical-pdf`: 0 trang đổi.
+  - Đã thử và bỏ: cho phép khung chạm tới < 50% chú thích. Mức đó làm hỏng 2 trang DocLayNet: một mảnh vector lấn vào chú thích Hình 1 làm Hình 2 bị tách làm đôi (1001.1751 p1), và khung theo cột bị cắt dọc (1001.1076 p4).
+  - Chưa sửa: Surgical Atlas p345 (bước cứu mảnh vector nhỏ bắc cầu giữa hai hình) và p248 (chú thích đặt bên cạnh, cách xa > 35 pt).
+  - Thêm test `TestForeignCaptionBlocksMerge`.
+
 ## [1.1.36] - 2026-11-26
 ### Fixed
 - **Ô số trang ở góc trên bị tách thành ảnh và lấy mất chú thích của hình thật:** ô màu chứa số trang và số chương (khối vector in tràn mép giấy) vốn bị bỏ vì quá thấp và không có chú thích. Nhưng khi một chú thích đặt bên cạnh hình nằm ngay dưới ô này (cách ~24 pt), chú thích được ghép với ô như chú thích "bên dưới". Ô được giữ thành một ảnh rác, còn hình thật mất chú thích (Surgical Atlas p213, p376). Nay trước bước gắn chú thích, mọi khung tràn ra mép trên hoặc mép dưới trang và nằm gọn trong dải 10% sát mép đó bị bỏ (`DetectorConfig.edge_tab_band_frac`).

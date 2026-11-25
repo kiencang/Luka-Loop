@@ -964,5 +964,43 @@ class TestPageEdgeTab(unittest.TestCase):
         self.assertEqual((cands[0].caption_idx, cands[0].caption_side), (0, "side"))
 
 
+class TestForeignCaptionBlocksMerge(unittest.TestCase):
+    """Two drawings side by side, each with its own caption (Surgical Atlas p157). A label line kept the left drawing
+    from matching its caption, so it took the right drawing's caption as a sibling and the two merged into one
+    image with Fig. 10.25 inside it. A caption that neither box owns, covered by their union, now blocks both the
+    caption propagation and the merge."""
+
+    @staticmethod
+    def _page() -> pymupdf.Page:
+        doc = pymupdf.open()
+        page = doc.new_page(width=595, height=791)
+        page.insert_image(pymupdf.Rect(46, 62, 283, 242), stream=_png_with_white_margin(474, 360, (0, 0, 474, 360)))
+        page.insert_image(pymupdf.Rect(298, 62, 539, 306), stream=_png_with_white_margin(482, 488, (0, 0, 482, 488)))
+        page.insert_text((50, 268), "Desinsertion of the Anconeus muscle", fontsize=7)  # label between figure and caption
+        page.insert_text((46, 287), "Fig. 10.25 Releasing the anconeus from the humerus", fontsize=7)
+        page.insert_text((298, 321), "Fig. 10.26 A cortical window through the olecranon fossa", fontsize=7)
+        _paragraph(page, 360, 6)
+        return page
+
+    def test_figures_with_a_caption_between_them_stay_apart(self) -> None:
+        from figure_detector import captions, merge, pipeline
+
+        orig = merge._spans_foreign_caption
+        merge._spans_foreign_caption = captions._spans_foreign_caption = lambda *a, **k: False
+        try:
+            _, before, _ = pipeline._run_page_pipeline(self._page())
+        finally:
+            merge._spans_foreign_caption = captions._spans_foreign_caption = orig
+        self.assertEqual(len(before), 1, f"precondition: without the rule the drawings merge: {before}")
+
+        _, cands, _ = pipeline._run_page_pipeline(self._page())
+        self.assertEqual(len(cands), 2, cands)
+        left, right = sorted(cands, key=lambda c: c.rect.x0)
+        self.assertLess(left.rect.x1, 290, left.rect)
+        self.assertGreater(right.rect.x0, 290, right.rect)
+        self.assertIsNone(left.caption_idx, "the left drawing must not borrow Fig. 10.26")
+        self.assertEqual((right.caption_idx, right.caption_side), (1, "below"))
+
+
 if __name__ == "__main__":
     unittest.main()

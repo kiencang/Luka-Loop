@@ -7,6 +7,7 @@ from .caption_match import (
     _is_table_row_pair,
     _match_caption,
     _match_caption_scored,
+    _spans_foreign_caption,
 )
 from .geometry import (
     _horiz_overlap,
@@ -141,6 +142,8 @@ def _propagate_captions(
                 if _has_obstacle_between(a.rect, b.rect, ctx.text_blocks, ctx.separator_rules, allow_axis_labels=True):
                     continue
                 if _is_table_row_pair(a.rect, b.rect, ctx.text_blocks):
+                    continue
+                if _spans_foreign_caption(a.rect, b.rect, (b.caption_idx,), ctx, cfg):
                     continue
 
                 a.caption_idx = b.caption_idx

@@ -11,6 +11,7 @@ from .model import (
     _TICK_TOKEN_RE,
     DEFAULT_CONFIG,
     DetectorConfig,
+    PageContext,
     TextBlock,
     pymupdf,
 )
@@ -127,6 +128,37 @@ def _match_caption(
     """Find the most likely figure caption belonging to `rect`, if any."""
     idx, _, _ = _match_caption_scored(rect, fig_captions, text_blocks, cfg=cfg, allow_side=allow_side)
     return idx
+
+
+def _spans_foreign_caption(
+    a: pymupdf.Rect,
+    b: pymupdf.Rect,
+    owned: tuple[int | None, ...],
+    ctx: PageContext,
+    cfg: DetectorConfig = DEFAULT_CONFIG,
+) -> bool:
+    """Return True if the union of `a` and `b` covers a figure caption that neither box owns nor touches.
+
+    Such a caption in the gap between or beside two boxes marks two separate figures (Surgical Atlas p157:
+    Fig. 10.25 under the left drawing of a pair), so the boxes must not be merged or share one caption. A caption
+    owned by either box is exempt, so a figure whose caption sits in a notch of its own panels still merges. A
+    caption that a box already overlaps is not evidence either: the box is bleeding into text (a vector piece
+    reaching up into the previous caption, or column-wise pieces each spanning two stacked figures), and splitting
+    there only cuts one figure into panels (DocLayNet 1001.1751 p1, 1001.1076 p4).
+    """
+    union = a | b
+    for k, cap in enumerate(ctx.fig_captions):
+        if k in owned:
+            continue
+        cr = cap.rect
+        cap_area = max(1.0, cr.get_area())
+        if (
+            (union & cr).get_area() >= cfg.merge_foreign_caption_frac * cap_area
+            and (a & cr).get_area() < 0.10 * cap_area
+            and (b & cr).get_area() < 0.10 * cap_area
+        ):
+            return True
+    return False
 
 
 def _has_obstacle_between(

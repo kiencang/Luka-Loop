@@ -5,6 +5,7 @@ from __future__ import annotations
 from .caption_match import (
     _has_obstacle_between,
     _is_table_row_pair,
+    _spans_foreign_caption,
 )
 from .geometry import (
     _horiz_overlap,
@@ -45,6 +46,10 @@ def _violates_merge_invariants(
             other_area = max(1.0, other.rect.get_area())
             if (union & other.rect).get_area() >= 0.50 * other_area:
                 return True
+
+    if _spans_foreign_caption(a.rect, b.rect, (a.caption_idx, b.caption_idx), ctx, cfg):
+        ctx.log(f"merge:block foreign_caption {a.rect} + {b.rect}")
+        return True
 
     # Never swallow >=2 newly enclosed long prose blocks that weren't already inside a or b.
     newly_swallowed_prose = 0
