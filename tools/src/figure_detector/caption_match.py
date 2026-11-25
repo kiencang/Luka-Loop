@@ -58,7 +58,10 @@ def _match_caption_scored(
                 dist = float("inf")
         elif (
             allow_side
-            and _vert_overlap(rect, cr) >= 10.0
+            # A one-line caption (~9 pt) can never share 10 pt of height with the figure, so the floor scales
+            # with the caption height.
+            and _vert_overlap(rect, cr)
+            >= min(cfg.caption_side_min_v_overlap, cfg.caption_side_v_overlap_frac * cr.height)
             and (
                 abs(cr.y0 - rect.y0) <= cfg.caption_side_align_y
                 or abs(cr.y1 - rect.y1) <= cfg.caption_side_align_y

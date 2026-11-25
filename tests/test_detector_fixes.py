@@ -18,6 +18,8 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 import figure_detector as fd  # noqa: E402
+from figure_detector.caption_match import _match_caption_scored  # noqa: E402
+from figure_detector.model import TextBlock  # noqa: E402
 
 BODY = 10.0
 
@@ -890,6 +892,37 @@ class TestPageBudget(unittest.TestCase):
         self.assertIn("=== MANIFEST JSON START ===", out_buf.getvalue())
         meta = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(len(meta["figures"]), 1)
+
+
+class TestShortSideCaptions(unittest.TestCase):
+    """One- and two-line side captions beside a figure (Surgical Atlas margin captions)."""
+
+    FIG = pymupdf.Rect(210, 62, 540, 430)
+
+    @staticmethod
+    def _cap(x0: float, y0: float, x1: float, y1: float) -> TextBlock:
+        return TextBlock(pymupdf.Rect(x0, y0, x1, y1), "Fig. 2.12 Pulling the first button", "fig_caption")
+
+    def _match(self, cap: TextBlock) -> tuple[int | None, str]:
+        idx, side, _ = _match_caption_scored(self.FIG, [cap], [cap])
+        return idx, side
+
+    def test_one_line_caption_level_with_the_figure_top_is_a_side_caption(self) -> None:
+        # 9 pt high caption sharing 8 pt of height with the figure (Surgical Atlas p40): the old 10 pt floor
+        # could never be met by a one-line caption.
+        self.assertEqual(self._match(self._cap(45, 61, 191, 70)), (0, "side"))
+
+    def test_two_line_caption_rising_above_the_figure_top_is_a_side_caption(self) -> None:
+        # 19 pt caption starting 12 pt above the figure: 7 pt shared, above 0.35 x 19 (Surgical Atlas p280)
+        self.assertEqual(self._match(self._cap(45, 50, 191, 69)), (0, "side"))
+
+    def test_caption_wholly_above_the_figure_top_is_not_a_side_caption(self) -> None:
+        self.assertEqual(self._match(self._cap(45, 50, 191, 61)), (None, ""))
+
+    def test_side_gap_stays_at_35_pt(self) -> None:
+        # A wider gap across an empty strip was tried and dropped: in two-column papers it bridged the column
+        # gutter (DocLayNet 1001.2505 p2, 1001.0204 p4 split stacked panels).
+        self.assertEqual(self._match(self._cap(45, 61, 150, 70)), (None, ""))
 
 
 if __name__ == "__main__":

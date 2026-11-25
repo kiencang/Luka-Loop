@@ -89,6 +89,8 @@ class DetectorConfig:
     caption_above_max_gap: float = 68.0
     caption_side_max_gap_x: float = 35.0
     caption_side_align_y: float = 35.0
+    caption_side_min_v_overlap: float = 10.0     # side caption must share this much height with the figure ...
+    caption_side_v_overlap_frac: float = 0.35    # ... or this share of its own height, if smaller (1-2 line captions)
     sibling_col_max_gap: float = 68.0
     sibling_row_max_gap: float = 42.0
     # Phase 5: Candidate merging

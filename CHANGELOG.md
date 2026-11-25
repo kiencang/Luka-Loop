@@ -2,6 +2,14 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Chú thích một–hai dòng nằm cạnh hình không được nhận, làm hình lớn bị gộp với hình bên cạnh:** chú thích nằm ngang (`side`) phải chồng với hình theo chiều dọc ≥ 10 pt, mà chú thích một dòng chỉ cao ~9 pt nên không bao giờ đạt. Hình lớn mồ côi chú thích bị bước gộp ghép vào hình kế bên, khung trùm cả chữ của bài (sách Surgical Atlas p250, p329, p280). Nay ngưỡng là `min(10 pt, 0,35 × chiều cao chú thích)` (`DetectorConfig.caption_side_min_v_overlap`, `caption_side_v_overlap_frac`); chú thích từ 3 dòng trở lên giữ ngưỡng 10 pt như cũ.
+  - DocLayNet: 0 trang đổi trên cả 4 tập (14.117 trang).
+  - Surgical Atlas: 6 trang đổi, đều tốt hơn (4 trang tách đúng hình và hết trùm chữ: p211, p250, p280, p329; 2 trang thêm liên kết chú thích: p40, p222); chú thích mồ côi 26 → 20.
+  - Đã thử và bỏ: nới khe ngang tới 120 pt khi dải giữa hình và chú thích không có chữ — thêm 2 liên kết chú thích ở Surgical Atlas nhưng làm hỏng 2 trang DocLayNet (bắc qua khe cột của bài báo hai cột, tách đôi hình nhiều panel); khe ngang giữ 35 pt.
+  - Thêm test `TestShortSideCaptions`.
+
 ## [1.1.34] - 2026-11-25
 ### Changed
 - **Chế độ giữ thiết kế không còn chép font của bản gốc:** khi PDF gốc dùng font có chân (serif), agent từng khai báo `Georgia`/serif cho thân bài trong `work\draft.html`, làm một phần bản dịch không dùng Inter. Mục 2.1 của `si_layout.md` nay ghi rõ mọi văn bản (thân bài, tiêu đề, bảng, chú thích, callout) đều dùng `--font-sans` (Inter), không khai báo `font-family` nào khác ngoài `--font-sans` và `--font-mono`; muốn gợi lại bản gốc thì chỉ dùng cỡ chữ, độ đậm, nghiêng hoặc màu.
