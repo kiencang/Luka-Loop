@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.32] - 2026-11-25
 ### Fixed
 - **Chữ của cột bên cạnh lẹm vào hình:** quy tắc khe cột (v1.1.26, v1.1.29) tìm khe từ khoảng trống trên cả trang, nên một hình rộng ở chỗ khác trên trang lấp mất khe; bước gắn nhãn theo khối (`_expand_plot_axis_labels`) cũng không kiểm tra khe. Hình ở cột trái khi đó lấy tiêu đề mục ngắn, dấu gạch đầu dòng hay phần đầu đoạn văn của cột phải (sách Surgical Atlas p42, p110). Nay tìm thêm **mép cột dóng hàng** (`_column_edges`): x nơi ít nhất 3 đoạn văn (≥ 12 từ, không chạm khung hình nào) cùng bắt đầu hoặc cùng kết thúc, lệch ≤ 1,5 pt. Cả ba bước gắn nhãn (theo khối, theo dòng, theo nét kẻ) không lấy nhãn vượt qua mép đó khi khung hình nằm hẳn ở phía bên kia và chồng theo chiều dọc với các đoạn văn của cột. Đoạn văn chạm khung hình không được tính, để chữ trong infographic hay thang màu không tạo mép giả.
   - DocLayNet: 6 trang đổi (tune 5, holdout 1), 0 trang kém hơn; ảnh dính chữ 213 → 209, trang lỗi nặng 545 → 541; hình đúng và bỏ sót không đổi. Đã xem ảnh cả 5 trang tune, đều tốt hơn (khung không còn trùm chữ cột bên cạnh). Không chấm mù vì ít trang đổi.
