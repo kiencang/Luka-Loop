@@ -46,7 +46,7 @@ Công cụ này dùng được với các Agent cung cấp dịch phụ miễn p
 
 - Với ai dùng API Key sẽ có chi phí đã tiêu mà bên dịch vụ bán cung cấp;
 - Với gói sub (trả tiền hàng tháng, ví dụ 20$/tháng), thường rẻ hơn khá nhiều tính trên trung bình;
-- Ví dụ: Dịch 50 trang bảo toàn định dạng hết khoảng 10-20% ngưỡng 5h, tương đương 2-4% ngưỡng cả tuần với Gemini 4 Hydrogen Medium hoặc Sonet 5.5 Medium;
+- Ví dụ: Dịch 50 trang bảo toàn định dạng hết khoảng 10-20% ngưỡng 5h, tương đương 2-4% ngưỡng cả tuần với Gemini 4 Hydrogen Medium hoặc Sonnet 5.5 Medium;
 - Dùng các model cao hơn sẽ cho chất lượng bản dịch tốt hơn, cũng như việc bảo toàn định dạng gốc (nếu bạn yêu cầu agent) chính xác hơn;
 - Thường không cần dùng model cao nhất, quy tắc kinh nghiệm là bạn nên chọn model thuộc nhóm gần tốt nhất là đủ cân bằng chi phí & chất lượng;
 
