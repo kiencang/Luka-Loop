@@ -513,6 +513,60 @@ class TestStrokeLabels(unittest.TestCase):
         self.assertEqual(fd.collect_page_figures(page)[0], [frame])
 
 
+class TestColumnEdge(unittest.TestCase):
+    """Paragraphs starting on one x mark a text column: a figure left of it takes no label from the column, even
+    where a full-width figure fills the gap between the columns and hides the gutter (Surgical Atlas p42, p110)."""
+
+    @staticmethod
+    def _page() -> pymupdf.Page:
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        para = "\n".join(["Measured response follows the expected trend in all runs"] * 3)
+        for k in range(5):  # right column paragraphs, all starting at x = 316
+            page.insert_text((316, 80 + k * 100), para, fontsize=BODY)
+
+        def plot(frame: pymupdf.Rect) -> None:
+            shape = page.new_shape()
+            shape.draw_rect(frame)
+            step = frame.width / 20
+            shape.draw_polyline([pymupdf.Point(frame.x0 + i * step, frame.y1 - 10 - (i * i) % (frame.height - 20)) for i in range(21)])
+            for i in range(10):
+                shape.draw_circle(pymupdf.Point(frame.x0 + 15 + i * (frame.width - 30) / 9, frame.y0 + 25 + (i % 4) * 20), 3)
+            shape.finish(color=(0, 0, 0), width=0.8)
+            shape.commit()
+
+        plot(pymupdf.Rect(70, 120, 300, 260))
+        page.insert_text((54, 280), "Figure 1: Response against time for all runs.", fontsize=BODY)
+        page.insert_text((316, 240), "Imaging", fontsize=BODY)  # short heading of the right column, 16 pt away
+        plot(pymupdf.Rect(70, 600, 540, 740))  # full width: fills the gap between the columns
+        page.insert_text((54, 760), "Figure 2: Full width response map for every run.", fontsize=BODY)
+        return page
+
+    def test_label_step_stops_at_the_column_edge(self) -> None:
+        from unittest import mock
+
+        import figure_detector.pipeline as pipe
+
+        page = self._page()
+        ctx, cands, _ = pipe._run_page_pipeline(page)
+        self.assertEqual(pipe._column_gutters(ctx, [c.rect for c in cands]), [], "precondition: no gutter is found")
+        self.assertIn(316.0, [round(x, 1) for side, x, _, _ in pipe._column_edges(ctx, []) if side == "left"])
+        with mock.patch.object(pipe, "_column_edges", return_value=[]):
+            before = fd.collect_page_figures(page)[0]
+        self.assertGreater(before[0].x1, 316, f"fixture must reproduce the crossing without the rule: {before}")
+
+        rects = fd.collect_page_figures(page)[0]
+        self.assertEqual(len(rects), 2, rects)
+        self.assertEqual(rects[0], pymupdf.Rect(70, 120, 300, 260), "the figure must stop at its own column")
+        self.assertEqual(rects[1], pymupdf.Rect(70, 600, 540, 740), "the full-width figure is untouched")
+
+    def test_paragraphs_touching_a_figure_make_no_edge(self) -> None:
+        import figure_detector.pipeline as pipe
+
+        ctx, _, _ = pipe._run_page_pipeline(self._page())
+        self.assertEqual(pipe._column_edges(ctx, [pymupdf.Rect(300, 60, 600, 520)]), [])
+
+
 class TestFinePolylinePlot(unittest.TestCase):
     """A line plot whose curves are fine polylines is a figure, not a table (DocLayNet 1002.0011 p19 and 11 more).
 

@@ -43,6 +43,9 @@ from .vector import (
     rescue_small_vector_pieces,
 )
 
+ColumnEdge = tuple[str, float, float, float]  # (side 'left'|'right', x, y0, y1) of an aligned text-column edge
+_COLUMN_EDGE_TOL = 1.5
+
 
 def _annotate_candidate_origins(
     candidates: list[CandidateBox],
@@ -68,11 +71,14 @@ def _annotate_candidate_origins(
             cand.drawings = 0
 
 
-def _expand_plot_axis_labels(candidates: list[CandidateBox], ctx: PageContext) -> None:
+def _expand_plot_axis_labels(
+    candidates: list[CandidateBox], ctx: PageContext, col_edges: Sequence[ColumnEdge] = ()
+) -> None:
     """Expand vector/hybrid (or captioned) plot boxes to include tightly attached axis ticks & titles.
 
     Prevents vector chart crops from slicing off Y-axis numbers, rotated Y-axis titles,
-    X-axis labels, and subpanel markers that live just outside the vector axis frame.
+    X-axis labels, and subpanel markers that live just outside the vector axis frame. A block past an aligned
+    text-column edge (`_column_edges`) on the far side from the box is never taken.
     """
     all_captions = ctx.fig_captions + ctx.tab_captions
     prose_blocks = [
@@ -105,6 +111,8 @@ def _expand_plot_axis_labels(candidates: list[CandidateBox], ctx: PageContext) -
             for tb in axis_blocks:
                 tr = tb.rect
                 if cur.contains(tr):
+                    continue
+                if col_edges and _crosses_column_edge(orig, tr, col_edges):
                     continue
                 # Hard expansion caps relative to the original graphic box so absorption cannot run away.
                 if (
@@ -276,6 +284,46 @@ def _column_gutters(ctx: PageContext, boxes: Sequence[pymupdf.Rect] = ()) -> lis
     return gutters
 
 
+def _column_edges(ctx: PageContext, boxes: Sequence[pymupdf.Rect]) -> list[ColumnEdge]:
+    """Aligned edges of text columns: x where at least 3 paragraphs (text blocks of 12+ words touching none of the
+    figure `boxes`) start (`left` edge) or end (`right` edge, justified text), within 1.5 pt.
+
+    Typesetting puts every paragraph of a column on the same x, so such an edge is a near-certain column boundary,
+    found even where a wide figure elsewhere on the page fills the gap between the columns (which hides the gutter
+    of `_column_gutters`). Paragraphs touching a figure box are left out: text set inside an infographic or a
+    colour-bar scale can line up too. Each edge is `(side, x, y0, y1)`, with the vertical span of its paragraphs.
+    """
+    paras = [tb.rect for tb in ctx.text_blocks
+             if tb.kind == "text" and tb.word_count >= 12 and not any(b.intersects(tb.rect) for b in boxes)]
+    edges: list[ColumnEdge] = []
+    for side in ("left", "right"):
+        xs = sorted(((r.x0 if side == "left" else r.x1), i) for i, r in enumerate(paras))
+        i = 0
+        while i < len(xs):
+            j = i
+            while j + 1 < len(xs) and xs[j + 1][0] - xs[i][0] <= _COLUMN_EDGE_TOL:
+                j += 1
+            if j - i + 1 >= 3:
+                grp = [paras[k] for _, k in xs[i:j + 1]]
+                x = sum(v for v, _ in xs[i:j + 1]) / len(grp)
+                edges.append((side, x, min(r.y0 for r in grp), max(r.y1 for r in grp)))
+            i = j + 1
+    return edges
+
+
+def _crosses_column_edge(box: pymupdf.Rect, label: pymupdf.Rect, edges: Sequence[ColumnEdge]) -> bool:
+    """True when `box` lies wholly outside a text column (left of a column's left edge, or right of its right edge),
+    overlaps the column's paragraphs vertically, and `label` reaches past that edge into the column."""
+    for side, x, y0, y1 in edges:
+        if min(box.y1, y1) - max(box.y0, y0) <= 0:
+            continue
+        if side == "left" and box.x1 <= x + _COLUMN_EDGE_TOL and label.x1 > x + _COLUMN_EDGE_TOL:
+            return True
+        if side == "right" and box.x0 >= x - _COLUMN_EDGE_TOL and label.x0 < x - _COLUMN_EDGE_TOL:
+            return True
+    return False
+
+
 def _across_gutter(box: pymupdf.Rect, line: pymupdf.Rect, gutters: list[tuple[float, float]]) -> bool:
     """True when `box` stays on one side of a gutter's midline and the centre of `line` lies on the other side.
 
@@ -290,13 +338,16 @@ def _across_gutter(box: pymupdf.Rect, line: pymupdf.Rect, gutters: list[tuple[fl
     return False
 
 
-def _attach_adjacent_label_lines(candidates: list[CandidateBox], ctx: PageContext, cfg: DetectorConfig) -> None:
+def _attach_adjacent_label_lines(
+    candidates: list[CandidateBox], ctx: PageContext, cfg: DetectorConfig, col_edges: Sequence[ColumnEdge] = ()
+) -> None:
     """Grow figure boxes line by line to take in adjacent axis titles, tick values and legends.
 
     Complements `_expand_plot_axis_labels`, which works on whole text blocks: a block can join the tick values of
     two neighbouring panels (too wide to attach) or straddle the box edge (matching no side). Working on lines,
     with side-specific gaps, recovers those labels. Never crosses captions, prose, another figure, page margins or
-    a column gutter (a figure set in one text column takes no line from the column beside it).
+    a column gutter or an aligned text-column edge (a figure set in one text column takes no line from the column
+    beside it).
     """
     lines = _label_lines(ctx)
     if not lines:
@@ -346,6 +397,8 @@ def _attach_adjacent_label_lines(candidates: list[CandidateBox], ctx: PageContex
                 if not ok:
                     continue
                 if gutters and _across_gutter(orig, lr, gutters):
+                    continue
+                if col_edges and _crosses_column_edge(orig, lr, col_edges):
                     continue
                 expanded = cur | lr
                 g = cfg.label_max_growth
@@ -397,7 +450,9 @@ def _stroke_segments(ctx: PageContext) -> list[tuple[pymupdf.Point, pymupdf.Poin
     return [s for s in segs if not fraction_bar(*s)]
 
 
-def _attach_stroke_labels(candidates: list[CandidateBox], ctx: PageContext, cfg: DetectorConfig) -> None:
+def _attach_stroke_labels(
+    candidates: list[CandidateBox], ctx: PageContext, cfg: DetectorConfig, col_edges: Sequence[ColumnEdge] = ()
+) -> None:
     """Take in short labels joined to a figure by a thin straight stroke running out of the box.
 
     A leader line in an anatomy atlas, an axis or a dashed reference line in a plot: one end lies inside the box,
@@ -405,7 +460,8 @@ def _attach_stroke_labels(candidates: list[CandidateBox], ctx: PageContext, cfg:
     lines), even across a column gutter, in the top band of the page or farther than the side gaps of
     `_attach_adjacent_label_lines`. The block must be a short label (at most 10 words, no line over 8 words, not a
     caption, section heading or running head, not inside another figure), and the grown box must touch no caption,
-    other figure or paragraph and grow at most `stroke_label_max_growth` pt on any side.
+    other figure or paragraph and grow at most `stroke_label_max_growth` pt on any side, and the label must not lie
+    past an aligned text-column edge on the far side from the box.
     """
     segs = _stroke_segments(ctx)
     if not segs:
@@ -463,6 +519,8 @@ def _attach_stroke_labels(candidates: list[CandidateBox], ctx: PageContext, cfg:
                 if _SECTION_HEADING_RE.match(_clean_text(tb.text)) or ctx.is_running_head(tb.rect):
                     continue
                 lab = pymupdf.Rect(tb.rect)
+                if col_edges and _crosses_column_edge(orig, lab, col_edges):
+                    continue
                 if any(o.intersects(lab) for o in others):
                     continue
                 exp = cur | lab
@@ -550,13 +608,15 @@ def _run_page_pipeline(
         candidates = merge_candidates(ctx, link_captions(ctx, base_rects, cfg=cfg), cfg=cfg)
 
     _annotate_candidate_origins(candidates, raster_rects, filtered_rects)
-    _expand_plot_axis_labels(candidates, ctx)
+    # Column edges are read once, before any label step grows a box into a neighbouring column.
+    col_edges = _column_edges(ctx, [c.rect for c in candidates])
+    _expand_plot_axis_labels(candidates, ctx, col_edges)
     if len(candidates) >= 2:
         candidates = merge_candidates(ctx, candidates, cfg=cfg)
         _annotate_candidate_origins(candidates, raster_rects, filtered_rects)
-        _expand_plot_axis_labels(candidates, ctx)
-    _attach_adjacent_label_lines(candidates, ctx, cfg)
-    _attach_stroke_labels(candidates, ctx, cfg)
+        _expand_plot_axis_labels(candidates, ctx, col_edges)
+    _attach_adjacent_label_lines(candidates, ctx, cfg, col_edges)
+    _attach_stroke_labels(candidates, ctx, cfg, col_edges)
     _clear_running_heads(candidates, ctx)
     min_uncap_vec_dim = cfg.min_vector_dim * max(1.0, min(ctx.pw, ctx.ph) / 792.0)
     candidates = [
