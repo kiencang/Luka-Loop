@@ -925,5 +925,44 @@ class TestShortSideCaptions(unittest.TestCase):
         self.assertEqual(self._match(self._cap(45, 61, 150, 70)), (None, ""))
 
 
+class TestPageEdgeTab(unittest.TestCase):
+    """A coloured page-number tab bleeding off the top edge was kept as a vector figure when a side caption sat
+    just below it: the caption matched the tab as "below" and the real figure beside the caption lost it
+    (Surgical Atlas p213, p376). Boxes that bleed off the top or bottom edge and stay in that 10% band are dropped
+    before caption linking."""
+
+    @staticmethod
+    def _page() -> pymupdf.Page:
+        doc = pymupdf.open()
+        page = doc.new_page(width=595, height=791)
+        page.draw_rect(pymupdf.Rect(453, 0, 513, 37), color=None, fill=(0.95, 0.88, 0.92))  # folio block
+        page.draw_rect(pymupdf.Rect(513, 0, 595, 37), color=None, fill=(0.7, 0.0, 0.45))  # chapter-number block
+        page.insert_text((470, 26), "365", fontsize=8)
+        page.insert_text((540, 26), "25", fontsize=16, color=(1, 1, 1))
+        page.insert_image(pymupdf.Rect(45, 62, 368, 427), stream=_png_with_white_margin(646, 730, (0, 0, 646, 730)))
+        page.insert_text((388, 70), "Fig. 25.16 Distraction of the subtalar joint", fontsize=7)
+        page.insert_text((388, 79), "with an arthrodesis spreader.", fontsize=7)
+        _paragraph(page, 470, 6)
+        return page
+
+    def test_tab_is_not_a_figure_and_does_not_take_the_caption(self) -> None:
+        from figure_detector import pipeline
+
+        page = self._page()
+        orig = pipeline._drop_page_edge_tabs
+        pipeline._drop_page_edge_tabs = lambda rects, ctx, cfg=None: rects
+        try:
+            _, before, _ = pipeline._run_page_pipeline(page)
+        finally:
+            pipeline._drop_page_edge_tabs = orig
+        self.assertTrue(
+            any(c.rect.y0 < 1 for c in before), f"precondition: without the rule the tab is a figure: {before}"
+        )
+        _, cands, _ = pipeline._run_page_pipeline(page)
+        self.assertEqual(len(cands), 1, cands)
+        self.assertGreater(cands[0].rect.y0, 37, f"the tab stays out: {cands[0].rect}")
+        self.assertEqual((cands[0].caption_idx, cands[0].caption_side), (0, "side"))
+
+
 if __name__ == "__main__":
     unittest.main()

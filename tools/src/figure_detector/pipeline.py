@@ -544,6 +544,28 @@ def _attach_stroke_labels(
             cand.rect = cur & ctx.page_rect
 
 
+def _drop_page_edge_tabs(
+    rects: list[pymupdf.Rect], ctx: PageContext, cfg: DetectorConfig = DEFAULT_CONFIG
+) -> list[pymupdf.Rect]:
+    """Drop boxes that bleed off the top or bottom page edge and stay inside that edge band.
+
+    These are page-number or chapter tabs (a coloured block holding the folio). Run before caption linking: a
+    caption set just below such a tab would otherwise claim it as "below" and the real figure beside the
+    caption would lose it.
+    """
+    pr = ctx.page_rect
+    band = cfg.edge_tab_band_frac * ctx.ph
+    kept = []
+    for r in rects:
+        top_tab = r.y0 <= pr.y0 + 1.0 and r.y1 <= pr.y0 + band
+        bottom_tab = r.y1 >= pr.y1 - 1.0 and r.y0 >= pr.y1 - band
+        if top_tab or bottom_tab:
+            ctx.log(f"edge_tab:drop {r}")
+            continue
+        kept.append(r)
+    return kept
+
+
 def _clear_running_heads(candidates: list[CandidateBox], ctx: PageContext) -> None:
     """Pull each box edge back past a running head or folio that the box (with its render padding) would show.
 
@@ -593,6 +615,7 @@ def _run_page_pipeline(
         pad=cfg.touch_pad,
         prevent_page_bg=(ctx.pw, ctx.ph, cfg),
     )
+    base_rects = _drop_page_edge_tabs(base_rects, ctx, cfg)
     candidates = merge_candidates(ctx, link_captions(ctx, base_rects, cfg=cfg), cfg=cfg)
 
     # Orphan-caption vector recovery (e.g., axis-less bar groups beneath an unclaimed caption)
@@ -610,6 +633,7 @@ def _run_page_pipeline(
             pad=cfg.touch_pad,
             prevent_page_bg=(ctx.pw, ctx.ph, cfg),
         )
+        base_rects = _drop_page_edge_tabs(base_rects, ctx, cfg)
         candidates = merge_candidates(ctx, link_captions(ctx, base_rects, cfg=cfg), cfg=cfg)
 
     _annotate_candidate_origins(candidates, raster_rects, filtered_rects)

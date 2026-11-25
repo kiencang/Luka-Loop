@@ -2,6 +2,14 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Ô số trang ở góc trên bị tách thành ảnh và lấy mất chú thích của hình thật:** ô màu chứa số trang và số chương (khối vector in tràn mép giấy) vốn bị bỏ vì quá thấp và không có chú thích. Nhưng khi một chú thích đặt bên cạnh hình nằm ngay dưới ô này (cách ~24 pt), chú thích được ghép với ô như chú thích "bên dưới". Ô được giữ thành một ảnh rác, còn hình thật mất chú thích (Surgical Atlas p213, p376). Nay trước bước gắn chú thích, mọi khung tràn ra mép trên hoặc mép dưới trang và nằm gọn trong dải 10% sát mép đó bị bỏ (`DetectorConfig.edge_tab_band_frac`).
+  - DocLayNet: 0 trang đổi trên cả 4 tập (14.117 trang).
+  - Surgical Atlas: 2 trang đổi, hết ảnh rác. Hai chú thích được trả lại vẫn chưa gắn được vào hình thật: ở p376 vì hàng nhãn chen giữa hình và chú thích, ở p213 vì hình bị gộp (hai lỗi riêng).
+  - 4 sách còn lại trong `dev/typical-pdf`: 0 trang đổi.
+  - Thêm test `TestPageEdgeTab`.
+
 ## [1.1.35] - 2026-11-26
 ### Fixed
 - **Chú thích một–hai dòng nằm cạnh hình không được nhận, làm hình lớn bị gộp với hình bên cạnh:** chú thích nằm ngang (`side`) phải chồng với hình theo chiều dọc ≥ 10 pt, mà chú thích một dòng chỉ cao ~9 pt nên không bao giờ đạt. Hình lớn mồ côi chú thích bị bước gộp ghép vào hình kế bên, khung trùm cả chữ của bài (sách Surgical Atlas p250, p329, p280). Nay ngưỡng là `min(10 pt, 0,35 × chiều cao chú thích)` (`DetectorConfig.caption_side_min_v_overlap`, `caption_side_v_overlap_frac`); chú thích từ 3 dòng trở lên giữ ngưỡng 10 pt như cũ.
