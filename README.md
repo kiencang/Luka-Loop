@@ -44,6 +44,11 @@ Tôi đã có sản phẩm https://github.com/kiencang/PDF-silaTranslator có ch
 
 Ngoài ra, việc sử dụng các thư viện python chất lượng cao như PyMuPDF giúp công cụ có sự cải tiến tốt hơn trong khả năng tách ảnh, khi bạn thử, bạn sẽ thấy đa số các file PDF nó có khả năng bảo toàn định dạng rất tốt.
 
+## Tuyên bố từ chối trách nhiệm
+Công cụ này có thể được sử dụng cho mục đích nghiên cứu và học tập cá nhân.
+
+`Luka-Loop` cũng như người phát triển nó không đưa ra bất kỳ bảo đảm rõ ràng hay ngụ ý nào, cũng như không tuyên bố rằng công cụ sẽ vận hành hoàn hảo, chính xác hoặc cập nhật. Người phát triển sẽ không chịu trách nhiệm cho bất kỳ tổn thất hay thiệt hại nào phát sinh trực tiếp hoặc gián tiếp liên quan đến hoặc phát sinh từ việc sử dụng công cụ này.
+
 ## Cấu trúc dự án
 - [`AGENTS.md`](./AGENTS.md) — Quy tắc điều phối dành cho AI Agent trong workspace.
 - [`.agents/skills/pdf-to-html-vi/`](./.agents/skills/pdf-to-html-vi/) — Skill mặc định `pdf-to-html-vi` (giao diện 1 cột) gồm quy trình 4 bước ([`SKILL.md`](./.agents/skills/pdf-to-html-vi/SKILL.md)) và bộ dịch thuật học thuật / dàn trang ([`si_academic_html.md`](./.agents/skills/pdf-to-html-vi/si_academic_html.md)).
@@ -58,11 +63,6 @@ Ngoài ra, việc sử dụng các thư viện python chất lượng cao như P
   - [`src/`](./tools/src/) ([`extract_assets.py`](./tools/src/extract_assets.py), [`figure_detector/`](./tools/src/figure_detector/), [`image_ops.py`](./tools/src/image_ops.py), [`packager.py`](./tools/src/packager.py), [`reader_shell.py`](./tools/src/reader_shell.py), [`html_qa.py`](./tools/src/html_qa.py), [`pdf_export.py`](./tools/src/pdf_export.py), [`output_paths.py`](./tools/src/output_paths.py), [`transcript.py`](./tools/src/transcript.py), [`manifest.py`](./tools/src/manifest.py), [`path_guards.py`](./tools/src/path_guards.py)) & [`src/requirements-build.txt`](./tools/src/requirements-build.txt) — Mã nguồn Python gốc và danh sách gói ghim phiên bản dùng trên GitHub Actions (hoặc chạy [`build_extractor.ps1`](./tools/build_extractor.ps1) khi phát triển ở máy cá nhân) để biên dịch ra `extract_assets.exe` *(khi chạy dịch thuật, ứng dụng này tuyệt đối không gọi Python hệ thống)*.
 - `input/` — Thư mục chứa tệp tin đầu vào, quan trọng khi file PDF hơn 10MB thì cần đặt vào đó, nếu không đến giới hạn ấy, người dùng có thể tải lên ngay từ khung chat mà không cần đặt vào thư mục input;
 - `output/` — Thư mục chứa tệp đầu ra (`*_vi.html`/`*_vi.pdf` cho bản đọc mượt mặc định; `*_layout_vi.html`/`*_layout_vi.pdf` cho bản bảo toàn thiết kế; tự động thêm `_2`, `_3`... nếu dịch lại nhiều lần cùng một file), tự động được tạo khi đóng gói và được bỏ qua bởi [`.gitignore`](./.gitignore).
-
-## Tuyên bố từ chối trách nhiệm
-Công cụ này có thể được sử dụng cho mục đích nghiên cứu và học tập cá nhân.
-
-`Luka-Loop` cũng như người phát triển nó không đưa ra bất kỳ bảo đảm rõ ràng hay ngụ ý nào, cũng như không tuyên bố rằng công cụ sẽ vận hành hoàn hảo, chính xác hoặc cập nhật. Người phát triển sẽ không chịu trách nhiệm cho bất kỳ tổn thất hay thiệt hại nào phát sinh trực tiếp hoặc gián tiếp liên quan đến hoặc phát sinh từ việc sử dụng công cụ này.
 
 ## Giấy phép & Thành phần Bên thứ ba (License & Third-Party Notices)
 
