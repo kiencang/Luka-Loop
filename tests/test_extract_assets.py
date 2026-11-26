@@ -5,6 +5,8 @@ CLI parsing and dispatch of extract_assets.py itself are covered by test_cli.py.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import subprocess
@@ -24,6 +26,7 @@ import figure_detector as fd  # noqa: E402
 import html_qa as qa  # noqa: E402
 import image_ops as iops  # noqa: E402
 import manifest as mf  # noqa: E402
+import mathjax_guard as mjg  # noqa: E402
 import packager as pkg  # noqa: E402
 import path_guards as pg  # noqa: E402
 import pdf_export as pdfx  # noqa: E402
@@ -2240,6 +2243,84 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
         out_s = buf.getvalue()
         self.assertEqual(out_s.count("=== MANIFEST JSON END ==="), 1)
         self.assertIn("[manifest-marker]", out_s)
+
+
+class TestMathJaxLinkGuard(unittest.TestCase):
+    MJ = '<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>'
+
+    def setUp(self) -> None:
+        self._tmp_ctx = tempfile.TemporaryDirectory()
+        self.tmp_dir = Path(self._tmp_ctx.name)
+
+    def tearDown(self) -> None:
+        self._tmp_ctx.cleanup()
+
+    def _page(self, head: str) -> str:
+        return f"<!DOCTYPE html><html><head><title>T</title>{head}</head><body><p>\\( \\href{{https://example.org}}{{x}} \\)</p></body></html>"
+
+    def test_inject_places_guard_once_before_mathjax(self) -> None:
+        commented = '<!-- <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script> -->'
+        html, injected = mjg.inject_mathjax_link_guard(self._page(commented + self.MJ))
+        self.assertTrue(injected)
+        self.assertEqual(html.count(mjg.MATHJAX_LINK_GUARD_TAG), 1)
+        self.assertLess(html.index(commented), html.index(mjg.MATHJAX_LINK_GUARD_TAG))  # skips the commented tag
+        self.assertEqual(html.index(mjg.MATHJAX_LINK_GUARD_TAG) + len(mjg.MATHJAX_LINK_GUARD_TAG), html.index(self.MJ))
+        again, _ = mjg.inject_mathjax_link_guard(html)
+        self.assertEqual(again, html)  # idempotent
+        plain = "<!DOCTYPE html><html><head></head><body><p>Hi</p></body></html>"
+        self.assertEqual(mjg.inject_mathjax_link_guard(plain), (plain, False))
+
+    def test_guard_script_filters_unsafe_links(self) -> None:
+        body = mjg.MATHJAX_LINK_GUARD_BODY
+        self.assertIn("renderActions", body)
+        self.assertIn(r"var SAFE = /^\s*(?:https?:|mailto:|#)/i;", body)
+        self.assertIn("removeAttribute('href')", body)
+
+    def test_qa_allows_guard_and_requires_it_before_mathjax(self) -> None:
+        guarded, _ = mjg.inject_mathjax_link_guard(self._page(self.MJ))
+        for skip in (False, True):  # reader-shell mode and PreserveLayout
+            scanner = qa.run_html_qa_check(
+                guarded, skip_table_wrapper_check=skip, allowed_inline_scripts=frozenset(), require_mathjax_guard=True
+            )
+            self.assertEqual(len(scanner.allowed_inline_script_raw_bodies), 1)
+        with self.assertRaisesRegex(ValueError, "not preceded by the Luka-Loop MathJax link guard"):
+            qa.run_html_qa_check(self._page(self.MJ), skip_table_wrapper_check=True, require_mathjax_guard=True)
+        guard_after = self._page(self.MJ + mjg.MATHJAX_LINK_GUARD_TAG)
+        with self.assertRaisesRegex(ValueError, "not preceded by the Luka-Loop MathJax link guard"):
+            qa.run_html_qa_check(guard_after, skip_table_wrapper_check=True, require_mathjax_guard=True)
+        # Without the requirement (standalone HtmlToPdf of an older output) a guard-less page still passes.
+        qa.run_html_qa_check(self._page(self.MJ), skip_table_wrapper_check=True)
+        # A tampered guard is just another inline script.
+        tampered = guarded.replace("mailto:|#", "mailto:|search-ms:|#")
+        with self.assertRaisesRegex(ValueError, r"Disallowed <script> tag\(s\)"):
+            qa.run_html_qa_check(tampered, skip_table_wrapper_check=True, require_mathjax_guard=True)
+
+    def test_packager_injects_guard_with_csp_hash_in_both_modes(self) -> None:
+        draft = self.tmp_dir / "draft.html"
+        draft.write_text(self._page(self.MJ), encoding="utf-8")
+        for mode, preserve in (("shell", False), ("layout", True)):
+            with self.subTest(mode=mode):
+                out, _ = pkg.embed_images_and_package(
+                    html_path=draft,
+                    optimize_image_bytes_fn=iops._optimize_image_bytes,
+                    out_html_path=str(self.tmp_dir / f"{mode}.html"),
+                    preserve_layout=preserve,
+                )
+                txt = out.read_text(encoding="utf-8")
+                self.assertEqual(txt.count(mjg.MATHJAX_LINK_GUARD_TAG), 1)
+                self.assertLess(txt.index(mjg.MATHJAX_LINK_GUARD_TAG), txt.index("tex-mml-chtml.js"))
+                digest = base64.b64encode(hashlib.sha256(mjg.MATHJAX_LINK_GUARD_BODY.encode("utf-8")).digest()).decode()
+                self.assertIn(f"'sha256-{digest}'", txt)
+                if preserve:
+                    self.assertNotIn("data-reader-shell", txt)
+                # Re-packaging an output keeps a single guard.
+                again, _ = pkg.embed_images_and_package(
+                    html_path=out,
+                    optimize_image_bytes_fn=iops._optimize_image_bytes,
+                    out_html_path=str(self.tmp_dir / f"{mode}_again.html"),
+                    preserve_layout=preserve,
+                )
+                self.assertEqual(again.read_text(encoding="utf-8").count(mjg.MATHJAX_LINK_GUARD_TAG), 1)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable
 
 from html_qa import run_html_qa_check
+from mathjax_guard import inject_mathjax_link_guard
 from output_paths import (
     assert_expected_output_extension,
     clean_dir_after_outputs,
@@ -110,8 +111,15 @@ def embed_images_and_package(
     if not preserve_layout:
         updated, shell_injected = inject_reader_shell(updated, shell_path=shell_path)
 
+    updated, guard_injected = inject_mathjax_link_guard(updated)
+
     updated = updated.replace("\r\n", "\n").replace("\r", "\n")
-    qa_scanner = run_html_qa_check(updated, skip_table_wrapper_check=preserve_layout, shell_path=shell_path)
+    qa_scanner = run_html_qa_check(
+        updated,
+        skip_table_wrapper_check=preserve_layout,
+        shell_path=shell_path,
+        require_mathjax_guard=True,
+    )
     updated = inject_csp_meta(
         updated,
         mathjax_srcs=qa_scanner.mathjax_srcs,
@@ -180,6 +188,8 @@ def embed_images_and_package(
     else:
         print("Reader shell already present (skipped injection)")
 
+    if guard_injected:
+        print("Injected MathJax link guard (non-http(s)/mailto/# links in formulas are disabled)")
     print(f"Embedded images into HTML -> {dest} ({sz:,} bytes)")
 
     exported_pdf: Path | None = None

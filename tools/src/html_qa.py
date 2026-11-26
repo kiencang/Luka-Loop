@@ -6,6 +6,7 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 
+from mathjax_guard import MATHJAX_LINK_GUARD_BODY
 from reader_shell import extract_trusted_shell_scripts, normalize_script_body
 
 _DATA_IMG_RX = re.compile(r"^data:image/(?:png|jpeg|jpg|webp|gif);base64,", re.IGNORECASE)
@@ -72,6 +73,7 @@ _CSS_URL_RX = re.compile(
 )
 _CSS_IMAGE_SET_RX = re.compile(r"""(?is)(?:-webkit-)?image-set\s*\(([^)]*)\)""")
 _CSS_QUOTED_STR_RX = re.compile(r"""(?:"([^"]*)"|'([^']*)')""")
+_MATHJAX_GUARD_NORM = normalize_script_body(MATHJAX_LINK_GUARD_BODY)
 _LATEX_ACTIVE_CMD_RX = re.compile(r"\\(href|url|style)(?![A-Za-z])")
 # Macro definitions are rejected outright: aliases, parameters (`#1`), defaults and delimited templates let a definition
 # hand `\href`/`\url`/`\style` a target the scanner cannot see without re-implementing MathJax's TeX parser. A PDF
@@ -300,6 +302,9 @@ class _QADOMScanner(HTMLParser):
         self.has_latex = False
         self.has_mathjax_in_head = False
         self.mathjax_srcs: list[str] = []
+        # The MathJax link guard (mathjax_guard.py) only works when it runs before MathJax loads.
+        self._mathjax_guard_seen = False
+        self.mathjax_without_guard = False
         # Open <svg>/<math> counted by explicit start/end tags only (not the implied-close stack), so the
         # scanner never believes foreign content ended while the browser still considers it open.
         self._foreign_depth: dict[str, int] = {name: 0 for name in _FOREIGN_CONTENT_ROOTS}
@@ -465,6 +470,8 @@ class _QADOMScanner(HTMLParser):
             cleaned_src = str(src_val).strip()
             if in_head and not body_norm and _ALLOWED_MATHJAX_SRC_RX.match(cleaned_src):
                 self.has_mathjax_in_head = True
+                if not self._mathjax_guard_seen:
+                    self.mathjax_without_guard = True
                 if cleaned_src not in self.mathjax_srcs:
                     self.mathjax_srcs.append(cleaned_src)
                 return
@@ -474,6 +481,8 @@ class _QADOMScanner(HTMLParser):
 
         if body_norm and body_norm in self._allowed_inline_scripts:
             self.allowed_inline_script_raw_bodies.append(raw_body)
+            if in_head and body_norm == _MATHJAX_GUARD_NORM:
+                self._mathjax_guard_seen = True
             return
 
         snippet = (body_norm[:40] + "...") if len(body_norm) > 40 else (body_norm or "<empty>")
@@ -776,8 +785,13 @@ def run_html_qa_check(
     allowed_inline_scripts: frozenset[str] | None = None,
     shell_path: Path | None = None,
     allow_external_images: bool = False,
+    require_mathjax_guard: bool = False,
 ) -> _QADOMScanner:
-    """Validate structure, security policy, Base64 images, alt tags, .table-wrapper nesting, MathJax, and anchors."""
+    """Validate structure, security policy, Base64 images, alt tags, .table-wrapper nesting, MathJax, and anchors.
+
+    The fixed MathJax link guard script is always allowed; `require_mathjax_guard` (set by the packager, which
+    injects it) also demands that it precedes every MathJax <script>.
+    """
     if allowed_inline_scripts is None:
         allowed_scripts = (
             frozenset()
@@ -786,6 +800,7 @@ def run_html_qa_check(
         )
     else:
         allowed_scripts = allowed_inline_scripts
+    allowed_scripts = allowed_scripts | {_MATHJAX_GUARD_NORM}
 
     scanner = _QADOMScanner(
         allowed_inline_scripts=allowed_scripts,
@@ -859,6 +874,8 @@ def run_html_qa_check(
 
     if scanner.has_latex and not scanner.has_mathjax_in_head:
         issues.append("Detected LaTeX math delimiters without MathJax <script> in <head>.")
+    if require_mathjax_guard and scanner.mathjax_without_guard:
+        issues.append("MathJax <script> is not preceded by the Luka-Loop MathJax link guard <script> in <head>.")
 
     broken_anchors: list[str] = []
     seen_broken: set[str] = set()
