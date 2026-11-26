@@ -2,6 +2,14 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.44] - 2026-11-27
+### Fixed
+- **Số trên trục bị cắt khỏi ảnh khi PDF vẽ mỗi ký tự thành một ảnh nhỏ:** một số công cụ vẽ đồ thị cũ (PDF khoảng 2007–2010) xuất từng chữ số, tên trục, nhãn (a)(b)(c) thành một ảnh tí hon riêng thay vì chữ. Các bước gắn nhãn chỉ làm việc với chữ nên không thấy chúng, còn bước tách ảnh bỏ từng ảnh vì quá nhỏ, nên ảnh hình trong bản dịch mất hết số trên trục (DocLayNet 1001.3166, 1001.3299, 1002.2663…). Bước mới `_attach_glyph_images` (`DetectorConfig.glyph_image_max_dim = 12`, `glyph_image_max_gap = 8`) kéo vào khung các ảnh có cạnh dài tối đa 12 pt nằm cách khung tối đa 8 pt:
+  - khoảng cách đo từ khung trước bước này, không lan dần qua ảnh bên cạnh, nên lấy được hàng số sát khung (thường cách 3–8 pt) và cố ý bỏ tên trục ở xa hơn (15–30 pt);
+  - bỏ qua ảnh nằm trong đoạn văn hoặc bảng, ảnh làm khung chạm chú thích hay hình khác, vượt rãnh cột hoặc cạnh cột chữ;
+  - DocLayNet (cả 4 tập, 14.117 trang): hình đúng 4.776 → 4.786, hình cắt nặng 297 → 285, cắt nhẹ 113 → 115, trang lỗi nặng 473 → 466; ảnh dính chữ (154), gộp lệch, bỏ sót, F1 không đổi. 56 trang đổi, không hình đúng nào bị hỏng. 5 sách trong `dev/typical-pdf`: 0 trang đổi.
+  - Thêm test `TestGlyphImageLabels`.
+
 ## [1.1.43] - 2026-11-27
 ### Security
 - Khóa cứng đuôi tệp đầu ra trong `tools/src/output_paths.py` (`prepare_sanitized_output_path`, `assert_expected_output_extension`): `-OutHtmlPath` (và `-HtmlPath` khi ghi tại chỗ) bắt buộc có đuôi `.html`, `-OutPdfPath` bắt buộc có đuôi `.pdf` (không phân biệt hoa/thường, từ chối tên rỗng phần gốc kiểu `.html`/`.pdf`, dấu chấm cuối hay ký tự lạ trong phần đuôi trước khi làm sạch tên tệp), chặn nguy cơ Indirect Prompt Injection lợi dụng lệnh đóng gói được cấp quyền sẵn để ghi tệp thực thi (`.bat`, `.cmd`, `.ps1`, `.hta`, `.exe`...).
