@@ -1163,5 +1163,87 @@ class TestLabelBetweenFigureAndCaption(unittest.TestCase):
         self.assertEqual(_count_visual_rows(rects), 1)
         self.assertEqual(_count_visual_rows(rects + [pymupdf.Rect(10, 70, 40, 80)]), 2)
 
+class TestBulletLinesAreNotLabels(unittest.TestCase):
+    """A list bullet next to a figure is running text, not a figure label (Surgical Atlas p144: "-" bullets set at
+    40 pt beside a photo pulled the box over the list to its right)."""
+
+    def test_bullets(self) -> None:
+        from figure_detector.pipeline import _is_bullet_line
+
+        for ws in (["–"], ["•", "Keep", "the", "arm"], ["▪", "Portal"], ["-"], ["-", "•"]):
+            self.assertTrue(_is_bullet_line(ws), ws)
+        # a hyphen leading a line may be a minus sign; numbers and letters are not bullets
+        for ws in ([], ["-", "0.5"], ["1.", "Step"], ["(a)"], ["a)"], ["Guide", "pin"]):
+            self.assertFalse(_is_bullet_line(ws), ws)
+
+
+class TestSandwichedCaptionMirror(unittest.TestCase):
+    """A caption between two stacked figures goes to the upper one when the lower figure wins only narrowly and has
+    its own caption under it (Surgical Atlas p150: Fig. 10.11 went to the drawing below, Fig. 10.13 was orphaned)."""
+
+    @staticmethod
+    def _caps(gap_upper: float) -> list[int | None]:
+        from figure_detector import pipeline
+
+        doc = pymupdf.open()
+        page = doc.new_page(width=595, height=791)
+        page.insert_image(pymupdf.Rect(100, 60, 400, 260), stream=_png_with_white_margin(600, 400, (0, 0, 600, 400)))
+        page.insert_text((100, 267 + gap_upper), "Fig. 1 Lateral portal view of the joint", fontsize=7)
+        top = 279 + gap_upper
+        page.insert_image(pymupdf.Rect(100, top, 400, top + 180), stream=_png_with_white_margin(600, 360, (0, 0, 600, 360)))
+        page.insert_text((100, top + 220), "Fig. 2 Medial portal view of the joint", fontsize=7)
+        _paragraph(page, 640, 5)
+        _, cands, _ = pipeline._run_page_pipeline(page)
+        return [c.caption_idx for c in sorted(cands, key=lambda c: c.rect.y0)]
+
+    def test_upper_figure_keeps_the_caption_under_it(self) -> None:
+        # upper gap 39 pt (score 39), lower gap 10 pt above it (score 28), lower's own caption 32 pt below
+        self.assertEqual(self._caps(40), [0, 1])
+
+    def test_clear_winner_is_kept(self) -> None:
+        # upper gap 69 pt is past the 64 pt reach: the lower figure keeps Fig. 1 as before
+        self.assertEqual(self._caps(70), [None, 0])
+
+
+class TestMaximizeCaptions(unittest.TestCase):
+    """The page's only uncaptioned figure takes a neighbour's caption when that neighbour can take the only orphan
+    caption instead (Surgical Atlas p213). Boxes never change."""
+
+    @staticmethod
+    def _run(side_gap: float, swap: bool = True):
+        from figure_detector import pipeline
+
+        doc = pymupdf.open()
+        page = doc.new_page(width=595, height=791)
+        page.insert_image(pymupdf.Rect(200, 100, 300, 300), stream=_png_with_white_margin(200, 400, (0, 0, 200, 400)))
+        orphan = "Fig. 1 Portal placement"
+        page.insert_text((190 - pymupdf.get_text_length(orphan, fontsize=7), 106), orphan, fontsize=7)
+        given = "Fig. 2 Arthroscopic view of the lesion"
+        x1 = 200 + pymupdf.get_text_length(given, fontsize=7)
+        page.insert_text((200, 321), given, fontsize=7)  # 13 pt under the left figure
+        page.insert_image(pymupdf.Rect(x1 + side_gap, 314, x1 + side_gap + 200, 454),
+                          stream=_png_with_white_margin(400, 280, (0, 0, 400, 280)))
+        _paragraph(page, 640, 5)
+        orig = pipeline._maximize_captions
+        if not swap:
+            pipeline._maximize_captions = lambda *a, **k: None
+        try:
+            _, cands, _ = pipeline._run_page_pipeline(page)
+        finally:
+            pipeline._maximize_captions = orig
+        return sorted(cands, key=lambda c: c.rect.x0)
+
+    def test_neighbour_hands_over_its_caption(self) -> None:
+        before = self._run(5, swap=False)
+        self.assertEqual([c.caption_idx for c in before], [1, None], f"precondition: below beats side: {before}")
+        after = self._run(5)
+        self.assertEqual([c.rect for c in after], [c.rect for c in before], "boxes never change")
+        self.assertEqual([(c.caption_idx, c.caption_side) for c in after], [(0, "side"), (1, "side")])
+
+    def test_caption_nearer_to_its_holder_stays(self) -> None:
+        # Fig. 2 is 20 pt from the uncaptioned figure but 13 pt from the figure holding it
+        self.assertEqual([c.caption_idx for c in self._run(20)], [1, None])
+
+
 if __name__ == "__main__":
     unittest.main()

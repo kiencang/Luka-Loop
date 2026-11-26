@@ -77,6 +77,18 @@ def _resolve_caption_conflicts(
             )
             if alt_above is not None and (best_below - 18.0) <= (best_above + 6.0):
                 losers = above
+        else:
+            # Mirror case: the figure below wins narrowly but has its own caption under it, while the figure above
+            # has nothing else (Surgical Atlas p150: Fig. 10.11 went to the drawing below, Fig. 10.13 was orphaned)
+            alt_below, _, _ = _match_caption_scored(
+                candidates[best_below_i].rect,
+                ctx.fig_captions,
+                ctx.text_blocks,
+                excluded=set(by_cap.keys()),
+                cfg=cfg,
+            )
+            if alt_below is not None and (best_above - 18.0) <= (best_below + 6.0):
+                losers = below
 
         for i in losers:
             losing_side.setdefault(i, set()).add(cap_idx)

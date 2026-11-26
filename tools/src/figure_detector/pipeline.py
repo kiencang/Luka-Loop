@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 
+from .caption_match import _match_caption_scored
 from .captions import (
     _recover_orphan_caption_vectors,
     link_captions,
@@ -188,6 +189,17 @@ def _expand_plot_axis_labels(
 
 
 _EQUATION_NUMBER_RE = re.compile(r"^\(\d+(?:\.\d+)*[a-z]?\)$")
+_BULLETS = frozenset("–•▪")  # en dash, bullet, small square
+
+
+def _is_bullet_line(ws: list[str]) -> bool:
+    """A list bullet standing alone, or a list item starting with one.
+
+    A plain hyphen counts only when it stands alone: Surgical Atlas sets its bullets as "-" enlarged to 40 pt,
+    whose glyph box is ~56 pt tall and next to a photo looked like a label (p144). A hyphen leading a line may be
+    a minus sign ("- 0.5"), so it is not treated as a bullet there.
+    """
+    return bool(ws) and (ws[0] in _BULLETS or all(w in _BULLETS or w == "-" for w in ws))
 
 
 def _label_lines(ctx: PageContext) -> list[tuple[pymupdf.Rect, bool]]:
@@ -239,6 +251,8 @@ def _label_lines(ctx: PageContext) -> list[tuple[pymupdf.Rect, bool]]:
             continue
         if ctx.is_running_head(r):
             continue
+        if _is_bullet_line(words[key]):
+            continue  # a list item or its bullet is running text, never a figure label
         tb = ctx.text_blocks[owner]
         if tb.kind != "text" or _SECTION_HEADING_RE.match(_clean_text(tb.text)):
             continue  # captions and section headings
@@ -609,6 +623,51 @@ def _pair_last_orphan_caption(
     ctx.log(f"orphan_pair:link {box.rect} cap={k} side={side} gap={gap:.1f}")
 
 
+def _maximize_captions(candidates: list[CandidateBox], ctx: PageContext, cfg: DetectorConfig = DEFAULT_CONFIG) -> None:
+    """Let a figure hand its caption to the page's only uncaptioned figure and take the only orphan caption instead.
+
+    Runs after `_pair_last_orphan_caption` and changes no box. The matcher prefers a caption below a figure to one
+    beside it, so a figure can take a below caption that belongs to its neighbour while its own side caption is
+    left over (Surgical Atlas p213: the drawing took Fig. 14.7, the row beside 14.7 got nothing, Fig. 14.6 was
+    orphaned). The swap happens only when all of these hold, judged on the final boxes (label lines attached):
+      1. exactly one uncaptioned figure and one unclaimed figure caption are left;
+      2. exactly one captioned figure can also take the orphan caption under the regular matching rules;
+      3. the uncaptioned figure can take that figure's caption under the same rules;
+      4. that caption sits nearer (edge-to-edge gap) to the uncaptioned figure than to the figure holding it.
+    """
+    owned = {c.caption_idx for c in candidates if c.caption_idx is not None}
+    n_caps = len(ctx.fig_captions)
+    free_caps = [k for k in range(n_caps) if k not in owned]
+    free_boxes = [c for c in candidates if c.caption_idx is None]
+    if len(free_caps) != 1 or len(free_boxes) != 1:
+        return
+    orphan, needy = free_caps[0], free_boxes[0]
+
+    def match_only(rect: pymupdf.Rect, k: int) -> tuple[str, float] | None:
+        idx, side, score = _match_caption_scored(
+            rect, ctx.fig_captions, ctx.text_blocks, excluded={j for j in range(n_caps) if j != k}, cfg=cfg
+        )
+        return (side, score) if idx == k else None
+
+    donors = [(c, m) for c in candidates if c.caption_idx is not None and (m := match_only(c.rect, orphan))]
+    if len(donors) != 1:
+        if donors:
+            ctx.log(f"maximize:skip donors={len(donors)}")
+        return
+    donor, (donor_side, donor_score) = donors[0]
+    given = donor.caption_idx
+    taken = match_only(needy.rect, given)
+    if taken is None:
+        return
+    given_rect = ctx.fig_captions[given].rect
+    if _rect_gap(needy.rect, given_rect) >= _rect_gap(donor.rect, given_rect):
+        ctx.log(f"maximize:skip nearer_to_donor {donor.rect}")
+        return
+    needy.caption_idx, needy.caption_side, needy.caption_score = given, taken[0], taken[1]
+    donor.caption_idx, donor.caption_side, donor.caption_score = orphan, donor_side, donor_score
+    ctx.log(f"maximize:swap {donor.rect} gives cap={given} to {needy.rect}, takes cap={orphan}")
+
+
 def _clear_running_heads(candidates: list[CandidateBox], ctx: PageContext) -> None:
     """Pull each box edge back past a running head or folio that the box (with its render padding) would show.
 
@@ -699,6 +758,7 @@ def _run_page_pipeline(
         or (c.rect.width >= min_uncap_vec_dim and c.rect.height >= min_uncap_vec_dim)
     ]
     _pair_last_orphan_caption(candidates, ctx, cfg)
+    _maximize_captions(candidates, ctx, cfg)
     is_scanned = has_full_page_img and not candidates
     return ctx, candidates, is_scanned
 
