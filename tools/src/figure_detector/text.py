@@ -120,8 +120,28 @@ def _split_dict_block(blk: dict, cfg: DetectorConfig = DEFAULT_CONFIG) -> list[T
         for r, _ in grp[1:]:
             grp_rect = grp_rect | r
         joined = "\n".join(t for _, t in grp)
-        result.append(TextBlock(grp_rect, joined, _classify_text_block(joined)))
+        inside = [r for r, _ in raw_lines if (r & grp_rect).get_area() >= 0.5 * max(r.get_area(), 1e-6)]
+        result.append(
+            TextBlock(grp_rect, joined, _classify_text_block(joined), rows=_count_visual_rows(inside) or 1)
+        )
     return result
+
+
+def _count_visual_rows(rects: list[pymupdf.Rect]) -> int:
+    """Count visual rows: PDF lines overlapping vertically (>= 40% of the shorter one) share a row.
+
+    PyMuPDF splits ``−t [GeV²]`` into separate lines for the superscript and bracket; they sit
+    on one baseline band and must count as one row, not four.
+    """
+    rows: list[tuple[float, float]] = []
+    for r in sorted(rects, key=lambda r: r.y0):
+        for k, (a, b) in enumerate(rows):
+            if min(b, r.y1) - max(a, r.y0) >= 0.4 * min(b - a, r.height):
+                rows[k] = (min(a, r.y0), max(b, r.y1))
+                break
+        else:
+            rows.append((r.y0, r.y1))
+    return len(rows)
 
 
 def _merge_caption_continuations(

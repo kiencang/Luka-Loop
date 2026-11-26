@@ -92,7 +92,17 @@ def _match_caption_scored(
                     and _is_short_axis_label(tb)
                 ):
                     max_axis_y1 = max(max_axis_y1, tb.rect.y1)
-                if tb.word_count < 4 or _is_short_axis_label(tb):
+                # A short label line is not a blocker; a table caption ("TABLE VI / QUEUE RANKING ...")
+                # still is, however short (DocLayNet 1504.02490 p8)
+                if (
+                    tb.word_count < 4
+                    or _is_short_axis_label(tb)
+                    or (
+                        tb.kind == "text"
+                        and tb.word_count <= cfg.caption_blocker_max_label_words
+                        and tb.rows <= cfg.caption_blocker_max_label_rows
+                    )
+                ):
                     continue
                 if (
                     cr.y1 <= rect.y0

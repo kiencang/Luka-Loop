@@ -976,7 +976,8 @@ class TestForeignCaptionBlocksMerge(unittest.TestCase):
         page = doc.new_page(width=595, height=791)
         page.insert_image(pymupdf.Rect(46, 62, 283, 242), stream=_png_with_white_margin(474, 360, (0, 0, 474, 360)))
         page.insert_image(pymupdf.Rect(298, 62, 539, 306), stream=_png_with_white_margin(482, 488, (0, 0, 482, 488)))
-        page.insert_text((50, 268), "Desinsertion of the Anconeus muscle", fontsize=7)  # label between figure and caption
+        # body-like line between figure and caption (> 8 words): a short label no longer blocks the match
+        page.insert_text((50, 268), "Desinsertion of the Anconeus muscle from the lateral epicondyle area", fontsize=7)
         page.insert_text((46, 287), "Fig. 10.25 Releasing the anconeus from the humerus", fontsize=7)
         page.insert_text((298, 321), "Fig. 10.26 A cortical window through the olecranon fossa", fontsize=7)
         _paragraph(page, 360, 6)
@@ -1121,6 +1122,46 @@ class TestOrphanCaptionPair(unittest.TestCase):
     def test_caption_beside_a_captioned_figure_stays_unlinked(self) -> None:
         cands = self._run((290, 200), (300, 300, 540, 480))  # 7 pt from Fig. 5.1's figure, 98 pt from the free one
         self.assertEqual([c.caption_idx for c in cands], [0, None])
+
+
+class TestLabelBetweenFigureAndCaption(unittest.TestCase):
+    """Text between a figure and its caption blocks the link only when it reads like body text.
+
+    Surgical Atlas p345: a short label under the photo hid the caption below it. The block counts
+    visual rows, not PDF lines, so ``−t [GeV²]`` split into four lines is still one row (DocLayNet 1001.1952 p11).
+    """
+
+    FIG = pymupdf.Rect(100, 100, 400, 300)
+    CAP = TextBlock(pymupdf.Rect(100, 345, 400, 360), "Fig. 3 Dye injected under the nipple", "fig_caption")
+
+    def _match(self, text: str, rows: int = 0) -> int | None:
+        label = TextBlock(pymupdf.Rect(150, 305, 350, 337), text, "text", rows=rows)
+        idx, _, _ = _match_caption_scored(self.FIG, [self.CAP], [self.CAP, label])
+        return idx
+
+    def test_short_two_row_label_does_not_block(self) -> None:
+        self.assertEqual(self._match("Areola marked\nwith blue dye here"), 0)
+
+    def test_long_text_still_blocks(self) -> None:
+        self.assertIsNone(self._match("The surgeon then marks the areola with blue dye before the first cut"))
+
+    def test_short_table_caption_still_blocks(self) -> None:
+        # DocLayNet 1504.02490 p8: "TABLE VI" heading between Fig. 3's caption and the table
+        label = TextBlock(pymupdf.Rect(150, 305, 350, 337), "TABLE VI\nQUEUE RANKING STRATEGY COMPARISON", "tab_caption")
+        idx, _, _ = _match_caption_scored(self.FIG, [self.CAP], [self.CAP, label])
+        self.assertIsNone(idx)
+
+    def test_four_rows_still_block(self) -> None:
+        self.assertIsNone(self._match("Areola\nmarked\nwith\nblue dye", rows=4))
+
+    def test_lines_on_one_baseline_count_as_one_row(self) -> None:
+        from figure_detector.text import _count_visual_rows
+
+        # "−t", "[GeV", superscript "2", "]": four PDF lines on one band
+        rects = [pymupdf.Rect(10, 50, 20, 60), pymupdf.Rect(22, 50, 45, 60), pymupdf.Rect(46, 48, 50, 54),
+                 pymupdf.Rect(51, 50, 54, 60)]
+        self.assertEqual(_count_visual_rows(rects), 1)
+        self.assertEqual(_count_visual_rows(rects + [pymupdf.Rect(10, 70, 40, 80)]), 2)
 
 if __name__ == "__main__":
     unittest.main()

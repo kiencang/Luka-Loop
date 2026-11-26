@@ -104,6 +104,9 @@ class DetectorConfig:
     orphan_pair_max_gap: float = 150.0           # never link across a wider gap
     orphan_pair_swap_margin: float = 10.0        # caption this close to a captioned box hints at a mislink: skip
     orphan_pair_max_caption_lines: int = 10      # a longer "caption" is likely body text that starts with "Figure"
+    # Text between a figure and its caption blocks the link only when it reads like body text
+    caption_blocker_max_label_words: int = 8     # up to this many words ...
+    caption_blocker_max_label_rows: int = 3      # ... in up to this many visual rows is a label, not a blocker
     # Per-page wall-clock budget (seconds); <= 0 disables the cap.
     max_page_seconds: float = 30.0
     # Vector clusters still judged (largest first, table lookups skipped) when the budget runs out mid-phase
@@ -168,10 +171,13 @@ class TextBlock:
     text: str
     kind: str  # "fig_caption", "tab_caption", "text"
     word_count: int = 0
+    rows: int = 0  # visual rows: PDF lines that overlap vertically count once
 
     def __post_init__(self) -> None:
         if self.word_count == 0 and self.text:
             self.word_count = len(self.text.split())
+        if self.rows == 0 and self.text:
+            self.rows = len(self.text.splitlines())
 
 
 @dataclass
