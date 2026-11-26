@@ -1878,8 +1878,15 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
             '<a href="#sec1">Jump</a> '
             '<a href="https://doi.org/10.1000/xyz">DOI</a> '
             '<a href="mailto:author@example.org">Email</a>'
-            r'<p>\( x = 1 \) and \( \newcommand{\R}{\mathbb{R}} \def\norm#1{\left\|#1\right\|} x \in \R \)</p>'
+            r'<p>\( x = 1 \) and \( x \in \mathbb{R}, \left\|v\right\| \)</p>'
             r'<p>\( \href{https://doi.org/10.1000/1\#sec}{ref} + \style{color:#0369a1}{y} \)</p>'
+            r'<p>\( \href{https://example.org/a%20b?q=%7Euser}{ref} + \url{https://example.org/50%} \)</p>'
+            r'<p>Trong LaTeX, lệnh <code>\url</code> và lệnh <code>\href</code> dùng để chèn liên kết.</p>'
+            r'<p>\( \frac{a}{b} + \left(x, y\right) + \operatorname{arg\,max} + \boxed{E = mc^2} \href{https://example.org/doc}{doc} \)</p>'
+            r'<p>Lệnh <code>\newcommand</code> và <code>\def</code> định nghĩa macro; các chữ \define, \letter, \default thì không.</p>'
+            r'<p>Ta có \( x = 1 \), xem điều kiện #1</p>'
+            r'<p>Xem mục #1 <strong>ngay</strong>.</p>'
+            r'<table><tr><td>#1</td><td>{a, b}</td></tr></table>'
             '<svg><defs><circle id="dot" r="2"/></defs><use href="#dot"/></svg>'
             "</body></html>"
         )
@@ -1977,19 +1984,19 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
                 "LaTeX \\let alias with trailing decoy https brace",
                 '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
                 r'<body><p>\( \let\h=\href{https://example.org}{ok} \h{search-ms:query=secret}{Click} \)</p></body></html>',
-                r"Disallowed dangerous URI\(s\).*LaTeX \\href inside macro definition",
+                r"Disallowed LaTeX macro definition\(s\)",
             ),
             (
                 "LaTeX unbraced \\newcommand alias with decoy https brace",
                 '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
                 r'<body><p>\( \newcommand{\h}\href{https://example.org}{ok} \h{search-ms:query=secret}{Click} \)</p></body></html>',
-                r"Disallowed dangerous URI\(s\).*LaTeX \\href inside macro definition",
+                r"Disallowed LaTeX macro definition\(s\)",
             ),
             (
                 "LaTeX \\def parameterized wrapper around \\href{#1}",
                 '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
                 r'<body><p>\( \def\h#1{\href{#1}} \h{search-ms:query=secret}{Click} \)</p></body></html>',
-                r"Disallowed dangerous URI\(s\).*LaTeX \\href inside macro definition",
+                r"Disallowed LaTeX macro definition\(s\)",
             ),
             (
                 "LaTeX \\href with macro-expanded URL \\u",
@@ -2004,10 +2011,181 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
                 r"Disallowed dangerous URI\(s\).*LaTeX \\href\{search-ms:query=secret\}",
             ),
             (
+                "LaTeX \\href argument split into the next HTML text node",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \href <span>{search-ms:query=secret}{Click}</span> \)</p></body></html>',
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href \(missing or unbraced argument\)",
+            ),
+            *[
+                (
+                    f"LaTeX \\href with invisible U+{ord(ch):04X} before the brace",
+                    '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                    + r"<body><p>\( \href" + ch + r"{search-ms:query=secret}{Click} \)</p></body></html>",
+                    r"Disallowed dangerous URI\(s\).*LaTeX \\href",
+                )
+                for ch in ("﻿", "​", " ", " ")
+            ],
+            (
+                "LaTeX \\href passed into #1 of a wrapper, plain trailing character",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \def\foo#1{#1{search-ms:query=secret}{Click}} \foo\href x \)</p></body></html>',
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            (
+                "LaTeX #1{...} wrapper defined in an earlier paragraph",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \def\foo#1{#1{search-ms:query=secret}{Click}} \)</p><p>\( \foo\href x \)</p></body></html>',
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            (
+                "LaTeX #1{...} wrapper fed a braced decoy https URL",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \def\foo#1{#1{search-ms:query=secret}{Click}} \foo\href{https://ok.example}{x} \)</p></body></html>',
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            (
+                "LaTeX ##1{...} in a nested definition after an escaped line break",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \def\a{\def\b##1{\\##1{search-ms:q}{C}}} \a \b\href x \)</p></body></html>',
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            (
+                "LaTeX \\let alias hidden behind U+FEFF",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                + r"<body><p>\( \let\h=" + "﻿" + r"\href x \h{search-ms:query=secret}{Click} \)</p></body></html>",
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            (
+                "LaTeX unbraced \\newcommand alias hidden behind U+FEFF",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                + r"<body><p>\( \newcommand{\h}" + "﻿" + r"\href x \h{search-ms:query=secret}{Click} \)</p></body></html>",
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            *[
+                (
+                    f"LaTeX \\href name split by {label}",
+                    '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                    + r"<body><p>\( \hr" + splitter + r"ef{search-ms:query=secret}{Click} \)</p></body></html>",
+                    r"Disallowed dangerous URI\(s\).*LaTeX \\href\{search-ms:query=secret\}",
+                )
+                for label, splitter in (
+                    ("<wbr>", "<wbr>"),
+                    ("an HTML comment", "<!-- -->"),
+                    ("a stray </span>", "</span>"),
+                    ("a stray <body>", "<body>"),
+                )
+            ],
+            (
+                "LaTeX #1{...} wrapper split by an HTML comment",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \def\foo#1{#<!-- -->1{search-ms:query=secret}{Click}} \foo\href x \)</p></body></html>',
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            *[
+                (
+                    f"LaTeX parameter swap feeding a double-braced URL ({label})",
+                    '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                    + r"<body><p>\( " + definition + r" \foo{{search-ms:query=secret}}\href{https://ok.example}{y} \)</p></body></html>",
+                    r"Disallowed LaTeX macro definition\(s\)",
+                )
+                for label, definition in (
+                    ("\\def #2#1", r"\def\foo#1#2{#2#1}"),
+                    ("\\newcommand #2 #1", r"\newcommand{\foo}[2]{#2 #1}"),
+                )
+            ],
+            (
+                "LaTeX #1% comment hides the rest of the line",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                "<body><p>\\( \\def\\foo#1{#1%} \\foo\\href{https://ok.example}{y}\n{search-ms:query=secret}{C} \\)</p></body></html>",
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            (
+                "LaTeX \\newenvironment begin code applying #1{...}",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r"<body><p>\( \newenvironment{e}[1]{#1{search-ms:query=secret}{C}}{} \begin{e}\href{https://ok.example}{y}\end{e} \)</p></body></html>",
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            (
+                "LaTeX \\def with a delimited template before the body",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r"<body><p>\( \def\foo#1\x{#1{search-ms:query=secret}{C}} \foo\href{https://ok.example}\x \)</p></body></html>",
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            *[
+                (
+                    f"LaTeX \\href{{#1}} wrapper behind a {label} template delimiter",
+                    '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                    + r"<body><p>\( \def\h#1" + delim + r"{\href{#1}} \h{search-ms:query=secret}" + delim + r"{Click} \)</p></body></html>",
+                    r"Disallowed LaTeX macro definition\(s\)",
+                )
+                for label, delim in (("control-word", r"\x"), ("escaped-brace", r"\{"))
+            ],
+            (
+                "LaTeX unbraced \\newcommand name and body",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r"<body><p>\( \newcommand\h\href \h{search-ms:query=secret}{Click} \)</p></body></html>",
+                r"Disallowed LaTeX macro definition\(s\)",
+            ),
+            *[
+                (
+                    f"LaTeX macro definition {label} is rejected",
+                    '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                    + r"<body><p>\( " + tex + r" \)</p></body></html>",
+                    r"Disallowed LaTeX macro definition\(s\).*" + expected,
+                )
+                for label, tex, expected in (
+                    ("\\newcommand (harmless math)", r"\newcommand{\R}{\mathbb{R}} x \in \R", r"\\newcommand"),
+                    ("\\def (harmless math)", r"\def\norm#1{\left\|#1\right\|} \norm{v}", r"\\def"),
+                    ("\\let", r"\let\a=\alpha \a", r"\\let"),
+                    ("\\renewcommand*", r"\renewcommand*{\vec}[1]{\mathbf{#1}}", r"\\renewcommand"),
+                    ("\\newenvironment", r"\newenvironment{e}{}{}", r"\\newenvironment"),
+                    ("split by <wbr>", r"\new<wbr>command{\R}{\mathbb{R}}", r"\\newcommand"),
+                    ("\\DeclarePairedDelimiterX", r"\DeclarePairedDelimiterX{\h}[1]{(}{)}{\href{#1}{x}}", r"\\DeclarePairedDelimiterX"),
+                    (
+                        "with ]-in-braces default",
+                        r"\newcommand{\h}[1][{]}]{\href{#1}} \h[search-ms:query=secret]{Click}",
+                        r"\\newcommand",
+                    ),
+                )
+            ],
+            *[
+                (
+                    f"MathJax-only command {label} is rejected",
+                    '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                    + r"<body><p>\( " + tex + r" \)</p></body></html>",
+                    r"Disallowed MathJax-only LaTeX command\(s\).*" + expected,
+                )
+                for label, tex, expected in (
+                    ("\\mmlToken href", r'\mmlToken{mi}[href="search-ms:q"]{x}', r"\\mmlToken"),
+                    ("\\bbox CSS url()", r"\bbox[background:url(file:///C:/Windows/win.ini)]{x}", r"\\bbox"),
+                    ("\\bbox harmless colour", r"\bbox[yellow]{x}", r"\\bbox"),
+                    ("\\require", r"\require{mathtools} x", r"\\require"),
+                    ("split by an HTML comment", r'\mml<!-- -->Token{mi}[href="search-ms:q"]{x}', r"\\mmlToken"),
+                )
+            ],
+            (
+                "LaTeX bare \\url in prose outside <code>",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>Lệnh \url dùng để chèn liên kết.</p></body></html>',
+                r"Disallowed dangerous URI\(s\).*LaTeX \\url \(missing or unbraced argument\)",
+            ),
+            (
+                "LaTeX \\href with control-sequence argument",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \def\u{search-ms:query=secret} \href\u{Click} \)</p></body></html>',
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href \(missing or unbraced argument\)",
+            ),
+            (
+                "LaTeX \\href whose % is literal inside the URL braces",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                "<body><p>\\( \\href{https://ok.example/%\n}{Click} \\href{search-ms:y}{Click} \\)</p></body></html>",
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href\{search-ms:y\}",
+            ),
+            (
                 "LaTeX \\newcommand wrapper around \\style{#1}",
                 '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
                 r'<body><p>\( \newcommand{\s}[1]{\style{#1}{x}} \s{background:url(https://evil.example/a)} \)</p></body></html>',
-                r"Disallowed external resource reference\(s\).*LaTeX \\style inside macro definition",
+                r"Disallowed LaTeX macro definition\(s\)",
             ),
         ]
         for label, bad_html, expected_rx in red_team_cases:

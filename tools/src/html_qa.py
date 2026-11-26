@@ -73,10 +73,17 @@ _CSS_URL_RX = re.compile(
 _CSS_IMAGE_SET_RX = re.compile(r"""(?is)(?:-webkit-)?image-set\s*\(([^)]*)\)""")
 _CSS_QUOTED_STR_RX = re.compile(r"""(?:"([^"]*)"|'([^']*)')""")
 _LATEX_ACTIVE_CMD_RX = re.compile(r"\\(href|url|style)(?![A-Za-z])")
+# Macro definitions are rejected outright: aliases, parameters (`#1`), defaults and delimited templates let a definition
+# hand `\href`/`\url`/`\style` a target the scanner cannot see without re-implementing MathJax's TeX parser. A PDF
+# carries no macros, so a translation writes its formulas in full and never needs one.
 _LATEX_MACRO_DEF_RX = re.compile(
-    r"\\(?:[egx]?def|newcommand\*?|renewcommand\*?|providecommand\*?|DeclareRobustCommand\*?)(?![A-Za-z])"
+    r"\\(?:[egx]?def|newcommand|renewcommand|providecommand|DeclareRobustCommand|(?:re)?newenvironment"
+    r"|(?:future)?let|DeclarePairedDelimiter(?:X|XPP)?)(?![A-Za-z])"
 )
-_LATEX_LET_RX = re.compile(r"\\(future)?let(?![A-Za-z])")
+# MathJax-only commands that write raw attributes or load code: `\mmlToken` sets `href`/`style` on a MathML node,
+# `\bbox[...]` passes raw CSS into `style`, and `\require` loads further packages (with their own definers).
+# Standard LaTeX never needs them (`\boxed{...}` frames a formula).
+_LATEX_BANNED_CMD_RX = re.compile(r"\\(?:mmlToken|bbox|require)(?![A-Za-z])")
 _LATEX_CONTROL_WORD_RX = re.compile(r"\\[A-Za-z]")
 _LATEX_SAFE_URL_ESCAPES_RX = re.compile(r"\\([#%&~_])")
 _LIGHTBOX_IDS = frozenset({"rsfv-img-lightbox", "img-lightbox"})
@@ -194,11 +201,14 @@ def _is_allowed_css_url(raw_url: str) -> bool:
 
 
 def _skip_tex_ws_and_comments(text: str, pos: int) -> int:
-    """Advance `pos` past whitespace and unescaped TeX `% ...\\n` comments."""
+    """Advance `pos` past whitespace and unescaped TeX `% ...\\n` comments.
+
+    U+FEFF counts as whitespace: MathJax skips JavaScript `\\s`, which includes it, while `str.isspace()` does not.
+    """
     n = len(text)
     i = pos
     while i < n:
-        if text[i].isspace():
+        if text[i].isspace() or text[i] == "﻿":
             i += 1
         elif text[i] == "%":
             nl = text.find("\n", i)
@@ -208,8 +218,12 @@ def _skip_tex_ws_and_comments(text: str, pos: int) -> int:
     return i
 
 
-def _extract_tex_braced_arg(text: str, pos: int) -> tuple[str, int] | None:
-    """Read a balanced `{...}` TeX argument at `pos` (after whitespace/comments), or None if absent/unclosed."""
+def _extract_tex_braced_arg(text: str, pos: int, *, tex_comments: bool = True) -> tuple[str, int] | None:
+    """Read a balanced `{...}` TeX argument at `pos` (after whitespace/comments), or None if absent/unclosed.
+
+    With `tex_comments=False`, `%` inside the braces is a literal character, which is how MathJax reads the
+    arguments of `\\href`, `\\url` and `\\style` (percent-encoded URLs such as `a%20b`).
+    """
     n = len(text)
     i = _skip_tex_ws_and_comments(text, pos)
     if i >= n or text[i] != "{":
@@ -224,7 +238,7 @@ def _extract_tex_braced_arg(text: str, pos: int) -> tuple[str, int] | None:
             buf.append(text[i + 1])
             i += 2
             continue
-        if ch == "%":
+        if ch == "%" and tex_comments:
             nl = text.find("\n", i)
             i = n if nl < 0 else nl + 1
             continue
@@ -241,77 +255,6 @@ def _extract_tex_braced_arg(text: str, pos: int) -> tuple[str, int] | None:
     if depth != 0:
         return None
     return "".join(buf), i
-
-
-def _skip_tex_single_token(text: str, pos: int) -> int:
-    """Advance `pos` past one TeX control sequence or single character token."""
-    n = len(text)
-    if pos >= n:
-        return n
-    if text[pos] == "\\":
-        i = pos + 1
-        if i < n and text[i].isalpha():
-            while i < n and text[i].isalpha():
-                i += 1
-            return i
-        return min(i + 1, n)
-    return pos + 1
-
-
-def _macro_defs_wrapping_active_cmd(text: str) -> list[str]:
-    """Return active command names (`href`/`url`/`style`) aliased or wrapped via TeX macro/let definitions."""
-    wrapped: list[str] = []
-    n = len(text)
-    for dm in _LATEX_MACRO_DEF_RX.finditer(text):
-        i = _skip_tex_ws_and_comments(text, dm.end())
-        # Skip optional unbraced control sequence name + parameter template (e.g. `\def\h#1#2{...}`).
-        if i < n and text[i] == "\\":
-            i = _skip_tex_single_token(text, i)
-        while i < n and text[i] not in "{[\\":
-            if text[i] == "%":
-                nl = text.find("\n", i)
-                i = n if nl < 0 else nl + 1
-            else:
-                i += 1
-        # Inspect consecutive `{...}` / `[...]` groups (or unbraced single-token body) of this definition.
-        while i < n:
-            i = _skip_tex_ws_and_comments(text, i)
-            if i < n and text[i] == "{":
-                parsed = _extract_tex_braced_arg(text, i)
-                if parsed is None:
-                    break
-                body, i = parsed
-                for cm in _LATEX_ACTIVE_CMD_RX.finditer(body):
-                    wrapped.append(cm.group(1))
-            elif i < n and text[i] == "[":
-                end_br = text.find("]", i + 1)
-                if end_br < 0:
-                    break
-                opt_body = text[i + 1 : end_br]
-                for cm in _LATEX_ACTIVE_CMD_RX.finditer(opt_body):
-                    wrapped.append(cm.group(1))
-                i = end_br + 1
-            else:
-                um = _LATEX_ACTIVE_CMD_RX.match(text, i)
-                if um is not None:
-                    wrapped.append(um.group(1))
-                break
-
-    for lm in _LATEX_LET_RX.finditer(text):
-        is_futurelet = lm.group(1) is not None
-        i = _skip_tex_ws_and_comments(text, lm.end())
-        i = _skip_tex_single_token(text, i)
-        i = _skip_tex_ws_and_comments(text, i)
-        if is_futurelet:
-            i = _skip_tex_single_token(text, i)
-            i = _skip_tex_ws_and_comments(text, i)
-        elif i < n and text[i] == "=":
-            i = _skip_tex_ws_and_comments(text, i + 1)
-        um = _LATEX_ACTIVE_CMD_RX.match(text, i)
-        if um is not None:
-            wrapped.append(um.group(1))
-
-    return wrapped
 
 
 def _format_sample_items(items: list[str], limit: int = 5) -> str:
@@ -335,6 +278,10 @@ class _QADOMScanner(HTMLParser):
         self._allow_external_images = allow_external_images
         self._open_stack: list[tuple[str, bool, str]] = []
         self._prose_buf: list[str] = []
+        # Every prose text node in document order, rescanned as one string at close(): browsers and MathJax join
+        # text across <wbr>, <br>, HTML comments and ignored stray tags (e.g. `\hr<wbr>ef{...}` or an unmatched
+        # `</span>`), which this per-node scanner would otherwise see as separate pieces.
+        self._all_prose: list[str] = []
         self._active_script: dict[str, object] | None = None
         self._style_buf: list[str] = []
         self.has_head_open = False
@@ -367,6 +314,10 @@ class _QADOMScanner(HTMLParser):
         self._seen_handlers: set[str] = set()
         self.dangerous_uris: list[str] = []
         self._seen_uris: set[str] = set()
+        self.latex_macro_defs: list[str] = []
+        self._seen_macro_defs: set[str] = set()
+        self.latex_banned_cmds: list[str] = []
+        self._seen_banned_cmds: set[str] = set()
         self.disallowed_external_resources: list[str] = []
         self._seen_ext_res: set[str] = set()
 
@@ -390,30 +341,26 @@ class _QADOMScanner(HTMLParser):
             return
         chunk = "".join(self._prose_buf)
         self._prose_buf.clear()
+        self._all_prose.append(chunk)
         if not self.has_latex and (r"\(" in chunk or r"\[" in chunk):
             self.has_latex = True
-        if "\\" in chunk and _LATEX_ACTIVE_CMD_RX.search(chunk):
+        self._scan_latex_text(chunk)
+
+    def _scan_latex_text(self, chunk: str) -> None:
+        if "\\" not in chunk:
+            return
+        for dm in _LATEX_MACRO_DEF_RX.finditer(chunk):
+            self._add_issue(self.latex_macro_defs, self._seen_macro_defs, dm.group(0))
+        for bm in _LATEX_BANNED_CMD_RX.finditer(chunk):
+            self._add_issue(self.latex_banned_cmds, self._seen_banned_cmds, bm.group(0))
+        if _LATEX_ACTIVE_CMD_RX.search(chunk):
             self._scan_latex_active_commands(chunk)
 
     def _scan_latex_active_commands(self, chunk: str) -> None:
-        """Validate `\\href`, `\\url`, and `\\style` with balanced braces while leaving math macros untouched."""
-        for wrapped_cmd in _macro_defs_wrapping_active_cmd(chunk):
-            if wrapped_cmd == "style":
-                self._add_issue(
-                    self.disallowed_external_resources,
-                    self._seen_ext_res,
-                    "LaTeX \\style inside macro definition",
-                )
-            else:
-                self._add_issue(
-                    self.dangerous_uris,
-                    self._seen_uris,
-                    f"LaTeX \\{wrapped_cmd} inside macro definition",
-                )
-
+        """Validate `\\href`, `\\url`, and `\\style` arguments with balanced braces (macro definitions are rejected)."""
         for m in _LATEX_ACTIVE_CMD_RX.finditer(chunk):
             cmd = m.group(1).lower()
-            parsed = _extract_tex_braced_arg(chunk, m.end())
+            parsed = _extract_tex_braced_arg(chunk, m.end(), tex_comments=False)
             if parsed is None:
                 if cmd == "style":
                     self._add_issue(
@@ -815,6 +762,8 @@ class _QADOMScanner(HTMLParser):
 
     def close(self) -> None:
         self._flush_prose()
+        if len(self._all_prose) > 1:
+            self._scan_latex_text("".join(self._all_prose))
         self._finalize_active_script()
         self._finalize_style_block()
         super().close()
@@ -873,6 +822,18 @@ def run_html_qa_check(
         )
     if scanner.dangerous_uris:
         issues.append(f"Disallowed dangerous URI(s): {_format_sample_items(scanner.dangerous_uris)}")
+    if scanner.latex_macro_defs:
+        issues.append(
+            "Disallowed LaTeX macro definition(s) (write formulas in full without defining macros; "
+            "put LaTeX command names mentioned in prose inside <code>): "
+            f"{_format_sample_items(scanner.latex_macro_defs)}"
+        )
+    if scanner.latex_banned_cmds:
+        issues.append(
+            "Disallowed MathJax-only LaTeX command(s) (use standard LaTeX, e.g. \\boxed{...} instead of \\bbox; "
+            "put LaTeX command names mentioned in prose inside <code>): "
+            f"{_format_sample_items(scanner.latex_banned_cmds)}"
+        )
     if scanner.external_img_srcs:
         issues.append(
             f"Disallowed external <img> URL(s) (images must be local Base64 assets): "
