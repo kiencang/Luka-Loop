@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.43] - 2026-11-27
 ### Security
 - Khóa cứng đuôi tệp đầu ra trong `tools/src/output_paths.py` (`prepare_sanitized_output_path`, `assert_expected_output_extension`): `-OutHtmlPath` (và `-HtmlPath` khi ghi tại chỗ) bắt buộc có đuôi `.html`, `-OutPdfPath` bắt buộc có đuôi `.pdf` (không phân biệt hoa/thường, từ chối tên rỗng phần gốc kiểu `.html`/`.pdf`, dấu chấm cuối hay ký tự lạ trong phần đuôi trước khi làm sạch tên tệp), chặn nguy cơ Indirect Prompt Injection lợi dụng lệnh đóng gói được cấp quyền sẵn để ghi tệp thực thi (`.bat`, `.cmd`, `.ps1`, `.hta`, `.exe`...).
 - Chống bom nhân bản trang / hình PDF và bom giải nén mặt nạ `SMask`:
