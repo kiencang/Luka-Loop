@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.39] - 2026-11-26
 ### Fixed
 - **Hình và chú thích của nó ở hai chỗ, cả hai đều "mồ côi" vì chú thích nằm hơi xa hoặc có hàng nhãn chen giữa:** ví dụ chú thích đặt bên cạnh, ngang đáy hình nhưng cách 110 pt (Surgical Atlas p109), hoặc hàng nhãn nằm giữa hình và chú thích (p157, p376). Nay sau mọi bước khác, nếu trên trang còn **đúng một** hình chưa có chú thích và **đúng một** chú thích hình chưa có hình, hai thứ được ghép với nhau (`_pair_last_orphan_caption`). Bước này chỉ gắn chú thích, không đổi khung. Ba chốt chặn để tránh ghép sai:
   - Khoảng cách tối đa 150 pt (`DetectorConfig.orphan_pair_max_gap`).
