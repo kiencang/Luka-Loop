@@ -2,6 +2,18 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.42] - 2026-11-26
+### Fixed
+- **Hàng số trục hoặc hàng nhãn ngắn ngay sát hình bị coi là đoạn văn nên bị cắt khỏi ảnh:** PyMuPDF gom cả một hàng số chia trên trục ngang ("1.6 1.8 2.0 … 4.0") hoặc hàng nhãn ngắn ("Bi Bi Pb Pb Zn Zn …", "M=1 N=1 K=L …") thành một khối chữ. Từ 12 từ trở lên, khối đó bị tính là đoạn văn, nên chốt "không nuốt đoạn văn" của bước gắn dòng nhãn chặn cả hàng số lẫn tên trục ngay dưới nó (DocLayNet 1001.0805 p5, 1001.2227 p2–p4, 1101.1893 p17–p20). Số trên trục dọc không gặp lỗi này vì mỗi số nằm một dòng riêng, thành một khối 1 từ. Nay khối như vậy không còn là đoạn văn khi đủ cả bốn điều kiện (`_is_label_row`, `DetectorConfig.label_row_*`):
+  - cách khung hình tối đa 5 pt;
+  - dưới 25 từ;
+  - chỉ 1–2 hàng thật;
+  - mọi từ là số (kể cả "−0.8", "1e+02", "10⁻⁹", "5×10³", "45%") hoặc dài tối đa 4 ký tự.
+  - Các chốt chặn khác giữ nguyên (khoảng cách từng phía, chú thích, rãnh cột, cạnh cột, hình khác, bảng). Các chỗ khác dùng định nghĩa "đoạn văn 12 từ" (tìm rãnh cột, cạnh cột) không đổi.
+  - Phân tích 222 hình cắt nặng ngoài holdout của v1.1.41 trước khi sửa: 61 ca không phải lỗi thật (phần hụt không có mực), khoảng 25 ca do khác quy ước chấm; 13 ca thuộc nhóm hàng số bị coi là đoạn văn, luật mới nhắm 10 ca, chừa 3 ca không chắc (hai dòng phương trình, hàng "o₁:t₁,t₇ …" cách 6,4 pt, tên trục dài 14 từ).
+  - DocLayNet (cả 4 tập, 14.117 trang): trang lỗi nặng 481 → 473, hình đúng 4.767 → 4.776, hình cắt nặng 307 → 297, cắt nhẹ 112 → 113; ảnh lấn chữ, gộp sai, ô chữ bị lấn, mảnh vụn, F1 không đổi. Đúng 9 trang đổi (10 hình, đều thuộc tập tune), cả 9 đều tốt hơn. 5 sách trong `dev/typical-pdf`: 0 trang đổi.
+  - Thêm test `TestTickRowLabels`.
+
 ## [1.1.41] - 2026-11-26
 ### Fixed
 - **Gạch đầu dòng bị coi là nhãn hình:** dòng gạch đầu dòng nằm cạnh ảnh bị gắn vào hình như nhãn, khiến khung hình lấn sang danh sách bên cạnh (Surgical Atlas p144: gạch "-" in cỡ 40 pt đứng cạnh ảnh) hoặc lấn xuống đoạn văn bên dưới (p39). Nay dòng mở đầu bằng "–", "•", "▪", hoặc dòng chỉ có một dấu "-", không còn được gắn làm nhãn (`_is_bullet_line`). Dấu "-" đứng đầu dòng có chữ khác theo sau có thể là dấu trừ ("- 0.5") nên vẫn được giữ. Không thêm 1., a), (a) vì không đủ chắc chắn.
