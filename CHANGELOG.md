@@ -2,6 +2,14 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.45] - 2026-11-27
+### Fixed
+- **Khung hình gộp hoặc nới lấn vào văn bản chính bên cạnh:** chốt "không nuốt đoạn văn" cũ chỉ chặn khi khung trùm phần lớn một đoạn dài, nên bước gộp hai ảnh cùng chú thích hoặc bước gắn nhãn vẫn đẩy khung lấn vài dòng vào cột chữ (Surgical Atlas p248: hai ảnh gộp lấn sang cột phải; Book of Proof p262: mẫu số "x" của phân số trong câu văn bị lấy như nhãn trục). Module mới `figure_detector/main_text.py` chấm mỗi khối chữ thường từ 13 từ trở lên trên thang 100 điểm theo 8 đặc điểm (bề rộng so với trang, số ký tự mỗi dòng, tỷ lệ từ viết thường, từ là chữ, chữ số, trùng phông và cỡ chữ chính của trang, số từ); khối từ 70 điểm là văn bản chính (`DetectorConfig.main_text_min_words = 13`, `main_text_min_score = 70`):
+  - bảng điểm học từ khối Text/List-item và chữ trong hình `Picture` của tập tune DocLayNet; ở ngưỡng 70 khoảng 97% khối văn bản chính đạt, không khối chữ nào trong hình ở tập val/test đạt; chọn 13 từ để bỏ tên trục và câu trong hình dài đúng 12 từ;
+  - không bước gộp nào (`_violates_merge_invariants`) và không bước gắn nhãn nào (nhãn trục, dòng nhãn kề, nhãn nối bằng nét, ảnh ký tự) được làm khung mới chồng lên khối văn bản chính quá 2 pt theo cả hai chiều; điểm chỉ tính khi có bước cần kiểm tra, mỗi trang một lần, tốc độ không đổi;
+  - DocLayNet (cả 4 tập, 14.117 trang): hình đúng giữ nguyên 4.786, ảnh dính chữ 154 → 153, trang lỗi nặng 466 → 465, F1 0,8947 → 0,8944; 3 trang đổi. 5 sách trong `dev/typical-pdf`: 4 trang đổi, đều tốt hơn (Surgical Atlas p248, Book of Proof p39, p261, p262).
+  - Thêm test `TestMainTextGuard`.
+
 ## [1.1.44] - 2026-11-27
 ### Fixed
 - **Số trên trục bị cắt khỏi ảnh khi PDF vẽ mỗi ký tự thành một ảnh nhỏ:** một số công cụ vẽ đồ thị cũ (PDF khoảng 2007–2010) xuất từng chữ số, tên trục, nhãn (a)(b)(c) thành một ảnh tí hon riêng thay vì chữ. Các bước gắn nhãn chỉ làm việc với chữ nên không thấy chúng, còn bước tách ảnh bỏ từng ảnh vì quá nhỏ, nên ảnh hình trong bản dịch mất hết số trên trục (DocLayNet 1001.3166, 1001.3299, 1002.2663…). Bước mới `_attach_glyph_images` (`DetectorConfig.glyph_image_max_dim = 12`, `glyph_image_max_gap = 8`) kéo vào khung các ảnh có cạnh dài tối đa 12 pt nằm cách khung tối đa 8 pt:

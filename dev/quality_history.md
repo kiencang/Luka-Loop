@@ -44,6 +44,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.42 | 4.776 (90,8%) | 297 | 113 | 73 | 154 | 4 | 473 | 89,5% | 0,36 |
 | v1.1.43 | 4.776 (90,8%) | 297 | 113 | 73 | 154 | 4 | 473 | 89,5% | 0,35 |
 | v1.1.44 | 4.786 (91,0%) | 285 | 115 | 73 | 154 | 4 | 466 | 89,5% | 0,40 |
+| v1.1.45 | 4.786 (91,0%) | 285 | 115 | 73 | 153 | 4 | 465 | 89,4% | 0,37 |
 
 ¹ **Tốc độ chỉ mang tính tương đối:** phụ thuộc cấu hình máy và điều kiện lúc đo (số tiến trình song song, máy có đang chạy việc khác không). Các lần đo v1.1.23 và v1.1.24 chạy khi máy đang bận việc khác. Đừng so tốc độ giữa các dòng như số liệu chính xác.
 
@@ -75,6 +76,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.42 | 3.262 · 323 | 839 · 103 | 351 · 17 | 324 · 30 |
 | v1.1.43 | 3.262 · 323 | 839 · 103 | 351 · 17 | 324 · 30 |
 | v1.1.44 | 3.269 · 317 | 842 · 102 | 351 · 17 | 324 · 30 |
+| v1.1.45 | 3.269 · 316 | 842 · 102 | 351 · 17 | 324 · 30 |
 
 ## Nguồn số liệu
 
@@ -102,6 +104,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.42 | `65c5bb1` | 2026-11-26 | `a8fb6141c044bba3` |
 | v1.1.43 | `8f335cc` | 2026-11-27 | `2ca55b4ef382906f` |
 | v1.1.44 | `f850900` | 2026-11-27 | `261b5e0bcbcb1575` |
+| v1.1.45 | `9f8b26e` | 2026-11-27 | `002a3a9249299789` |
 
 Dấu vân tay là mã băm của `tools/src/figure_detector/*.py` và `tools/src/image_ops.py`; kết quả từng trang nằm trong `%TEMP%\luka_doclaynet_eval\pages\<dấu vân tay>.jsonl` (bộ đệm cục bộ, có thể bị xóa).
 
@@ -129,3 +132,4 @@ Dấu vân tay là mã băm của `tools/src/figure_detector/*.py` và `tools/sr
 - **v1.1.42:** hàng số chia trên trục ngang hoặc hàng nhãn ngắn (số, hoặc từ tối đa 4 ký tự; dưới 25 từ; 1–2 hàng) nằm cách hình tối đa 5 pt không còn bị tính là đoạn văn, nên được gắn vào hình cùng tên trục bên dưới. Trang lỗi nặng 481 → 473, hình cắt nặng 307 → 297; 9 trang đổi, đều tốt hơn.
 - **v1.1.43:** không đổi cách nhận hình. Mã tách hình chỉ thêm giới hạn an toàn (tối đa 300 trang và 1.000 hình mỗi PDF, kiểm tra kích thước mặt nạ `SMask` trước khi giải mã), nên mã nhận dạng đổi nhưng kết quả trùng khít v1.1.42 trên cả 14.117 trang.
 - **v1.1.44:** lấy lại số trên trục được vẽ bằng ảnh nhỏ từng ký tự (PDF cũ): ảnh có cạnh dài tối đa 12 pt, cách khung hình tối đa 8 pt được kéo vào khung. 56 trang đổi; 10 hình chuyển từ bị cắt sang đúng, cắt nặng 297 → 285, không hình đúng nào bị hỏng; ảnh dính chữ giữ nguyên 154 (một ô chú thích thêm vào một ảnh vốn đã dính chữ ở tập holdout).
+- **v1.1.45:** khung hình không được gộp hay nới lấn vào khối văn bản chính: khối chữ thường từ 13 từ trở lên đạt từ 70/100 điểm trên bảng 8 đặc điểm (bề rộng so với trang, số ký tự mỗi dòng, tỷ lệ từ viết thường, từ là chữ, chữ số, phông và cỡ chữ chính của trang, số từ; điểm học từ tập tune). 3 trang đổi: ảnh dính chữ 154 → 153, trang lỗi nặng 466 → 465; F1 giảm 0,0003 vì một hình bị gộp sai nay tách đôi. Trên sách: Surgical Atlas p248 hết gộp hai ảnh lấn cột chữ, Book of Proof 3 trang hết khung lấn chữ.
