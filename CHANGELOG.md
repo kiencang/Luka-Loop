@@ -2,6 +2,14 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Security
+- Khóa cứng đuôi tệp đầu ra trong `tools/src/output_paths.py` (`prepare_sanitized_output_path`, `assert_expected_output_extension`): `-OutHtmlPath` (và `-HtmlPath` khi ghi tại chỗ) bắt buộc có đuôi `.html`, `-OutPdfPath` bắt buộc có đuôi `.pdf` (không phân biệt hoa/thường, từ chối tên rỗng phần gốc kiểu `.html`/`.pdf`, dấu chấm cuối hay ký tự lạ trong phần đuôi trước khi làm sạch tên tệp), chặn nguy cơ Indirect Prompt Injection lợi dụng lệnh đóng gói được cấp quyền sẵn để ghi tệp thực thi (`.bat`, `.cmd`, `.ps1`, `.hta`, `.exe`...).
+- Chống bom nhân bản trang / hình PDF và bom giải nén mặt nạ `SMask`:
+  - `extract_images` (`tools/src/figure_detector/extract.py`) và `render_pages` (`tools/src/image_ops.py`) áp trần cứng mặc định `MAX_PDF_PAGES = 300` trang/tệp PDF ngay khi mở tài liệu (trước mọi vòng quét chữ/tạo thư mục) và `MAX_EXTRACTED_FIGURES = 1000` hình/tệp PDF (tự dọn sạch các ảnh PNG dở dang trước khi báo lỗi dừng hẳn; hỗ trợ `max_pages=0, max_figures=0` cho các script nội bộ `dev/` khi chấm sách dày; cập nhật contract tương ứng trong 2 tệp `SKILL.md` và `README.md`);
+  - `_image_ink_rect` (`tools/src/figure_detector/raster.py`) kiểm tra `Width`/`Height` trong từ điển xref của `SMask` khớp kích thước ảnh chính và nằm trong `raster_trim_max_pixels` trước khi gọi `pymupdf.Pixmap(doc, sm_xref)`, ngăn giải mã mặt nạ quá khổ vào RAM.
+- Gia cố bộ kiểm tra lệnh LaTeX `\href`, `\url` và `\style` trong `tools/src/html_qa.py` (`_extract_tex_braced_arg`, `_macro_defs_wrapping_active_cmd`, `_scan_latex_active_commands`): đọc đối số theo độ sâu ngoặc nhọn cân bằng `{...}` (bỏ qua comment `%`), bắt buộc có đối số `{...}` hợp lệ ngay sau lệnh và chặn bọc/gán bí danh lệnh qua `\def`/`\newcommand`/`\let` hoặc truyền macro vào URL/CSS (chặn lách giao thức `search-ms:`, `ms-settings:`... mà không ảnh hưởng tới các công thức hay macro toán học thuần túy như `\newcommand{\R}{\mathbb{R}}`).
+
 ## [1.1.42] - 2026-11-26
 ### Fixed
 - **Hàng số trục hoặc hàng nhãn ngắn ngay sát hình bị coi là đoạn văn nên bị cắt khỏi ảnh:** PyMuPDF gom cả một hàng số chia trên trục ngang ("1.6 1.8 2.0 … 4.0") hoặc hàng nhãn ngắn ("Bi Bi Pb Pb Zn Zn …", "M=1 N=1 K=L …") thành một khối chữ. Từ 12 từ trở lên, khối đó bị tính là đoạn văn, nên chốt "không nuốt đoạn văn" của bước gắn dòng nhãn chặn cả hàng số lẫn tên trục ngay dưới nó (DocLayNet 1001.0805 p5, 1001.2227 p2–p4, 1101.1893 p17–p20). Số trên trục dọc không gặp lỗi này vì mỗi số nằm một dòng riêng, thành một khối 1 từ. Nay khối như vậy không còn là đoạn văn khi đủ cả bốn điều kiện (`_is_label_row`, `DetectorConfig.label_row_*`):

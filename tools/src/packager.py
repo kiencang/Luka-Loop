@@ -10,6 +10,7 @@ from typing import Callable
 
 from html_qa import run_html_qa_check
 from output_paths import (
+    assert_expected_output_extension,
     clean_dir_after_outputs,
     find_next_available_index,
     get_indexed_file_path,
@@ -119,8 +120,9 @@ def embed_images_and_package(
 
     has_explicit_out_html = bool(out_html_path and out_html_path.strip())
     if has_explicit_out_html:
-        dest = prepare_sanitized_output_path(out_html_path, label="-OutHtmlPath")
+        dest = prepare_sanitized_output_path(out_html_path, label="-OutHtmlPath", expected_ext=".html")
     else:
+        assert_expected_output_extension(abs_html, ".html", "-HtmlPath", raw_display=raw_in)
         dest = assert_safe_output_path(abs_html, label="-OutHtmlPath", is_directory=False)
         assert dest is not None
 
@@ -129,7 +131,7 @@ def embed_images_and_package(
     pdf_protected: Path | None = None
     if want_pdf:
         if has_custom_out_pdf:
-            pdf_protected = prepare_sanitized_output_path(out_pdf_path, label="-OutPdfPath")
+            pdf_protected = prepare_sanitized_output_path(out_pdf_path, label="-OutPdfPath", expected_ext=".pdf")
         else:
             pdf_protected = assert_safe_output_path(dest.with_suffix(".pdf"), label="-OutPdfPath", is_directory=False)
 

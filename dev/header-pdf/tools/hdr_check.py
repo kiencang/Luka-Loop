@@ -40,7 +40,7 @@ report, tot = {}, {"images": 0, "header": 0, "figures": 0, "missed": 0, "cut": 0
 for name, t in truth.items():
     od = OUT / Path(name).stem
     with contextlib.redirect_stdout(io.StringIO()):
-        extract_images(SRC / name, od, dpi=150, write_meta=True)
+        extract_images(SRC / name, od, dpi=150, write_meta=True, max_pages=0, max_figures=0)
     meta = json.loads((od / "manifest.json").read_text(encoding="utf-8"))
     doc = pymupdf.open(SRC / name)
     items, figs = [], []

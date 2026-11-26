@@ -28,6 +28,16 @@ from .text import (
 )
 
 
+def _smask_matches_size(doc, smask_xref: int, width: int, height: int, max_pixels: int) -> bool:
+    """Verify via PDF xref dictionary headers (without decoding stream bytes) that `smask_xref` matches `(width, height)`."""
+    w_key = doc.xref_get_key(smask_xref, "Width")
+    h_key = doc.xref_get_key(smask_xref, "Height")
+    if w_key[0] != "int" or h_key[0] != "int":
+        return False
+    sw, sh = int(w_key[1]), int(h_key[1])
+    return sw == width and sh == height and 0 < sw * sh <= max_pixels
+
+
 def _image_ink_rect(ctx: PageContext, info: dict, cfg: DetectorConfig) -> pymupdf.Rect | None:
     """Page-space bounding box of the non-white pixels of an embedded image, or None if unknown.
 
@@ -45,11 +55,15 @@ def _image_ink_rect(ctx: PageContext, info: dict, cfg: DetectorConfig) -> pymupd
     doc = ctx.page.parent
     try:
         pix = pymupdf.Pixmap(doc, xref)
+        if pix.width <= 0 or pix.height <= 0 or pix.width * pix.height > cfg.raster_trim_max_pixels:
+            return None
         smask = doc.xref_get_key(xref, "SMask")
         if smask[0] == "xref" and not pix.alpha:
-            mask = pymupdf.Pixmap(doc, int(smask[1].split()[0]))
-            if (mask.width, mask.height) == (pix.width, pix.height):
-                pix = pymupdf.Pixmap(pix, mask)  # apply soft mask as alpha
+            sm_xref = int(smask[1].split()[0])
+            if _smask_matches_size(doc, sm_xref, pix.width, pix.height, cfg.raster_trim_max_pixels):
+                mask = pymupdf.Pixmap(doc, sm_xref)
+                if (mask.width, mask.height) == (pix.width, pix.height):
+                    pix = pymupdf.Pixmap(pix, mask)  # apply soft mask as alpha
         if pix.width > 1600 or pix.height > 1600:
             # Shrink a private copy: Pixmap(doc, xref) can return the document's cached image, and shrinking that in
             # place changes it for every later reader (its digest no longer matches, so get_image_info loses the xref).

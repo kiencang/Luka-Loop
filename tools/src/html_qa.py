@@ -72,8 +72,13 @@ _CSS_URL_RX = re.compile(
 )
 _CSS_IMAGE_SET_RX = re.compile(r"""(?is)(?:-webkit-)?image-set\s*\(([^)]*)\)""")
 _CSS_QUOTED_STR_RX = re.compile(r"""(?:"([^"]*)"|'([^']*)')""")
-_LATEX_HREF_URL_RX = re.compile(r"""\\(?:href|url)\s*\{([^{}]*)\}""", re.IGNORECASE)
-_LATEX_STYLE_RX = re.compile(r"""\\style\s*\{([^{}]*)\}""", re.IGNORECASE)
+_LATEX_ACTIVE_CMD_RX = re.compile(r"\\(href|url|style)(?![A-Za-z])")
+_LATEX_MACRO_DEF_RX = re.compile(
+    r"\\(?:[egx]?def|newcommand\*?|renewcommand\*?|providecommand\*?|DeclareRobustCommand\*?)(?![A-Za-z])"
+)
+_LATEX_LET_RX = re.compile(r"\\(future)?let(?![A-Za-z])")
+_LATEX_CONTROL_WORD_RX = re.compile(r"\\[A-Za-z]")
+_LATEX_SAFE_URL_ESCAPES_RX = re.compile(r"\\([#%&~_])")
 _LIGHTBOX_IDS = frozenset({"rsfv-img-lightbox", "img-lightbox"})
 _HTML_VOID_TAGS = frozenset(
     {
@@ -188,6 +193,127 @@ def _is_allowed_css_url(raw_url: str) -> bool:
     return False
 
 
+def _skip_tex_ws_and_comments(text: str, pos: int) -> int:
+    """Advance `pos` past whitespace and unescaped TeX `% ...\\n` comments."""
+    n = len(text)
+    i = pos
+    while i < n:
+        if text[i].isspace():
+            i += 1
+        elif text[i] == "%":
+            nl = text.find("\n", i)
+            i = n if nl < 0 else nl + 1
+        else:
+            break
+    return i
+
+
+def _extract_tex_braced_arg(text: str, pos: int) -> tuple[str, int] | None:
+    """Read a balanced `{...}` TeX argument at `pos` (after whitespace/comments), or None if absent/unclosed."""
+    n = len(text)
+    i = _skip_tex_ws_and_comments(text, pos)
+    if i >= n or text[i] != "{":
+        return None
+    depth = 1
+    i += 1
+    buf: list[str] = []
+    while i < n and depth > 0:
+        ch = text[i]
+        if ch == "\\" and i + 1 < n:
+            buf.append(ch)
+            buf.append(text[i + 1])
+            i += 2
+            continue
+        if ch == "%":
+            nl = text.find("\n", i)
+            i = n if nl < 0 else nl + 1
+            continue
+        if ch == "{":
+            depth += 1
+            buf.append(ch)
+        elif ch == "}":
+            depth -= 1
+            if depth > 0:
+                buf.append(ch)
+        else:
+            buf.append(ch)
+        i += 1
+    if depth != 0:
+        return None
+    return "".join(buf), i
+
+
+def _skip_tex_single_token(text: str, pos: int) -> int:
+    """Advance `pos` past one TeX control sequence or single character token."""
+    n = len(text)
+    if pos >= n:
+        return n
+    if text[pos] == "\\":
+        i = pos + 1
+        if i < n and text[i].isalpha():
+            while i < n and text[i].isalpha():
+                i += 1
+            return i
+        return min(i + 1, n)
+    return pos + 1
+
+
+def _macro_defs_wrapping_active_cmd(text: str) -> list[str]:
+    """Return active command names (`href`/`url`/`style`) aliased or wrapped via TeX macro/let definitions."""
+    wrapped: list[str] = []
+    n = len(text)
+    for dm in _LATEX_MACRO_DEF_RX.finditer(text):
+        i = _skip_tex_ws_and_comments(text, dm.end())
+        # Skip optional unbraced control sequence name + parameter template (e.g. `\def\h#1#2{...}`).
+        if i < n and text[i] == "\\":
+            i = _skip_tex_single_token(text, i)
+        while i < n and text[i] not in "{[\\":
+            if text[i] == "%":
+                nl = text.find("\n", i)
+                i = n if nl < 0 else nl + 1
+            else:
+                i += 1
+        # Inspect consecutive `{...}` / `[...]` groups (or unbraced single-token body) of this definition.
+        while i < n:
+            i = _skip_tex_ws_and_comments(text, i)
+            if i < n and text[i] == "{":
+                parsed = _extract_tex_braced_arg(text, i)
+                if parsed is None:
+                    break
+                body, i = parsed
+                for cm in _LATEX_ACTIVE_CMD_RX.finditer(body):
+                    wrapped.append(cm.group(1))
+            elif i < n and text[i] == "[":
+                end_br = text.find("]", i + 1)
+                if end_br < 0:
+                    break
+                opt_body = text[i + 1 : end_br]
+                for cm in _LATEX_ACTIVE_CMD_RX.finditer(opt_body):
+                    wrapped.append(cm.group(1))
+                i = end_br + 1
+            else:
+                um = _LATEX_ACTIVE_CMD_RX.match(text, i)
+                if um is not None:
+                    wrapped.append(um.group(1))
+                break
+
+    for lm in _LATEX_LET_RX.finditer(text):
+        is_futurelet = lm.group(1) is not None
+        i = _skip_tex_ws_and_comments(text, lm.end())
+        i = _skip_tex_single_token(text, i)
+        i = _skip_tex_ws_and_comments(text, i)
+        if is_futurelet:
+            i = _skip_tex_single_token(text, i)
+            i = _skip_tex_ws_and_comments(text, i)
+        elif i < n and text[i] == "=":
+            i = _skip_tex_ws_and_comments(text, i + 1)
+        um = _LATEX_ACTIVE_CMD_RX.match(text, i)
+        if um is not None:
+            wrapped.append(um.group(1))
+
+    return wrapped
+
+
 def _format_sample_items(items: list[str], limit: int = 5) -> str:
     shown = ", ".join(items[:limit])
     if len(items) > limit:
@@ -266,22 +392,68 @@ class _QADOMScanner(HTMLParser):
         self._prose_buf.clear()
         if not self.has_latex and (r"\(" in chunk or r"\[" in chunk):
             self.has_latex = True
-        if "\\" in chunk:
-            for m in _LATEX_HREF_URL_RX.finditer(chunk):
-                raw_target = _STRIP_CTRL_WS_RX.sub("", m.group(1) or "")
-                if raw_target and not (
-                    raw_target.startswith("#") or _SAFE_LINK_SCHEME_RX.match(raw_target)
-                ):
+        if "\\" in chunk and _LATEX_ACTIVE_CMD_RX.search(chunk):
+            self._scan_latex_active_commands(chunk)
+
+    def _scan_latex_active_commands(self, chunk: str) -> None:
+        """Validate `\\href`, `\\url`, and `\\style` with balanced braces while leaving math macros untouched."""
+        for wrapped_cmd in _macro_defs_wrapping_active_cmd(chunk):
+            if wrapped_cmd == "style":
+                self._add_issue(
+                    self.disallowed_external_resources,
+                    self._seen_ext_res,
+                    "LaTeX \\style inside macro definition",
+                )
+            else:
+                self._add_issue(
+                    self.dangerous_uris,
+                    self._seen_uris,
+                    f"LaTeX \\{wrapped_cmd} inside macro definition",
+                )
+
+        for m in _LATEX_ACTIVE_CMD_RX.finditer(chunk):
+            cmd = m.group(1).lower()
+            parsed = _extract_tex_braced_arg(chunk, m.end())
+            if parsed is None:
+                if cmd == "style":
+                    self._add_issue(
+                        self.disallowed_external_resources,
+                        self._seen_ext_res,
+                        "LaTeX \\style (missing or unbraced argument)",
+                    )
+                else:
                     self._add_issue(
                         self.dangerous_uris,
                         self._seen_uris,
-                        f'LaTeX \\href{{{raw_target[:60]}}}',
+                        f"LaTeX \\{cmd} (missing or unbraced argument)",
                     )
-            for m in _LATEX_STYLE_RX.finditer(chunk):
-                css_payload = m.group(1) or ""
-                if css_payload:
-                    self._scan_css_text(css_payload, source="LaTeX \\style")
-                    if "expression(" in _STRIP_CTRL_WS_RX.sub("", css_payload).lower():
+                continue
+
+            arg, _ = parsed
+            if cmd in ("href", "url"):
+                unescaped = _LATEX_SAFE_URL_ESCAPES_RX.sub(r"\1", arg)
+                raw_target = _STRIP_CTRL_WS_RX.sub("", unescaped)
+                if (
+                    not raw_target
+                    or "\\" in raw_target
+                    or not (raw_target.startswith("#") or _SAFE_LINK_SCHEME_RX.match(raw_target))
+                ):
+                    shown = _STRIP_CTRL_WS_RX.sub("", arg)[:60]
+                    self._add_issue(
+                        self.dangerous_uris,
+                        self._seen_uris,
+                        f"LaTeX \\{cmd}{{{shown}}}",
+                    )
+            else:
+                if _LATEX_CONTROL_WORD_RX.search(arg):
+                    self._add_issue(
+                        self.disallowed_external_resources,
+                        self._seen_ext_res,
+                        f"LaTeX \\style{{{arg.strip()[:60]}}}",
+                    )
+                if arg:
+                    self._scan_css_text(arg, source="LaTeX \\style")
+                    if "expression(" in _STRIP_CTRL_WS_RX.sub("", arg).lower():
                         self._add_issue(
                             self.disallowed_external_resources,
                             self._seen_ext_res,

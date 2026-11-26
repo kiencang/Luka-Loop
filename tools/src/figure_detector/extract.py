@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
-from image_ops import MAX_RENDER_DIM, MAX_RENDER_PIXELS, compute_safe_render_zoom
+from image_ops import (
+    MAX_EXTRACTED_FIGURES,
+    MAX_PDF_PAGES,
+    MAX_RENDER_DIM,
+    MAX_RENDER_PIXELS,
+    compute_safe_render_zoom,
+)
 from manifest import emit_compacted_manifest_stdout
-from path_guards import assert_local_no_unc_path, resolve_safe_out_directory
+from path_guards import assert_local_no_unc_path, is_reparse_point, resolve_safe_out_directory
 
 from .caption_match import (
     _is_table_row_pair,
@@ -106,6 +113,21 @@ def _normalize_box(bb: pymupdf.Rect, page_rect: pymupdf.Rect) -> list[float]:
     ]
 
 
+def _discard_partial_extracted(saved: list[Path], out_dir: Path, created_out_dir: bool) -> None:
+    """Remove partial PNGs (and a newly created empty `out_dir`) when extraction aborts on a safety cap."""
+    for p in saved:
+        try:
+            if os.path.lexists(p) and not is_reparse_point(p) and os.path.isfile(p):
+                os.remove(p)
+        except OSError:
+            pass
+    if created_out_dir:
+        try:
+            out_dir.rmdir()
+        except OSError:
+            pass
+
+
 def extract_images(
     pdf_path: Path,
     out_dir: Path,
@@ -114,6 +136,9 @@ def extract_images(
     stdout_meta: bool = False,
     max_meta_words: int = 20,
     max_meta_bytes: int = 16384,
+    *,
+    max_pages: int = MAX_PDF_PAGES,
+    max_figures: int = MAX_EXTRACTED_FIGURES,
 ) -> list[Path]:
     """Phase 6: Render every detected bitmap or vector figure region in `pdf_path` to PNG."""
     _ensure_pymupdf()
@@ -132,8 +157,15 @@ def extract_images(
         if doc.needs_pass:
             raise RuntimeError(f"PDF is password-protected/encrypted and cannot be extracted: {pdf_path}")
 
-        safe_out_dir.mkdir(parents=True, exist_ok=True)
         total_pages = len(doc)
+        if max_pages > 0 and total_pages > max_pages:
+            raise ValueError(
+                f"PDF has {total_pages:,} pages, exceeding the {max_pages:,}-page safety limit: {pdf_path} "
+                f"(split the PDF into smaller parts/chapters before translating)."
+            )
+
+        created_out_dir = not safe_out_dir.exists()
+        safe_out_dir.mkdir(parents=True, exist_ok=True)
         edge_lines = []
         for page in doc:
             with unrotated_page(page):
@@ -180,6 +212,12 @@ def extract_images(
                 clip = pymupdf.Rect(bb.x0 - RENDER_PAD, bb.y0 - RENDER_PAD, bb.x1 + RENDER_PAD, bb.y1 + RENDER_PAD) & page_rect
                 if clip.is_empty:
                     continue
+                if max_figures > 0 and len(saved) >= max_figures:
+                    _discard_partial_extracted(saved, safe_out_dir, created_out_dir)
+                    raise ValueError(
+                        f"PDF exceeded the {max_figures:,}-figure extraction safety limit on page {pno}/{total_pages}: "
+                        f"{pdf_path} (split the PDF into smaller parts/chapters before translating)."
+                    )
                 out_name = f"fig_p{pno}_{idx}.png"
                 out_path = safe_out_dir / out_name
                 desired_zoom = dpi / 72.0

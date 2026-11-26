@@ -1317,6 +1317,80 @@ class TestPathGuardsModule(unittest.TestCase):
         self.assertEqual(res_html.name, "doc_CON.html")
         self.assertTrue(res_html.is_file())
 
+        # 5. Output extension lock: -OutHtmlPath requires .html (and in-place -HtmlPath requires .html); -OutPdfPath requires .pdf
+        import output_paths as opaths
+
+        for bad_html_out in (
+            out_dir / "payload.bat",
+            out_dir / "payload.cmd",
+            out_dir / "payload.ps1",
+            out_dir / "payload.hta",
+            out_dir / "payload.htm",
+            out_dir / "payload.pdf",
+            out_dir / "payload",
+            out_dir / ".html",
+            str(out_dir / "payload.html."),
+            str(out_dir / "payload.ht$ml"),
+        ):
+            with self.subTest(bad_html_out=str(bad_html_out)):
+                with self.assertRaisesRegex(ValueError, r"Refusing invalid output file extension for -OutHtmlPath \(expected '\.html'\)"):
+                    opaths.prepare_sanitized_output_path(str(bad_html_out), label="-OutHtmlPath")
+                with self.assertRaisesRegex(ValueError, r"Refusing invalid output file extension for -OutHtmlPath \(expected '\.html'\)"):
+                    pkg.embed_images_and_package(
+                        html_path=draft,
+                        optimize_image_bytes_fn=iops._optimize_image_bytes,
+                        out_html_path=str(bad_html_out),
+                        preserve_layout=True,
+                    )
+
+        for bad_pdf_out in (
+            out_dir / "payload.bat",
+            out_dir / "payload.exe",
+            out_dir / "payload.html",
+            out_dir / "payload",
+            out_dir / ".pdf",
+            str(out_dir / "payload.pdf."),
+            str(out_dir / "payload.pd*f"),
+        ):
+            with self.subTest(bad_pdf_out=str(bad_pdf_out)):
+                with self.assertRaisesRegex(ValueError, r"Refusing invalid output file extension for -OutPdfPath \(expected '\.pdf'\)"):
+                    opaths.prepare_sanitized_output_path(str(bad_pdf_out), label="-OutPdfPath")
+                with self.assertRaisesRegex(ValueError, r"Refusing invalid output file extension for -OutPdfPath \(expected '\.pdf'\)"):
+                    pkg.embed_images_and_package(
+                        html_path=draft,
+                        optimize_image_bytes_fn=iops._optimize_image_bytes,
+                        out_html_path=str(out_dir / "ok.html"),
+                        out_pdf_path=str(bad_pdf_out),
+                        preserve_layout=True,
+                    )
+                with self.assertRaisesRegex(ValueError, r"Refusing invalid output file extension for -OutPdfPath \(expected '\.pdf'\)"):
+                    pdfx.html_to_pdf(draft, out_pdf_path=str(bad_pdf_out))
+        self.assertFalse((out_dir / "ok.html").exists(), "rejected -OutPdfPath must fail before writing HTML output")
+
+        # Case-insensitive .HTML / .PDF are accepted
+        upper_html, _ = pkg.embed_images_and_package(
+            html_path=draft,
+            optimize_image_bytes_fn=iops._optimize_image_bytes,
+            out_html_path=str(out_dir / "UPPER_NAME.HTML"),
+            preserve_layout=True,
+        )
+        self.assertEqual(upper_html.name, "UPPER_NAME.HTML")
+        self.assertEqual(
+            opaths.prepare_sanitized_output_path(str(out_dir / "UPPER_NAME.PDF"), label="-OutPdfPath").name,
+            "UPPER_NAME.PDF",
+        )
+
+        # In-place mode (empty out_html_path) also refuses non-.html input files
+        non_html_draft = self.tmp_dir / "sneaky.bat"
+        non_html_draft.write_text("<!DOCTYPE html><html><head><title>S</title></head><body><p>OK</p></body></html>", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, r"Refusing invalid output file extension for -HtmlPath \(expected '\.html'\)"):
+            pkg.embed_images_and_package(
+                html_path=non_html_draft,
+                optimize_image_bytes_fn=iops._optimize_image_bytes,
+                out_html_path="",
+                preserve_layout=True,
+            )
+
 
 class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
     def setUp(self) -> None:
@@ -1804,7 +1878,8 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
             '<a href="#sec1">Jump</a> '
             '<a href="https://doi.org/10.1000/xyz">DOI</a> '
             '<a href="mailto:author@example.org">Email</a>'
-            r'<p>\( x = 1 \) and \( \href{https://doi.org/10.1000/1}{ref} + \style{color:red}{y} \)</p>'
+            r'<p>\( x = 1 \) and \( \newcommand{\R}{\mathbb{R}} \def\norm#1{\left\|#1\right\|} x \in \R \)</p>'
+            r'<p>\( \href{https://doi.org/10.1000/1\#sec}{ref} + \style{color:#0369a1}{y} \)</p>'
             '<svg><defs><circle id="dot" r="2"/></defs><use href="#dot"/></svg>'
             "</body></html>"
         )
@@ -1879,6 +1954,60 @@ class TestHtmlPackagerCoreAndTranscript(unittest.TestCase):
                 '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
                 r'<body><p>\( \style{background:url(https://evil.example/leak)}{x} \)</p></body></html>',
                 r"Disallowed external resource reference\(s\).*LaTeX \\style",
+            ),
+            (
+                "LaTeX \\href nested braces Windows protocol bypass",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \href{ms-settings:display#{a}}{Click} \)</p></body></html>',
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href\{ms-settings:display#\{a\}\}",
+            ),
+            (
+                "LaTeX \\def alias for \\href",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \def\h{\href} \h{search-ms:query=secret}{Click} \)</p></body></html>',
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href",
+            ),
+            (
+                "LaTeX \\let alias for \\href",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \let\h=\href \h{search-ms:query=secret}{Click} \)</p></body></html>',
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href",
+            ),
+            (
+                "LaTeX \\let alias with trailing decoy https brace",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \let\h=\href{https://example.org}{ok} \h{search-ms:query=secret}{Click} \)</p></body></html>',
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href inside macro definition",
+            ),
+            (
+                "LaTeX unbraced \\newcommand alias with decoy https brace",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \newcommand{\h}\href{https://example.org}{ok} \h{search-ms:query=secret}{Click} \)</p></body></html>',
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href inside macro definition",
+            ),
+            (
+                "LaTeX \\def parameterized wrapper around \\href{#1}",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \def\h#1{\href{#1}} \h{search-ms:query=secret}{Click} \)</p></body></html>',
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href inside macro definition",
+            ),
+            (
+                "LaTeX \\href with macro-expanded URL \\u",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \def\u{search-ms:query=secret} \href{\u}{Click} \)</p></body></html>',
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href\{\\u\}",
+            ),
+            (
+                "LaTeX \\href with TeX % comment before brace",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                "<body><p>\\( \\href % comment\n {search-ms:query=secret}{Click} \\)</p></body></html>",
+                r"Disallowed dangerous URI\(s\).*LaTeX \\href\{search-ms:query=secret\}",
+            ),
+            (
+                "LaTeX \\newcommand wrapper around \\style{#1}",
+                '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script></head>'
+                r'<body><p>\( \newcommand{\s}[1]{\style{#1}{x}} \s{background:url(https://evil.example/a)} \)</p></body></html>',
+                r"Disallowed external resource reference\(s\).*LaTeX \\style inside macro definition",
             ),
         ]
         for label, bad_html, expected_rx in red_team_cases:

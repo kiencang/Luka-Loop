@@ -1302,5 +1302,121 @@ class TestTickRowLabels(unittest.TestCase):
             self.assertFalse(_is_label_row(tb(text, rows)), text)
 
 
+class TestSMaskAndPdfBombLimits(unittest.TestCase):
+    """Guard against oversized/mismatched SMask decompression bombs and PDF page-tree / figure-count bombs."""
+
+    def test_oversized_smask_is_rejected_from_xref_headers_without_decoding(self) -> None:
+        from unittest import mock
+
+        import figure_detector.raster as raster
+
+        # Create a PDF containing a small RGBA image (creates an Image XObject + SMask XObject).
+        rgba = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 80, 80), True)
+        rgba.clear_with(255)
+        rgba.set_rect(pymupdf.IRect(20, 20, 60, 60), (20, 80, 180, 255))
+        doc = pymupdf.open()
+        page = doc.new_page(width=400, height=400)
+        page.insert_image(pymupdf.Rect(50, 50, 250, 250), stream=rgba.tobytes("png"))
+        page.insert_text((50, 270), "Figure 1: Sample with soft mask.", fontsize=BODY)
+        buf = doc.tobytes()
+        doc.close()
+
+        # 1. Valid matching SMask is accepted and decoded normally.
+        with pymupdf.open(stream=buf, filetype="pdf") as clean_doc:
+            info = clean_doc[0].get_image_info(xrefs=True)[0]
+            sm_xref = int(clean_doc.xref_get_key(info["xref"], "SMask")[1].split()[0])
+            self.assertTrue(raster._smask_matches_size(clean_doc, sm_xref, 80, 80, 60_000_000))
+
+        # 2. Tamper the SMask xref header to advertise a 50,000 x 50,000 bomb: Pixmap(doc, sm_xref) must never run.
+        with pymupdf.open(stream=buf, filetype="pdf") as bomb_doc:
+            info = bomb_doc[0].get_image_info(xrefs=True)[0]
+            img_xref = info["xref"]
+            sm_xref = int(bomb_doc.xref_get_key(img_xref, "SMask")[1].split()[0])
+            bomb_doc.xref_set_key(sm_xref, "Width", "50000")
+            bomb_doc.xref_set_key(sm_xref, "Height", "50000")
+            self.assertFalse(raster._smask_matches_size(bomb_doc, sm_xref, 80, 80, 60_000_000))
+
+            real_pixmap = pymupdf.Pixmap
+
+            def guarded_pixmap(*args, **kwargs):
+                if len(args) >= 2 and args[1] == sm_xref:
+                    raise AssertionError("Pixmap must not decode oversized/mismatched SMask xref")
+                return real_pixmap(*args, **kwargs)
+
+            fd._ensure_pymupdf()
+            with mock.patch.object(raster.pymupdf, "Pixmap", side_effect=guarded_pixmap):
+                rects, _ = fd.collect_page_figures(bomb_doc[0])
+            self.assertEqual(len(rects), 1)
+
+    def test_page_limit_and_figure_limit_fail_fast_and_allow_dev_zero_override(self) -> None:
+        import shutil
+        import tempfile
+        from unittest import mock
+
+        import figure_detector.extract as ext
+        import image_ops as iops
+
+        self.assertEqual(iops.MAX_PDF_PAGES, 300)
+        self.assertEqual(iops.MAX_EXTRACTED_FIGURES, 1000)
+
+        tmp = Path(tempfile.mkdtemp(prefix="luka_bomb_"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+
+        # Build a 301-page PDF; page 301 has one small raster figure.
+        over_pdf = tmp / "p301.pdf"
+        doc = pymupdf.open()
+        for _ in range(300):
+            doc.new_page(width=200, height=200)
+        last = doc.new_page(width=300, height=300)
+        last.insert_image(pymupdf.Rect(40, 40, 200, 200), stream=_png_with_white_margin(160, 160, (10, 10, 150, 150)))
+        last.insert_text((40, 220), "Figure 1: Tail image.", fontsize=BODY)
+        doc.save(over_pdf)
+        doc.close()
+
+        # 1. Default 300-page limit rejects 301-page PDF before scanning running heads or creating out_dir.
+        out_301 = tmp / "out_301"
+        with mock.patch.object(ext, "page_edge_lines", side_effect=AssertionError("must reject before scanning pages")):
+            with self.assertRaisesRegex(ValueError, "301 pages, exceeding the 300-page safety limit"):
+                ext.extract_images(over_pdf, out_301)
+        self.assertFalse(out_301.exists(), "rejected PDF must not create output directory")
+
+        pages_301 = tmp / "pages_301"
+        with self.assertRaisesRegex(ValueError, "301 pages, exceeding the 300-page safety limit"):
+            iops.render_pages(over_pdf, pages_301, pages="1")
+        self.assertFalse(pages_301.exists(), "rejected render_pages must not create output directory")
+
+        # Boundary: exactly 300 pages is accepted.
+        ok_300 = tmp / "p300.pdf"
+        with pymupdf.open(over_pdf) as d:
+            d.delete_page(300)
+            d.save(ok_300)
+        self.assertEqual(ext.extract_images(ok_300, tmp / "out_300"), [])
+
+        # Dev override: max_pages=0 allows > 300-page books.
+        dev_saved = ext.extract_images(over_pdf, tmp / "out_dev", dpi=72, max_pages=0)
+        self.assertEqual(len(dev_saved), 1)
+        self.assertEqual(len(iops.render_pages(over_pdf, tmp / "pages_dev", scale=1.0, pages="301", max_pages=0)), 1)
+
+        # 2. Figure-count limit aborts cleanly, removes partial PNGs & empty created dir, and skips manifest.json.
+        many_figs_pdf = tmp / "four_figs.pdf"
+        doc2 = pymupdf.open()
+        img_bytes = _png_with_white_margin(160, 160, (10, 10, 150, 150))
+        for p_idx in range(4):
+            pg = doc2.new_page(width=300, height=300)
+            pg.insert_image(pymupdf.Rect(40, 40, 200, 200), stream=img_bytes)
+            pg.insert_text((40, 220), f"Figure {p_idx + 1}: Repeated image.", fontsize=BODY)
+        doc2.save(many_figs_pdf)
+        doc2.close()
+
+        capped_out = tmp / "capped_figs"
+        with self.assertRaisesRegex(ValueError, "3-figure extraction safety limit"):
+            ext.extract_images(many_figs_pdf, capped_out, dpi=72, write_meta=True, max_figures=3)
+        self.assertFalse(capped_out.exists(), "partial PNGs and newly created empty directory must be cleaned up")
+
+        # Dev override: max_figures=0 extracts all 4 figures.
+        unlimited_out = tmp / "unlimited_figs"
+        self.assertEqual(len(ext.extract_images(many_figs_pdf, unlimited_out, dpi=72, max_figures=0)), 4)
+
+
 if __name__ == "__main__":
     unittest.main()
