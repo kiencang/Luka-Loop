@@ -67,6 +67,11 @@ class DetectorConfig:
     label_gap_top: float = 18.0
     label_gap_bottom: float = 26.0
     label_max_growth: float = 60.0
+    # A tick-value or short-label row (numbers or words of <= 4 characters) is not prose despite its word count
+    label_row_max_gap: float = 5.0           # max gap from the box to the row, pt
+    label_row_max_words: int = 24
+    label_row_max_rows: int = 2
+    label_row_max_word_len: int = 4
     # Phase 6b: labels joined to a figure by a thin stroke (leader line, axis, reference line)
     stroke_label_touch: float = 6.0          # max distance from the stroke's outer end to the label line, pt
     stroke_label_max_growth: float = 100.0   # max growth per side from the box before this step, pt

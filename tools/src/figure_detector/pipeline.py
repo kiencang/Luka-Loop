@@ -202,6 +202,27 @@ def _is_bullet_line(ws: list[str]) -> bool:
     return bool(ws) and (ws[0] in _BULLETS or all(w in _BULLETS or w == "-" for w in ws))
 
 
+# A number as set on an axis: "-0.8", "1.6", "4.0%", "1e+02", "5×10³", "10⁻⁹" (superscripts folded to digits)
+_SUPERSCRIPTS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺−", "0123456789-+-")
+_NUMBER_TOKEN_RE = re.compile(r"[-+±]?(?:\d+(?:[.,]\d+)*|[.,]\d+)(?:[eE][-+]?\d+)?(?:[×x]10[-+]?\d*)?[%°]?")
+
+
+def _is_label_row(tb, cfg: DetectorConfig = DEFAULT_CONFIG) -> bool:
+    """A row of tick values or short labels ("1.6 1.8 ... 4.0", "Bi Bi Pb Pb Zn Zn", "M=1 N=1 K=L"): 1-2 visual
+    rows, fewer than 25 words, each word a number or at most 4 characters long. PyMuPDF joins a horizontal row of
+    tick values into one block, which at 12+ words would otherwise count as prose (DocLayNet 1001.0805 p5)."""
+    ws = tb.text.split()
+    return (
+        bool(ws)
+        and len(ws) <= cfg.label_row_max_words
+        and tb.rows <= cfg.label_row_max_rows
+        and all(
+            len(w) <= cfg.label_row_max_word_len or _NUMBER_TOKEN_RE.fullmatch(w.translate(_SUPERSCRIPTS).strip("()[]"))
+            for w in ws
+        )
+    )
+
+
 def _label_lines(ctx: PageContext) -> list[tuple[pymupdf.Rect, bool]]:
     """Label-like text lines outside captions, prose and page margins, as (rect, set larger than body text)."""
     lines: dict[tuple[int, int], pymupdf.Rect] = {}
@@ -373,8 +394,9 @@ def _attach_adjacent_label_lines(
         return
     gutters = _column_gutters(ctx, [c.rect for c in candidates])
     captions = [tb.rect for tb in ctx.fig_captions + ctx.tab_captions]
+    # (rect, is a tick-value / short-label row): such a row is not prose when it sits within label_row_max_gap pt
     prose = [
-        tb.rect
+        (tb.rect, _is_label_row(tb, cfg))
         for tb in ctx.text_blocks
         if tb.kind == "text" and tb.word_count >= 12 and not _is_short_axis_label(tb, vertical_ok=True)
     ]
@@ -429,7 +451,12 @@ def _attach_adjacent_label_lines(
                 shrunk = [o + (1, 1, -1, -1) for o in others]
                 if any(expanded.intersects(o) for o in shrunk if not o.is_empty):
                     continue
-                if any(not orig.intersects(p) and (expanded & p).get_area() >= 0.25 * max(1.0, p.get_area()) for p in prose):
+                if any(
+                    not orig.intersects(p)
+                    and (expanded & p).get_area() >= 0.25 * max(1.0, p.get_area())
+                    and not (row and _rect_gap(cur, p) <= cfg.label_row_max_gap)
+                    for p, row in prose
+                ):
                     continue
                 if any((t + (-1, -1, 1, 1)).contains(lr) for t in tables()):
                     continue  # a table row (tables are only searched once something is about to be attached)

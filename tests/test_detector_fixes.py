@@ -1245,5 +1245,62 @@ class TestMaximizeCaptions(unittest.TestCase):
         self.assertEqual([c.caption_idx for c in self._run(20)], [1, None])
 
 
+class TestTickRowLabels(unittest.TestCase):
+    """PyMuPDF joins a horizontal row of tick values into one text block; at 12+ words it counted as prose, so the
+    "never swallow prose" guard kept it (and the axis title under it) out of the figure (DocLayNet 1001.0805 p5,
+    1001.2227 p2, 1101.1893 p17). A row of numbers or words of <= 4 characters, 1-2 rows, under 25 words and within
+    5 pt of the box is not prose."""
+
+    @staticmethod
+    def _page(row_baseline: float) -> pymupdf.Page:
+        doc = pymupdf.open()
+        page = doc.new_page(width=595, height=791)
+        page.draw_rect(pymupdf.Rect(100, 100, 400, 300), color=(0, 0, 0), width=0.8)
+        for k, col in enumerate(((1, 0, 0), (0, 0, 1), (0, 0.6, 0))):
+            page.draw_polyline([pymupdf.Point(100 + i * 10, 290 - k * 40 - 60 * abs(i / 30 - 0.5) * (k + 1))
+                                for i in range(31)], color=col, width=1)
+        for i in range(13):
+            page.draw_line((100 + i * 25, 300), (100 + i * 25, 296), color=(0, 0, 0), width=0.6)
+        page.insert_text((94, row_baseline), "      ".join(f"{1.6 + 0.2 * i:.1f}" for i in range(13)), fontsize=8)
+        page.insert_text((230, row_baseline + 16), "Energy (GeV)", fontsize=9)
+        page.insert_text((100, 350), "Fig. 1 Beam asymmetry as a function of the photon energy", fontsize=9)
+        _paragraph(page, 420, 6)
+        return page
+
+    def _box(self, row_baseline: float, **cfg) -> pymupdf.Rect:
+        from dataclasses import replace
+
+        from figure_detector import pipeline
+        from figure_detector.model import DEFAULT_CONFIG
+
+        _, cands, _ = pipeline._run_page_pipeline(self._page(row_baseline), cfg=replace(DEFAULT_CONFIG, **cfg))
+        self.assertEqual(len(cands), 1)
+        return cands[0].rect
+
+    def test_tick_row_and_axis_title_are_attached(self) -> None:
+        self.assertLessEqual(self._box(310, label_row_max_gap=-1).y1, 301, "precondition: the row counts as prose")
+        self.assertGreaterEqual(self._box(310).y1, 328)  # tick row (1 pt below) and the axis title under it
+
+    def test_row_farther_than_5pt_stays_prose(self) -> None:
+        self.assertLessEqual(self._box(316).y1, 301)  # row 7 pt below the plot
+
+    def test_label_row_shapes(self) -> None:
+        from figure_detector.pipeline import _is_label_row
+
+        def tb(text: str, rows: int = 1) -> TextBlock:
+            return TextBlock(pymupdf.Rect(0, 0, 300, 10), text, "text", rows=rows)
+
+        for text in ("1.6 1.8 2.0 2.2 2.4 2.6 2.8 3.0 3.2 3.4 3.6 3.8 4.0",
+                     "Bi Bi Bi Bi Pb Pb Pb Pb Zn Zn Zn Zn Nb Nb Nb Nb",
+                     "M=1 N=1 K=L M=1 N=1 K=L M=1 N=1 K=L M=1 N=1 K=L",
+                     "10 -9 10 -8 10⁻⁷ 0.001 1e+02 -0.25 5×10³ 45% 12.5° (0.5) 1,000"):
+            self.assertTrue(_is_label_row(tb(text)), text)
+        for text, rows in (("The measured response follows the expected trend across all sampled operating points", 1),
+                           ("1.6 1.8 2.0 2.2 2.4 2.6 2.8 3.0 3.2 3.4 3.6 3.8 4.0", 3),
+                           (" ".join(["0.5"] * 25), 1),
+                           ("minimum distance of the orbit from the cluster centre", 1)):
+            self.assertFalse(_is_label_row(tb(text, rows)), text)
+
+
 if __name__ == "__main__":
     unittest.main()
