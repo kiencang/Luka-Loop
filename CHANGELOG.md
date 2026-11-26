@@ -2,6 +2,14 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.40] - 2026-11-26
+### Fixed
+- **Nhãn ngắn nằm giữa hình và chú thích chặn mất chú thích:** trước đây mọi khối chữ từ 4 từ trở lên nằm giữa khung hình và chú thích bên dưới (hoặc bên trên) đều chặn việc ghép, nên hình có nhãn kiểu "Desinsertion of the Anconeus muscle" ngay dưới ảnh không nhận được chú thích. Hình mồ côi sau đó còn mượn chú thích của hình bên cạnh rồi bị gộp vào (Surgical Atlas p345). Nay khối chữ thường chen giữa chỉ chặn khi trông giống văn bản: **hơn 8 từ hoặc hơn 3 hàng** (`DetectorConfig.caption_blocker_max_label_words`, `caption_blocker_max_label_rows`). Tiêu đề bảng vẫn luôn chặn dù ngắn ("TABLE VI / QUEUE RANKING ...", DocLayNet 1504.02490 p8); nhãn trục ngắn và khối dưới 4 từ vẫn được bỏ qua như cũ.
+  - Số hàng là **hàng thật trên trang** (`TextBlock.rows`, `_count_visual_rows`): các dòng PDF chồng nhau theo chiều dọc ≥ 40% tính là một hàng. PyMuPDF tách `−t [GeV²]` thành bốn dòng (chỉ số trên, dấu ngoặc) nhưng đó vẫn là một hàng. Cách thử đầu tiên lấy chiều cao chia cho cỡ chữ chú thích đã đếm nhầm khối nhãn trục cao thành nhiều hàng (DocLayNet 1001.1952 p11).
+  - DocLayNet (cả 4 tập, 14.117 trang): trang lỗi nặng 491 → 482, hình đúng 4.759 → 4.767, hình cắt nặng 314 → 308, bỏ sót 75 → 73, ảnh lấn chữ 157 → 154, gộp sai 5 → 4, ô chữ bị lấn 1.436 → 1.409, mảnh vụn 542 → 514, F1 0,8908 → 0,8946. Đã xem bằng mắt các trang đổi ngoài holdout: gần như tất cả tốt hơn hoặc như cũ, 1 trang xấu đi (1002.2169 p13: chú thích FIG. 7 bám vào mảnh dưới cùng nên khung chỉ còn phần dưới hình).
+  - Surgical Atlas (đo trên bản mô phỏng): p345 tách đúng hai hình, mỗi hình đúng chú thích (chú thích mồ côi 11 → 10); p361 khung hình gọn hơn. Book of Proofs p222: khung giữ nguyên nhưng một sơ đồ dạng bảng nay nhận chú thích nên được xếp là hình. 3 sách còn lại trong `dev/typical-pdf`: 0 trang đổi.
+  - Thêm test `TestLabelBetweenFigureAndCaption`; `TestForeignCaptionBlocksMerge` nay dùng dòng chen giữa dài hơn 8 từ để vẫn tái hiện tình huống gộp.
+
 ## [1.1.39] - 2026-11-26
 ### Fixed
 - **Hình và chú thích của nó ở hai chỗ, cả hai đều "mồ côi" vì chú thích nằm hơi xa hoặc có hàng nhãn chen giữa:** ví dụ chú thích đặt bên cạnh, ngang đáy hình nhưng cách 110 pt (Surgical Atlas p109), hoặc hàng nhãn nằm giữa hình và chú thích (p157, p376). Nay sau mọi bước khác, nếu trên trang còn **đúng một** hình chưa có chú thích và **đúng một** chú thích hình chưa có hình, hai thứ được ghép với nhau (`_pair_last_orphan_caption`). Bước này chỉ gắn chú thích, không đổi khung. Ba chốt chặn để tránh ghép sai:

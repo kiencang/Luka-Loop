@@ -39,6 +39,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.37 | 4.735 (90,0%) | 322 | 113 | 89 | 209 | 9 | 541 | 89,2% | 0,33 |
 | v1.1.38 | 4.759 (90,5%) | 314 | 111 | 75 | 157 | 5 | 491 | 89,1% | 0,34 |
 | v1.1.39 | 4.759 (90,5%) | 314 | 111 | 75 | 157 | 5 | 491 | 89,1% | 0,37 |
+| v1.1.40 | 4.767 (90,6%) | 308 | 111 | 73 | 154 | 4 | 482 | 89,5% | 0,37 |
 
 ¹ **Tốc độ chỉ mang tính tương đối:** phụ thuộc cấu hình máy và điều kiện lúc đo (số tiến trình song song, máy có đang chạy việc khác không). Các lần đo v1.1.23 và v1.1.24 chạy khi máy đang bận việc khác. Đừng so tốc độ giữa các dòng như số liệu chính xác.
 
@@ -65,6 +66,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.37 | 3.223 · 382 | 841 · 107 | 350 · 19 | 321 · 33 |
 | v1.1.38 | 3.246 · 339 | 838 · 104 | 351 · 18 | 324 · 30 |
 | v1.1.39 | 3.246 · 339 | 838 · 104 | 351 · 18 | 324 · 30 |
+| v1.1.40 | 3.252 · 332 | 839 · 103 | 352 · 17 | 324 · 30 |
 
 ## Nguồn số liệu
 
@@ -87,6 +89,7 @@ Mỗi lần phát hành thêm một dòng. Các bản cùng mã tách hình (ch�
 | v1.1.37 | `3a54eca` | 2026-11-26 | `0db0eae46f031cda` |
 | v1.1.38 | `672ca56` | 2026-11-26 | `dcbce6653ee25559` ³ |
 | v1.1.39 | `00faebc` | 2026-11-26 | `71bd5b2cfc25a2c3` |
+| v1.1.40 | `89d2bac` | 2026-11-26 | `0f52aa309044de46` |
 
 Dấu vân tay là mã băm của `tools/src/figure_detector/*.py` và `tools/src/image_ops.py`; kết quả từng trang nằm trong `%TEMP%\luka_doclaynet_eval\pages\<dấu vân tay>.jsonl` (bộ đệm cục bộ, có thể bị xóa).
 
@@ -109,3 +112,4 @@ Dấu vân tay là mã băm của `tools/src/figure_detector/*.py` và `tools/sr
 - **v1.1.37:** chú thích của hình khác nằm trong khoảng trống giữa hai khung chặn việc gộp và việc lan chú thích. DocLayNet không đổi trang nào nên số liệu giống hệt v1.1.36; trên sách Surgical Atlas tách đúng 2 trang bị gộp hình (p157, p213).
 - **v1.1.38:** khung mỗi nét vẽ vector được cắt theo vùng nhìn thấy (clip) của nó, nên phần nét bị che ("dải ruy băng") không còn kéo khung hình lấn sang chữ; bộ dò bảng vẫn dùng khung gốc. Trang lỗi nặng 541 → 491, ảnh dính chữ 209 → 157, bỏ sót 89 → 75; F1 giảm nhẹ vì hình nhiều ô trước đây gộp nhờ ruy băng nay tách thành từng ô (vẫn đủ ảnh). Chấm mù AB10: mới tốt hơn 10, cũ tốt hơn 2.
 - **v1.1.39:** trang còn đúng một hình chưa có chú thích và đúng một chú thích chưa có hình thì ghép hai thứ với nhau (cách tối đa 150 pt, chú thích tối đa 10 dòng, không ghép khi chú thích nằm sát một hình đã có chú thích). Bước này chỉ gắn chú thích, không đổi khung, nên số liệu khung giống hệt v1.1.38. 162 trang có hình được gắn thêm chú thích (37 hình chuyển từ "ô bảng" sang "hình"); trong 162 ảnh mới có chú thích, 152 trùng khung một hình có nhãn. Trên sách Surgical Atlas chú thích mồ côi 21 → 11. Tốc độ đo khi máy đang chạy việc khác.
+- **v1.1.40:** khối chữ thường nằm giữa hình và chú thích chỉ chặn việc ghép khi dài hơn 8 từ hoặc hơn 3 hàng thật (các dòng PDF chồng nhau theo chiều dọc tính là một hàng); tiêu đề bảng vẫn luôn chặn. Nhãn ngắn dưới ảnh không còn che chú thích, nên ít hình mồ côi mượn chú thích của hình bên cạnh rồi bị gộp. Mảnh vụn 542 → 514.
