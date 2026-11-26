@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from .caption_match import (
     _has_obstacle_between,
     _is_table_row_pair,
@@ -13,6 +15,7 @@ from .geometry import (
     _rect_gap,
     _vert_overlap,
 )
+from .main_text import main_text_rects
 from .model import (
     DEFAULT_CONFIG,
     CandidateBox,
@@ -20,6 +23,23 @@ from .model import (
     PageContext,
     pymupdf,
 )
+
+
+def _hairline_overlap(a: pymupdf.Rect, b: pymupdf.Rect) -> bool:
+    """True when `a` and `b` overlap by more than 2 pt in both directions (a shared edge or a hairline is not)."""
+    i = a & b
+    return not i.is_empty and i.width > 2.0 and i.height > 2.0
+
+
+def _newly_covers_main_text(
+    ctx: PageContext, before: Sequence[pymupdf.Rect], after: pymupdf.Rect, cfg: DetectorConfig = DEFAULT_CONFIG
+) -> pymupdf.Rect | None:
+    """Return a main text block (main_text.py) that `after` overlaps and none of the `before` boxes did, else None.
+    Body text is never part of a figure, so a merge or a label step that would grow a box into it must not happen."""
+    for rect in main_text_rects(ctx, cfg):
+        if _hairline_overlap(after, rect) and not any(_hairline_overlap(b, rect) for b in before):
+            return rect
+    return None
 
 
 def _violates_merge_invariants(
@@ -49,6 +69,11 @@ def _violates_merge_invariants(
 
     if _spans_foreign_caption(a.rect, b.rect, (a.caption_idx, b.caption_idx), ctx, cfg):
         ctx.log(f"merge:block foreign_caption {a.rect} + {b.rect}")
+        return True
+
+    main = _newly_covers_main_text(ctx, (a.rect, b.rect), union, cfg)
+    if main is not None:
+        ctx.log(f"merge:block main_text {a.rect} + {b.rect} over {main}")
         return True
 
     # Never swallow >=2 newly enclosed long prose blocks that weren't already inside a or b.

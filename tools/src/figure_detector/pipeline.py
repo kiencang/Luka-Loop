@@ -18,6 +18,7 @@ from .geometry import (
     _rect_gap,
 )
 from .merge import (
+    _newly_covers_main_text,
     merge_candidates,
 )
 from .model import (
@@ -173,6 +174,8 @@ def _expand_plot_axis_labels(
 
                 expanded = cur | tr
                 if any(_rect_gap(expanded, cap.rect) < 3.0 for cap in all_captions):
+                    continue
+                if _newly_covers_main_text(ctx, (cur,), expanded) is not None:
                     continue
                 if any(expanded.intersects(orect) for orect in other_rects):
                     continue
@@ -442,6 +445,8 @@ def _attach_adjacent_label_lines(
                 if col_edges and _crosses_column_edge(orig, lr, col_edges):
                     continue
                 expanded = cur | lr
+                if _newly_covers_main_text(ctx, (cur,), expanded, cfg) is not None:
+                    continue  # body text beside the box (Surgical Atlas p248)
                 g = cfg.label_max_growth
                 if (orig.x0 - expanded.x0 > g or expanded.x1 - orig.x1 > g
                         or orig.y0 - expanded.y0 > g or expanded.y1 - orig.y1 > g):
@@ -570,6 +575,8 @@ def _attach_stroke_labels(
                 if any(o.intersects(lab) for o in others):
                     continue
                 exp = cur | lab
+                if _newly_covers_main_text(ctx, (cur,), exp, cfg) is not None:
+                    continue
                 if (orig.x0 - exp.x0 > g or exp.x1 - orig.x1 > g
                         or orig.y0 - exp.y0 > g or exp.y1 - orig.y1 > g):
                     continue
@@ -635,6 +642,8 @@ def _attach_glyph_images(
             if col_edges and _crosses_column_edge(orig, r, col_edges):
                 continue
             expanded = cur | r
+            if _newly_covers_main_text(ctx, (cur,), expanded, cfg) is not None:
+                continue
             if any(expanded.intersects(c) for c in captions):
                 continue  # a glyph image beside a caption's first line (DocLayNet 1001.2573 p2)
             if any(expanded.intersects(o) for o in others if not o.is_empty):

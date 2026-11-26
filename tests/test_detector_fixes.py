@@ -440,7 +440,9 @@ class TestColumnGutter(unittest.TestCase):
         import figure_detector.pipeline as pipe
 
         page = self._two_column_page()
-        with mock.patch.object(pipe, "_column_gutters", return_value=[]):
+        # the main-text guard alone would also stop this crossing: switch it off too to test the gutter rule
+        with mock.patch.object(pipe, "_column_gutters", return_value=[]), \
+                mock.patch.object(pipe, "_newly_covers_main_text", return_value=None):
             before = fd.collect_page_figures(page)[0]
         self.assertEqual(len(before), 1, before)
         self.assertGreater(before[0].x1, 316, f"fixture must reproduce the crossing without the rule: {before}")
@@ -461,7 +463,9 @@ class TestColumnGutter(unittest.TestCase):
         ctx, cands, _ = pipe._run_page_pipeline(page)
         self.assertEqual(pipe._column_gutters(ctx), [], "precondition: paragraphs and captions alone find no gutter")
         self.assertTrue(pipe._column_gutters(ctx, [c.rect for c in cands]), "the figure box reveals the gutter")
-        with mock.patch.object(pipe, "_column_gutters", return_value=[]):
+        # the main-text guard alone would also stop this crossing: switch it off too to test the gutter rule
+        with mock.patch.object(pipe, "_column_gutters", return_value=[]), \
+                mock.patch.object(pipe, "_newly_covers_main_text", return_value=None):
             before = fd.collect_page_figures(page)[0]
         self.assertEqual(len(before), 1, before)
         self.assertGreater(before[0].x1, 316, f"fixture must reproduce the crossing without the rule: {before}")
@@ -568,6 +572,38 @@ class TestGlyphImageLabels(unittest.TestCase):
         self.assertEqual(fd.collect_page_figures(page)[0], [self.FRAME])
 
 
+class TestMainTextGuard(unittest.TestCase):
+    """Two drawings stacked in the left column share the caption below; the top one runs a little into the right
+    column above its body text (Surgical Atlas p248). Merging them made one rectangle that covered the right
+    column's paragraphs. A plain text block of >= 40 words is body text: no merge or label step may newly cover it."""
+
+    BODY_TEXT = ("are marked with the electrocautery and a guide pin with an eyelet is inserted through the deep "
+                 "anterolateral portal and placed at the center of the anterolateral bundle foot print and drilled "
+                 "to exit the opposite cortex and the skin of the thigh while the cannulated reamer follows the pin.")
+
+    @staticmethod
+    def _page(body: bool) -> pymupdf.Page:
+        doc = pymupdf.open()
+        page = doc.new_page(width=595, height=791)
+        for rect, shade in ((pymupdf.Rect(100, 70, 328, 227), 170), (pymupdf.Rect(57, 255, 298, 519), 120)):
+            pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, int(rect.width), int(rect.height)), False)
+            pix.clear_with(shade)
+            page.insert_image(rect, pixmap=pix)
+        page.insert_text((57, 548), "Fig. 15.32 Placement of the tunnel for the anterolateral bundle", fontsize=8)
+        if body:
+            page.insert_textbox(pymupdf.Rect(309, 243, 552, 400), TestMainTextGuard.BODY_TEXT, fontsize=BODY)
+        return page
+
+    def test_merge_stops_at_body_text(self) -> None:
+        self.assertEqual(fd.collect_page_figures(self._page(False))[0], [pymupdf.Rect(57, 70, 328, 519)],
+                         "without body text beside them the two drawings merge")
+        page = self._page(True)
+        rects = fd.collect_page_figures(page)[0]
+        self.assertEqual(sorted(rects, key=lambda r: r.y0), [pymupdf.Rect(100, 70, 328, 227), pymupdf.Rect(57, 255, 298, 519)])
+        words = [b for b in page.get_text("blocks") if b[0] > 300 and b[1] > 240]
+        self.assertTrue(words and len(words[0][4].split()) >= 40, words)
+
+
 class TestTopBandLabels(unittest.TestCase):
     """Label lines in the top 10% of a page were always dropped as possible running heads, so a figure set high on
     the page lost the labels above it (Surgical Atlas p34, p370). With the document's running heads known, only the
@@ -653,7 +689,9 @@ class TestColumnEdge(unittest.TestCase):
         ctx, cands, _ = pipe._run_page_pipeline(page)
         self.assertEqual(pipe._column_gutters(ctx, [c.rect for c in cands]), [], "precondition: no gutter is found")
         self.assertIn(316.0, [round(x, 1) for side, x, _, _ in pipe._column_edges(ctx, []) if side == "left"])
-        with mock.patch.object(pipe, "_column_edges", return_value=[]):
+        # the main-text guard alone would also stop this crossing: switch it off too to test the column-edge rule
+        with mock.patch.object(pipe, "_column_edges", return_value=[]), \
+                mock.patch.object(pipe, "_newly_covers_main_text", return_value=None):
             before = fd.collect_page_figures(page)[0]
         self.assertGreater(before[0].x1, 316, f"fixture must reproduce the crossing without the rule: {before}")
 
