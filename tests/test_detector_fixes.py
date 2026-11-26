@@ -515,6 +515,59 @@ class TestStrokeLabels(unittest.TestCase):
         self.assertEqual(fd.collect_page_figures(page)[0], [frame])
 
 
+class TestGlyphImageLabels(unittest.TestCase):
+    """Old plotting tools draw each tick digit as its own tiny image (DocLayNet 1001.3166, 1002.2663): no text, so
+    no label step sees it, and Phase 2 drops each one as too small. Glyph images (<= 12 pt) within 8 pt of the box
+    are taken in; farther ones (axis titles), larger images and glyphs inside a paragraph are not."""
+
+    FRAME = pymupdf.Rect(150, 300, 450, 500)
+
+    @classmethod
+    def _page(cls) -> pymupdf.Page:
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 300, 200), False)
+        pix.clear_with(150)
+        page.insert_image(cls.FRAME, pixmap=pix)
+        page.insert_text((150, 560), "Figure 1: Density of states near the Fermi energy.", fontsize=BODY)
+        return page
+
+    @staticmethod
+    def _glyph(page: pymupdf.Page, rect: pymupdf.Rect) -> None:
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 12, 14), False)
+        pix.clear_with(0)
+        page.insert_image(rect, pixmap=pix)
+
+    def test_tick_glyphs_next_to_the_frame_are_taken(self) -> None:
+        self.assertEqual(fd.collect_page_figures(self._page())[0], [self.FRAME])
+        page = self._page()  # fresh page: PyMuPDF caches a page's image list after the first read
+        for x in (150, 250, 350, 440):  # tick row 5 pt below the frame
+            self._glyph(page, pymupdf.Rect(x, 505, x + 6, 512))
+        for y in (300, 400, 490):  # tick column 7 pt left of the frame
+            self._glyph(page, pymupdf.Rect(137, y, 143, y + 7))
+        rects = fd.collect_page_figures(page)[0]
+        self.assertEqual(rects, [pymupdf.Rect(137, 300, 450, 512)])
+
+    def test_far_large_or_prose_glyph_images_are_left_out(self) -> None:
+        page = self._page()
+        self._glyph(page, pymupdf.Rect(290, 515, 296, 522))  # axis title 15 pt below: too far
+        self._glyph(page, pymupdf.Rect(455, 380, 475, 395))  # 20 pt wide: not a glyph
+        page.insert_textbox(pymupdf.Rect(456, 420, 560, 520), "The inline formula glyph sits in this paragraph of "
+                            "body text that runs beside the figure for several lines here.", fontsize=BODY)
+        self._glyph(page, pymupdf.Rect(457, 432, 463, 439))  # glyph inside the paragraph, 7 pt from the frame
+        self.assertEqual(fd.collect_page_figures(page)[0], [self.FRAME])
+
+    def test_glyph_image_touching_the_caption_is_left_out(self) -> None:
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 300, 200), False)
+        pix.clear_with(150)
+        page.insert_image(self.FRAME, pixmap=pix)
+        page.insert_text((156, 518), "FIG. 1: Formation energy versus radius of the nanotubes.", fontsize=BODY)
+        self._glyph(page, pymupdf.Rect(144, 506, 151, 513))  # marker glyph beside the caption's first line
+        self.assertEqual(fd.collect_page_figures(page)[0], [self.FRAME])
+
+
 class TestTopBandLabels(unittest.TestCase):
     """Label lines in the top 10% of a page were always dropped as possible running heads, so a figure set high on
     the page lost the labels above it (Surgical Atlas p34, p370). With the document's running heads known, only the

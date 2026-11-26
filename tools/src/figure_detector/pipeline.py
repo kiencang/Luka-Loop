@@ -585,6 +585,68 @@ def _attach_stroke_labels(
             cand.rect = cur & ctx.page_rect
 
 
+def _attach_glyph_images(
+    candidates: list[CandidateBox], ctx: PageContext, cfg: DetectorConfig, col_edges: Sequence[ColumnEdge] = ()
+) -> None:
+    """Take in axis tick values that the PDF draws as one tiny image per glyph (old plotting tools).
+
+    Such glyphs carry no text, so the label steps above never see them, and Phase 2 drops each one as too small.
+    An image whose longest side is at most `glyph_image_max_dim` pt and that lies within `glyph_image_max_gap` pt of
+    the box (measured from the box before this step, no chaining) joins it: this recovers the tick rows next to
+    the plot frame and deliberately leaves axis titles set farther out. An image is skipped when the grown box
+    would touch a caption or another figure, when it lies in a paragraph or a table, across a column gutter or
+    past an aligned text-column edge.
+    """
+    tiny = [
+        r for r in ctx.image_rects
+        if not r.is_empty and max(r.width, r.height) <= cfg.glyph_image_max_dim
+    ]
+    if not tiny:
+        return
+    gap = cfg.glyph_image_max_gap
+    gutters = _column_gutters(ctx, [c.rect for c in candidates])
+    captions = [tb.rect + (-2, -2, 2, 2) for tb in ctx.fig_captions + ctx.tab_captions]
+    blocked = [
+        tb.rect for tb in ctx.text_blocks
+        if tb.kind == "text" and tb.word_count >= 12 and not _is_short_axis_label(tb, vertical_ok=True)
+    ]
+    table_cache: list[list[pymupdf.Rect]] = []
+
+    def tables() -> list[pymupdf.Rect]:
+        if not table_cache:
+            table_cache.append([t.rect for t in ctx.get_page_tables()])
+        return table_cache[0]
+
+    for idx, cand in enumerate(candidates):
+        if cand.source == "raster" and cand.caption_idx is None:
+            continue
+        orig = pymupdf.Rect(cand.rect)
+        reach = orig + (-gap, -gap, gap, gap)
+        others = [c.rect + (1, 1, -1, -1) for j, c in enumerate(candidates) if j != idx]
+        cur = pymupdf.Rect(orig)
+        for r in tiny:
+            if not reach.intersects(r) or cur.contains(r) or _rect_gap(orig, r) > gap:
+                continue
+            centre = pymupdf.Point((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2)
+            if any(b.contains(centre) for b in blocked):
+                continue
+            if gutters and _across_gutter(orig, r, gutters):
+                continue
+            if col_edges and _crosses_column_edge(orig, r, col_edges):
+                continue
+            expanded = cur | r
+            if any(expanded.intersects(c) for c in captions):
+                continue  # a glyph image beside a caption's first line (DocLayNet 1001.2573 p2)
+            if any(expanded.intersects(o) for o in others if not o.is_empty):
+                continue
+            if any((t + (-1, -1, 1, 1)).contains(r) for t in tables()):
+                continue
+            cur = expanded
+        if cur != orig:
+            ctx.log(f"labels:glyph_images {orig} -> {cur}")
+            cand.rect = cur & ctx.page_rect
+
+
 def _drop_page_edge_tabs(
     rects: list[pymupdf.Rect], ctx: PageContext, cfg: DetectorConfig = DEFAULT_CONFIG
 ) -> list[pymupdf.Rect]:
@@ -775,6 +837,7 @@ def _run_page_pipeline(
         _expand_plot_axis_labels(candidates, ctx, col_edges)
     _attach_adjacent_label_lines(candidates, ctx, cfg, col_edges)
     _attach_stroke_labels(candidates, ctx, cfg, col_edges)
+    _attach_glyph_images(candidates, ctx, cfg, col_edges)
     _clear_running_heads(candidates, ctx)
     min_uncap_vec_dim = cfg.min_vector_dim * max(1.0, min(ctx.pw, ctx.ph) / 792.0)
     candidates = [

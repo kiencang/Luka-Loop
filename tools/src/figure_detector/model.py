@@ -75,6 +75,10 @@ class DetectorConfig:
     # Phase 6b: labels joined to a figure by a thin stroke (leader line, axis, reference line)
     stroke_label_touch: float = 6.0          # max distance from the stroke's outer end to the label line, pt
     stroke_label_max_growth: float = 100.0   # max growth per side from the box before this step, pt
+    # Phase 6c: axis tick values drawn as one tiny image per glyph (old PDFs): such images within this gap of the
+    # box are taken in (tick rows sit 3-8 pt from the plot frame; axis titles farther out are left out on purpose)
+    glyph_image_max_dim: float = 12.0        # longest side of a glyph image, pt (tick digits are 5-11 pt)
+    glyph_image_max_gap: float = 8.0         # max gap from the box to the image, pt
     # Phase 3: Vector clustering & text density
     cluster_tol_x: float = 5.0
     cluster_tol_y: float = 5.0
@@ -228,6 +232,7 @@ class PageContext:
     trace: list[str] = field(default_factory=list)
     running_heads: list[pymupdf.Rect] = field(default_factory=list)  # repeated heads/folios (running_heads.py)
     small_vector_rejects: list[pymupdf.Rect] = field(default_factory=list)  # clusters rejected as too_small
+    image_rects: list[pymupdf.Rect] = field(default_factory=list)  # every placed image (set by detect_raster_regions)
     _page_tables: list[PageTableInfo] | None = None
     deadline: float | None = None
     _clock: Callable[[], float] = field(default=time.monotonic, repr=False)

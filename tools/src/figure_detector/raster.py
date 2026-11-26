@@ -117,6 +117,7 @@ def detect_raster_regions(
     has_xobjects = bool(ctx.page.get_images(full=False))
     infos = ctx.page.get_image_info(xrefs=has_xobjects)
     trim_allowed = has_xobjects and len(infos) <= cfg.raster_trim_max_images
+    ctx.image_rects = [pymupdf.Rect(info["bbox"]) & ctx.page_rect for info in infos]
     for info in infos:
         r = pymupdf.Rect(info["bbox"]) & ctx.page_rect
         if r.is_empty or r.width < 1.0 or r.height < 1.0:
