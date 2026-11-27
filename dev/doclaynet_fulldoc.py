@@ -1,4 +1,4 @@
-"""DocLayNet pages read inside their full original arXiv paper (no-upload-dev/arxiv-b1, no-upload-dev/arxiv-b2). Dev-only tool.
+"""DocLayNet pages read inside their full original arXiv paper (no-upload-dev/arxiv-b1, -b2, -b3). Dev-only tool.
 
 DocLayNet gives every page as a one-page PDF, so the tool never has the document context it has when it translates
 a whole paper: repeated running heads cannot be found, and the label steps fall back to fixed page bands. For the
@@ -40,7 +40,7 @@ import doclaynet_facts as F  # noqa: E402
 import eval_doclaynet as ev  # noqa: E402
 
 REPO_ROOT = DEV_DIR.parent
-PAPER_DIRS = (REPO_ROOT / "no-upload-dev" / "arxiv-b1", REPO_ROOT / "no-upload-dev" / "arxiv-b2")
+PAPER_DIRS = tuple(REPO_ROOT / "no-upload-dev" / f"arxiv-b{i}" for i in (1, 2, 3))
 MIN_JACCARD = 0.8
 HEAD_CLASSES = ("Page-header", "Page-footer")
 
