@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.47] - 2026-11-27
 ### Changed
 - **Hai skill dịch thống nhất cách dịch nhãn chữ trên ảnh giữ dạng PNG (Nhóm B):** trước đây chỉ sơ đồ dựng lại bằng HTML/CSS (Nhóm A) được dặn dịch nhãn, nên với ảnh PNG agent lúc bỏ qua nhãn, lúc dịch, lúc đặt chữ dịch đè lên ảnh (xô lệch). Nay cả hai skill:
   - cấm đặt chữ dịch chồng lên ảnh, ảnh giữ nguyên;
