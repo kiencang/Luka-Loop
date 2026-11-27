@@ -101,4 +101,4 @@ python -X utf8 dev\ab_judge.py score AB5:LREX...
   - `work-dev\`: thư mục làm việc, chứa tệp tạm và kết quả chạy thử; không đưa lên GitHub.
   - `no-upload-dev\`: dữ liệu của bên thứ ba và tài liệu thương mại dùng để kiểm thử; **không bao giờ được đưa lên GitHub**, kể cả ảnh render, đoạn trích hay kết quả quét lấy từ chúng (những thứ đó để trong `work-dev\`; tài liệu công bố trong `dev\` chỉ ghi số liệu tổng hợp).
 
-  `work-dev\` và `no-upload-dev\` được loại qua `.git/info/exclude` của từng máy, không qua `.gitignore`, nên không dùng `git add -f` với chúng.
+  `work-dev\` và `no-upload-dev\` được loại qua `.gitignore`; không dùng `git add -f` với chúng.

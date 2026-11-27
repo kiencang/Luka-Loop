@@ -9,3 +9,8 @@ build/
 __pycache__/
 *.pyc
 .claude/settings.local.json
+
+# Local-only dev folders (never pushed): work-dev = temporary work files,
+# no-upload-dev = third-party and commercial test material
+/work-dev/
+/no-upload-dev/
