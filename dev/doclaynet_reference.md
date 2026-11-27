@@ -277,7 +277,7 @@ chí), nên phải đo thêm trên typical-pdf và Atlas trước khi đổi.
 
 Hai lý do đầu chiếm 85%. Dải 10% đầu trang là dải cố định khi công cụ không biết đầu trang thật — đúng hoàn cảnh của
 DocLayNet (mỗi trang là một PDF riêng). Trên tài liệu đầy đủ, `_label_lines` thu dải này về đáy đầu trang thật, nên con
-số 674 có thể nhỏ hơn nhiều; đo được bằng các bài gốc trong `dev/arxiv-b1`, `dev/arxiv-b2` (182 bài, đều thuộc tune).
+số 674 có thể nhỏ hơn nhiều; đo được bằng các bài gốc trong `no-upload-dev/arxiv-b1`, `no-upload-dev/arxiv-b2` (182 bài, đều thuộc tune).
 
 ## 14. Chữ lạ đạt chuẩn nhãn ở gần hình: chốt nào hiện có chặn được
 
@@ -313,7 +313,7 @@ giãn rộng cho khoảng cách lớn gấp đôi), nên ngưỡng tuyệt đố
 
 ---
 
-## 16. Đọc trang trong cả bài gốc (dev/arxiv-b1, dev/arxiv-b2)
+## 16. Đọc trang trong cả bài gốc (no-upload-dev/arxiv-b1, no-upload-dev/arxiv-b2)
 
 182 bài arXiv gốc, đều thuộc tune, được giữ ở máy (không đưa lên kho). DocLayNet đánh số trang `page_no` từ 0 theo PDF
 gốc; mỗi trang chỉ được dùng khi chữ của nó khớp trang gốc (Jaccard ≥ 0,8): 2.863 trang dùng được, 94 trang thuộc phiên
