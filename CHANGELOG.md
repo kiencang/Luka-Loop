@@ -2,6 +2,11 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Changed
+- **Gom các phép thử "đoạn văn" của bộ tách hình về một chỗ:** 11 chỗ trong `pipeline.py`, `merge.py`, `raster.py`, `captions.py`, `vector.py` tự viết điều kiện "khối chữ thường từ N từ trở lên" (12, 10 hoặc 6 từ, có nơi bỏ qua nhãn trục ngắn) nay gọi các hàm có tên trong `text.py`: `_is_paragraph` (≥ `PARAGRAPH_MIN_WORDS` = 12 từ, tùy chọn `axis_labels_ok`), `_is_sentence` (≥ `SENTENCE_MIN_WORDS` = 10 từ), `_blocks_caption_search` (chú thích hoặc câu), `_blocks_axis_labels` (chú thích hoặc ≥ `PHRASE_MIN_WORDS` = 6 từ không phải nhãn trục ngắn). Mỗi ngưỡng có chú thích kèm tỷ lệ đo trên DocLayNet; `dev/detector_rules.md` §11.1 ghi nơi nào dùng hàm nào.
+  - Không đổi ngưỡng hay điều kiện nào: DocLayNet (cả 4 tập, 14.117 trang) và 487 tài liệu đầy đủ (482 bài arXiv của tập tune, 5 sách) cho khung hình trùng hệt v1.1.46 trên mọi trang.
+
 ## [1.1.46] - 2026-11-27
 ### Fixed
 - **Số trang đặt cao ở chân trang không được nhận là chân trang lặp lại:** `running_heads.py` tìm đầu trang trong 16% đầu trang nhưng chỉ tìm chân trang trong 10% cuối trang (con số mồi ban đầu, không dựa trên số liệu). Theo nhãn DocLayNet tập tune, 10% cuối trang chỉ chứa 81,6% khung Page-footer, còn 16% chứa 99,9% (`dev/doclaynet_reference.md` §9, §16). Nâng `BOTTOM_BAND` từ 0,10 lên 0,16, bằng `TOP_BAND`:

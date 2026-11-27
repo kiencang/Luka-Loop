@@ -35,6 +35,8 @@ from .model import (
     pymupdf,
 )
 from .text import (
+    _blocks_axis_labels,
+    _blocks_caption_search,
     _is_short_axis_label,
 )
 
@@ -262,7 +264,7 @@ def _is_in_caption_above_zone(rect: pymupdf.Rect, ctx: PageContext) -> bool:
             and _horiz_overlap(tb.rect, span) >= 25.0
             and rect.y1 - 2.0 <= tb.rect.y0
             and tb.rect.y1 <= cr.y0 - 2.0
-            and (tb.kind in ("fig_caption", "tab_caption") or (tb.kind == "text" and tb.word_count >= 10))
+            and _blocks_caption_search(tb)
             for tb in ctx.text_blocks
         )
         if not blocked:
@@ -788,11 +790,7 @@ def rescue_small_vector_pieces(
     pieces = [s for s in ctx.small_vector_rejects if not any(c.contains(s) for c in covered)]
     if not pieces or len(pieces) > cfg.small_rescue_max_pieces:
         return []
-    prose = [
-        tb.rect
-        for tb in ctx.text_blocks
-        if tb.kind != "text" or (tb.word_count >= 6 and not _is_short_axis_label(tb, vertical_ok=True))
-    ]
+    prose = [tb.rect for tb in ctx.text_blocks if _blocks_axis_labels(tb)]
     pieces = [s for s in pieces if not any(s.intersects(p + (-0.5, -0.5, 0.5, 0.5)) for p in prose)]
     captions = [tb.rect for tb in ctx.text_blocks if tb.kind != "text"]
     rects = covered + pieces

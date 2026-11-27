@@ -24,6 +24,7 @@ from .model import (
     pymupdf,
 )
 from .text import (
+    _blocks_caption_search,
     _clean_text,
 )
 from .vector import (
@@ -183,7 +184,7 @@ def _fallback_search_band(
         band_span = pymupdf.Rect(bx0, band_y0, bx1, band_y1)
         for tb in ctx.text_blocks:
             if tb.rect != cr and _horiz_overlap(tb.rect, band_span) >= 25.0 and tb.rect.y0 >= cr.y1 + 2.0:
-                if tb.kind in ("fig_caption", "tab_caption") or (tb.kind == "text" and tb.word_count >= 10):
+                if _blocks_caption_search(tb):
                     band_y1 = min(band_y1, tb.rect.y0 + 2.0)
         for rr in ctx.separator_rules:
             if rr.height <= 4.0 and rr.width >= 0.60 * ctx.pw and rr.y0 >= cr.y1 + 6.0:
@@ -197,7 +198,7 @@ def _fallback_search_band(
         band_span = pymupdf.Rect(bx0, band_y0, bx1, band_y1)
         for tb in ctx.text_blocks:
             if tb.rect != cr and _horiz_overlap(tb.rect, band_span) >= 25.0 and tb.rect.y1 <= cr.y0 - 2.0:
-                if tb.kind in ("fig_caption", "tab_caption") or (tb.kind == "text" and tb.word_count >= 10):
+                if _blocks_caption_search(tb):
                     band_y0 = max(band_y0, tb.rect.y1 - 2.0)
         for rr in ctx.separator_rules:
             if rr.height <= 4.0 and rr.width >= 0.60 * ctx.pw and rr.y1 <= cr.y0 - 6.0:

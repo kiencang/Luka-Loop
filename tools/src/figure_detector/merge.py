@@ -23,6 +23,7 @@ from .model import (
     PageContext,
     pymupdf,
 )
+from .text import _is_paragraph
 
 
 def _hairline_overlap(a: pymupdf.Rect, b: pymupdf.Rect) -> bool:
@@ -79,7 +80,7 @@ def _violates_merge_invariants(
     # Never swallow >=2 newly enclosed long prose blocks that weren't already inside a or b.
     newly_swallowed_prose = 0
     for tb in ctx.text_blocks:
-        if tb.kind != "text" or tb.word_count < 12:
+        if not _is_paragraph(tb):
             continue
         tb_area = max(1.0, tb.rect.get_area())
         if (union & tb.rect).get_area() >= 0.65 * tb_area:
