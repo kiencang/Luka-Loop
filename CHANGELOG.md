@@ -2,6 +2,13 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Fixed
+- **Số trang đặt cao ở chân trang không được nhận là chân trang lặp lại:** `running_heads.py` tìm đầu trang trong 16% đầu trang nhưng chỉ tìm chân trang trong 10% cuối trang (con số mồi ban đầu, không dựa trên số liệu). Theo nhãn DocLayNet tập tune, 10% cuối trang chỉ chứa 81,6% khung Page-footer, còn 16% chứa 99,9% (`dev/doclaynet_reference.md` §9, §16). Nâng `BOTTOM_BAND` từ 0,10 lên 0,16, bằng `TOP_BAND`:
+  - 482 bài arXiv đầy đủ của tập tune (`no-upload-dev/arxiv-b1…b3`), 7.350 trang khớp DocLayNet: chân trang tìm thấy 4.142 → 4.714 / 4.779 (86,7% → 98,6%), đầu trang không đổi; trong 690 dòng mới nhận là đầu/chân trang trên mọi trang, khoảng 24 dòng nhận nhầm (số phương trình lặp lại ở cùng độ cao, cột số của một bảng xoay, dòng cuối chú thích lặp qua 3 trang). Chỉ 1 trang đổi khung hình (1001.1349 p14: cạnh dưới lùi 6,8 pt, bớt lấn vào chú thích), không trang nào kém đi.
+  - 5 sách trong `no-upload-dev/typical-pdf`: 0 trang đổi khung hình.
+  - DocLayNet chạy từng trang riêng, không có ngữ cảnh cả tài liệu, nên bước tìm đầu/chân trang lặp lại không chạy: kết quả không đổi.
+
 ## [1.1.45] - 2026-11-27
 ### Fixed
 - **Khung hình gộp hoặc nới lấn vào văn bản chính bên cạnh:** chốt "không nuốt đoạn văn" cũ chỉ chặn khi khung trùm phần lớn một đoạn dài, nên bước gộp hai ảnh cùng chú thích hoặc bước gắn nhãn vẫn đẩy khung lấn vài dòng vào cột chữ (Surgical Atlas p248: hai ảnh gộp lấn sang cột phải; Book of Proof p262: mẫu số "x" của phân số trong câu văn bị lấy như nhãn trục). Module mới `figure_detector/main_text.py` chấm mỗi khối chữ thường từ 13 từ trở lên trên thang 100 điểm theo 8 đặc điểm (bề rộng so với trang, số ký tự mỗi dòng, tỷ lệ từ viết thường, từ là chữ, chữ số, trùng phông và cỡ chữ chính của trang, số từ); khối từ 70 điểm là văn bản chính (`DetectorConfig.main_text_min_words = 13`, `main_text_min_score = 70`):

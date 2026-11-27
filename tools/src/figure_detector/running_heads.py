@@ -15,7 +15,8 @@ from .model import pymupdf
 _DIGITS_RE = re.compile(r"\d+")
 _LETTER_RE = re.compile(r"[^\W\d_]")
 TOP_BAND = 0.16  # share of page height searched for running heads
-BOTTOM_BAND = 0.10  # share of page height searched for running feet
+BOTTOM_BAND = 0.16  # share of page height searched for running feet: DocLayNet tune Page-footer tops sit within
+#   16% of the page bottom for 99.9% of boxes, within 10% for only 81.6% (dev/doclaynet_reference.md §9, §16)
 Y_TOLERANCE = 3.0  # pt between the same line on different pages
 MIN_OTHER_PAGES = 2  # pages, besides this one, that must repeat the line
 PAGE_WINDOW = 8  # ...within this many pages: heads recur page after page, a repeated figure label does not
