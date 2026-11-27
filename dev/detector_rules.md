@@ -249,20 +249,27 @@ Tất cả đo từ **khung hiện tại** (sau xén trắng / cắt clip và sa
 
 ### 11.1 "Đoạn văn" (khối chữ không được lấn vào / chặn)
 
-| Nơi | Định nghĩa |
-| :--- | :--- |
-| Ảnh nền dưới văn xuôi (raster) | ≥ 10 từ |
-| Vật cản ghép chú thích | ≥ 4 từ, trừ nhãn ngắn và ≤ 8 từ / ≤ 3 hàng |
-| Vùng tìm hình quanh chú thích mồ côi, sơ đồ con trên chú thích | ≥ 10 từ |
-| Luật `prose_box` (vector) | ≥ 12 từ không phải số trục (hoặc 1 khối ≥ 40) |
-| Cứu mảnh nhỏ (7) | ≥ 6 từ không phải nhãn ngắn, hoặc chú thích |
-| Chốt gộp | ≥ 12 từ (≥ 2 khối mới bị nuốt), **và** văn bản chính (13 từ + 70 điểm) |
-| Rãnh cột, mép cột | ≥ 12 từ |
-| Cơ chế 1 | ≥ 6 từ không phải nhãn ngắn, hoặc chú thích |
-| Cơ chế 2 | ≥ 12 từ không phải nhãn ngắn, trừ hàng số trục ≤ 5 pt |
-| Cơ chế 3 | ≥ 12 từ |
-| Cơ chế 4 | ≥ 12 từ không phải nhãn ngắn |
-| Mọi bước lấy nhãn + gộp | văn bản chính: ≥ 13 từ và ≥ 70 điểm |
+Ba ngưỡng số từ dùng ở nhiều nơi được đặt tên trong `text.py` (`PARAGRAPH_MIN_WORDS = 12`, `SENTENCE_MIN_WORDS = 10`,
+`PHRASE_MIN_WORDS = 6`), kèm các hàm `_is_paragraph`, `_is_sentence`, `_blocks_caption_search`, `_blocks_axis_labels`.
+Cột "Hàm" cho biết nơi nào dùng hàm nào; chỗ trống là luật riêng, chưa gom.
+
+| Nơi | Định nghĩa | Hàm |
+| :--- | :--- | :--- |
+| Ảnh nền dưới văn xuôi (raster) | ≥ 10 từ | `_is_sentence` |
+| Vật cản ghép chú thích | ≥ 4 từ, trừ nhãn ngắn và ≤ 8 từ / ≤ 3 hàng | |
+| Vùng tìm hình quanh chú thích mồ côi, sơ đồ con trên chú thích | ≥ 10 từ, hoặc chú thích | `_blocks_caption_search` |
+| Luật `prose_box` (vector) | ≥ 12 từ không phải số trục (hoặc 1 khối ≥ 40) | |
+| Cứu mảnh nhỏ (7) | ≥ 6 từ không phải nhãn ngắn, hoặc chú thích | `_blocks_axis_labels` |
+| Chốt gộp | ≥ 12 từ (≥ 2 khối mới bị nuốt), **và** văn bản chính (13 từ + 70 điểm) | `_is_paragraph` |
+| Rãnh cột, mép cột | ≥ 12 từ | `_is_paragraph` |
+| Cơ chế 1 | ≥ 6 từ không phải nhãn ngắn, hoặc chú thích | `_blocks_axis_labels` |
+| Cơ chế 2 | ≥ 12 từ không phải nhãn ngắn, trừ hàng số trục ≤ 5 pt | `_is_paragraph(axis_labels_ok=True)` |
+| Cơ chế 3 | ≥ 12 từ | `_is_paragraph` |
+| Cơ chế 4 | ≥ 12 từ không phải nhãn ngắn | `_is_paragraph(axis_labels_ok=True)` |
+| Mọi bước lấy nhãn + gộp | văn bản chính: ≥ 13 từ và ≥ 70 điểm | `main_text_rects` |
+
+Việc gom tên không đổi kết quả: cùng một ngưỡng 12 từ, có nơi bỏ qua nhãn trục ngắn (cơ chế 2, 4), có nơi không (rãnh
+cột, chốt gộp, cơ chế 3). Hợp nhất các biến thể này là việc đổi luật, phải đo riêng.
 
 ![Các ngưỡng số từ của khái niệm đoạn văn](img/detector_rules/07_prose_thresholds.svg)
 

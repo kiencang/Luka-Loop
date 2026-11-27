@@ -36,7 +36,9 @@ from .raster import (
     detect_raster_regions,
 )
 from .text import (
+    _blocks_axis_labels,
     _clean_text,
+    _is_paragraph,
     _is_short_axis_label,
     analyze_page,
 )
@@ -83,11 +85,7 @@ def _expand_plot_axis_labels(
     text-column edge (`_column_edges`) on the far side from the box is never taken.
     """
     all_captions = ctx.fig_captions + ctx.tab_captions
-    prose_blocks = [
-        tb
-        for tb in ctx.text_blocks
-        if tb.kind != "text" or (tb.word_count >= 6 and not _is_short_axis_label(tb, vertical_ok=True))
-    ]
+    prose_blocks = [tb for tb in ctx.text_blocks if _blocks_axis_labels(tb)]
     axis_blocks = [
         tb
         for tb in ctx.text_blocks
@@ -300,7 +298,7 @@ def _column_gutters(ctx: PageContext, boxes: Sequence[pymupdf.Rect] = ()) -> lis
     figures. A paragraph running across the columns (a full-width abstract) fills the gap, so such a page reports
     no gutter and keeps the old behaviour.
     """
-    prose = [tb.rect for tb in ctx.text_blocks if tb.kind == "text" and tb.word_count >= 12]
+    prose = [tb.rect for tb in ctx.text_blocks if _is_paragraph(tb)]
     content = prose + [tb.rect for tb in ctx.fig_captions + ctx.tab_captions] + list(boxes)
     if not prose or len(content) < 2:
         return []
@@ -337,7 +335,7 @@ def _column_edges(ctx: PageContext, boxes: Sequence[pymupdf.Rect]) -> list[Colum
     colour-bar scale can line up too. Each edge is `(side, x, y0, y1)`, with the vertical span of its paragraphs.
     """
     paras = [tb.rect for tb in ctx.text_blocks
-             if tb.kind == "text" and tb.word_count >= 12 and not any(b.intersects(tb.rect) for b in boxes)]
+             if _is_paragraph(tb) and not any(b.intersects(tb.rect) for b in boxes)]
     edges: list[ColumnEdge] = []
     for side in ("left", "right"):
         xs = sorted(((r.x0 if side == "left" else r.x1), i) for i, r in enumerate(paras))
@@ -401,7 +399,7 @@ def _attach_adjacent_label_lines(
     prose = [
         (tb.rect, _is_label_row(tb, cfg))
         for tb in ctx.text_blocks
-        if tb.kind == "text" and tb.word_count >= 12 and not _is_short_axis_label(tb, vertical_ok=True)
+        if _is_paragraph(tb, axis_labels_ok=True)
     ]
     gaps = (cfg.label_gap_left, cfg.label_gap_right, cfg.label_gap_top, cfg.label_gap_bottom)
     table_cache: list[list[pymupdf.Rect]] = []
@@ -525,7 +523,7 @@ def _attach_stroke_labels(
         lines[key] = lines[key] | r if key in lines else r
         nwords[key] = nwords.get(key, 0) + 1
     captions = [tb.rect for tb in ctx.fig_captions + ctx.tab_captions]
-    prose = [tb.rect for tb in ctx.text_blocks if tb.kind == "text" and tb.word_count >= 12]
+    prose = [tb.rect for tb in ctx.text_blocks if _is_paragraph(tb)]
     # spatial index: grid cell -> lines within `touch` of it (a page can hold thousands of strokes)
     cell = 24.0
     grid: dict[tuple[int, int], list[tuple[int, int]]] = {}
@@ -613,10 +611,7 @@ def _attach_glyph_images(
     gap = cfg.glyph_image_max_gap
     gutters = _column_gutters(ctx, [c.rect for c in candidates])
     captions = [tb.rect + (-2, -2, 2, 2) for tb in ctx.fig_captions + ctx.tab_captions]
-    blocked = [
-        tb.rect for tb in ctx.text_blocks
-        if tb.kind == "text" and tb.word_count >= 12 and not _is_short_axis_label(tb, vertical_ok=True)
-    ]
+    blocked = [tb.rect for tb in ctx.text_blocks if _is_paragraph(tb, axis_labels_ok=True)]
     table_cache: list[list[pymupdf.Rect]] = []
 
     def tables() -> list[pymupdf.Rect]:

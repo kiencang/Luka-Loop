@@ -2,6 +2,11 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [1.1.48] - 2026-11-27
+### Changed
+- **Gom các phép thử "đoạn văn" của bộ tách hình về một chỗ:** 11 chỗ trong `pipeline.py`, `merge.py`, `raster.py`, `captions.py`, `vector.py` tự viết điều kiện "khối chữ thường từ N từ trở lên" (12, 10 hoặc 6 từ, có nơi bỏ qua nhãn trục ngắn) nay gọi các hàm có tên trong `text.py`: `_is_paragraph` (≥ `PARAGRAPH_MIN_WORDS` = 12 từ, tùy chọn `axis_labels_ok`), `_is_sentence` (≥ `SENTENCE_MIN_WORDS` = 10 từ), `_blocks_caption_search` (chú thích hoặc câu), `_blocks_axis_labels` (chú thích hoặc ≥ `PHRASE_MIN_WORDS` = 6 từ không phải nhãn trục ngắn). Mỗi ngưỡng có chú thích kèm tỷ lệ đo trên DocLayNet; `dev/detector_rules.md` §11.1 ghi nơi nào dùng hàm nào.
+  - Không đổi ngưỡng hay điều kiện nào: DocLayNet (cả 4 tập, 14.117 trang) và 487 tài liệu đầy đủ (482 bài arXiv của tập tune, 5 sách) cho khung hình trùng hệt v1.1.46 trên mọi trang.
+
 ## [1.1.47] - 2026-11-27
 ### Changed
 - **Hai skill dịch thống nhất cách dịch nhãn chữ trên ảnh giữ dạng PNG (Nhóm B):** trước đây chỉ sơ đồ dựng lại bằng HTML/CSS (Nhóm A) được dặn dịch nhãn, nên với ảnh PNG agent lúc bỏ qua nhãn, lúc dịch, lúc đặt chữ dịch đè lên ảnh (xô lệch). Nay cả hai skill:

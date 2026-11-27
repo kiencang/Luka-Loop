@@ -324,3 +324,45 @@ def _is_short_axis_label(tb: TextBlock, vertical_ok: bool = False) -> bool:
     if tb.rect.height <= 26.0 and len(tokens) <= 16 and _SUBPANEL_LABEL_RE.match(cleaned):
         return True
     return False
+
+
+# Plain text blocks that count as prose. Several steps keep a figure box from growing into, across or past running
+# prose, and each step settled on its own word count. The names below say which role each count plays; the shares
+# are DocLayNet tune text blocks (figure labels / body Text and List-item) that the test calls prose
+# (dev/doclaynet_reference.md §5). The main-text guard (main_text.py) is a separate, stricter test.
+PARAGRAPH_MIN_WORDS = 12  # 0.56% of label blocks, 66.3% of body blocks (column gutters, merges, label steps)
+SENTENCE_MIN_WORDS = 10  # 0.88% / 74.0% (caption search bands, prose over a raster backdrop)
+PHRASE_MIN_WORDS = 6  # short axis labels left out: 0.86% / 82.7% (axis-label step, small-piece rescue)
+
+
+def _is_caption(tb: TextBlock) -> bool:
+    """A figure or table caption block."""
+    return tb.kind in ("fig_caption", "tab_caption")
+
+
+def _is_paragraph(tb: TextBlock, *, axis_labels_ok: bool = False) -> bool:
+    """A plain text block of at least `PARAGRAPH_MIN_WORDS` words.
+
+    With `axis_labels_ok`, a block that reads as a short axis label (tick values merged into one long block) is not
+    counted, so a step may still reach it.
+    """
+    return (
+        tb.kind == "text"
+        and tb.word_count >= PARAGRAPH_MIN_WORDS
+        and not (axis_labels_ok and _is_short_axis_label(tb, vertical_ok=True))
+    )
+
+
+def _is_sentence(tb: TextBlock) -> bool:
+    """A plain text block of at least `SENTENCE_MIN_WORDS` words."""
+    return tb.kind == "text" and tb.word_count >= SENTENCE_MIN_WORDS
+
+
+def _blocks_caption_search(tb: TextBlock) -> bool:
+    """A caption or sentence that ends a search band reaching out from a caption."""
+    return _is_caption(tb) or _is_sentence(tb)
+
+
+def _blocks_axis_labels(tb: TextBlock) -> bool:
+    """A caption, or a plain text block of at least `PHRASE_MIN_WORDS` words that is not a short axis label."""
+    return tb.kind != "text" or (tb.word_count >= PHRASE_MIN_WORDS and not _is_short_axis_label(tb, vertical_ok=True))

@@ -24,6 +24,7 @@ from .model import (
     pymupdf,
 )
 from .text import (
+    _is_sentence,
     _is_short_axis_label,
 )
 
@@ -185,8 +186,7 @@ def detect_raster_regions(
                 prose_blocks = [
                     tb
                     for tb in ctx.text_blocks
-                    if tb.kind == "text"
-                    and tb.word_count >= 10
+                    if _is_sentence(tb)
                     and (tb.rect & r).get_area() >= 0.5 * min(tb.rect.get_area(), r.get_area())
                 ]
                 is_single_col_prose = (
