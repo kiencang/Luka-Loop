@@ -61,13 +61,35 @@ python -X utf8 dev\eval_doclaynet.py --data D:\PdfSamples --subset tune --disabl
 - **Chỉ số phụ — khớp theo quy ước DocLayNet** (`matching`): khớp một-một; `strict` = IoU ≥ 0,5; `lenient` thêm trường hợp hộp phủ ≥ 90% hộp nhãn và không lớn quá 2 lần. Hộp không khớp được phân loại `missed`/`partial`/`split`/`merged`, `merge`/`fragment`/`fp_<lớp>`/`fp_unlabeled`. DocLayNet vẽ một `Picture` cho mỗi chú thích ở ~99% trường hợp, nên split/merge chủ yếu phản ánh cách gom panel — ít ảnh hưởng tới bản dịch.
 - **Nhiễu nhãn:** DocLayNet có trang thiếu hoặc lệch nhãn; xem ảnh minh họa trước khi coi một nhóm lỗi là thật.
 - **Đầu ra:** mặc định trong `%TEMP%\luka_doclaynet_eval\` — kết quả bộ phát hiện từng trang lưu đệm theo dấu vân tay mã nguồn (`pages\<fingerprint>.jsonl`, đổi mã là tự chạy lại); nhãn lưu đệm riêng (`ground_truth_v1.jsonl`) và việc chấm điểm luôn tính lại, nên đổi cách chấm không phải chạy lại bộ phát hiện. Mỗi lần chạy có `runs\<tên>\summary.json`, `worst_pages.json`, `overlays\` (`--overlays N`) và `gallery.html` (`--gallery N`: N ví dụ mỗi loại lỗi nặng, ảnh cắt sát vùng hình; chấm cam = chữ lọt vào ảnh, chấm xanh dương = chữ của hình bị cắt; kèm **ảnh xuất ra thực tế** để đối chiếu — ảnh chồng dễ gây hiểu lầm vì chữ bị cắt thường nằm sát ngay ngoài đường viền).
-- **Quy trình cải tiến:** chọn một nhóm lỗi nặng trên `tune` → sửa/thêm quy tắc → đo lại `tune` → kiểm tra `holdout` không tụt → chạy test, sinh lại golden nếu kết quả mẫu đổi có chủ đích và xem kỹ diff → **chấm mù trái/phải** (mục dưới) trước khi commit.
+- **Quy trình cải tiến:** chọn một nhóm lỗi nặng trên `tune` → đọc mục liên quan trong `detector_rules.md` và số liệu DocLayNet (mục dưới) → sửa/thêm quy tắc → đo lại `tune` → kiểm tra `holdout` không tụt → chạy test, sinh lại golden nếu kết quả mẫu đổi có chủ đích và xem kỹ diff → **chấm mù trái/phải** (mục dưới) trước khi commit.
 - **Giới hạn tốc độ:** ưu tiên chất lượng hơn tốc độ. Một thay đổi được chậm hơn nếu cho kết quả tốt hơn, miễn là bộ tách hình (đo bằng cột `seconds` của `pages\<fp>.jsonl`) vẫn nằm trong ba giới hạn:
   - trung bình ≤ 0,5 s/trang;
   - 99% số trang dưới 10 s;
   - không trang nào được phép chạy quá 30 s: quá ngưỡng thì bỏ các bước phân tích nặng và giữ kết quả đơn giản đã có.
 
   Mốc v1.1.14: trung bình 0,43 s, 99% dưới 5,4 s, trang chậm nhất 178 s. Mốc sau khi tối ưu các điểm nghẽn và thực thi giới hạn 30 s/trang (`DetectorConfig.max_page_seconds = 30.0`, đo bằng `time.monotonic`): trên toàn bộ 14.117 trang DocLayNet đạt trung bình ~0,42 s, 99% dưới 5,3 s, trang chậm nhất đo đơn luồng 26,15 s. `eval_doclaynet.py` chạy bộ tách hình **không** giới hạn thời gian, vì các worker song song làm chậm nhau (cả thời gian thực lẫn CPU) và giới hạn sẽ cắt nhầm trang; cột `pages_over_budget` trong báo cáo chỉ là cờ để đo lại đơn luồng.
+
+### Số liệu thống kê DocLayNet dùng để chỉnh ngưỡng
+
+Khi đặt hoặc đổi một ngưỡng của bộ tách hình (số từ, khoảng cách pt, độ rộng dòng…), tham khảo các số liệu thống kê dưới đây trước khi chọn con số. Đây là **tài liệu tham khảo quan trọng, không phải chân lý**: số liệu dựa trên các định nghĩa do chúng ta tự đặt (phần nhìn thấy, chuẩn nhãn…), một số bảng chỉ là xấp xỉ, và nhãn DocLayNet cũng có nhiễu. Một thay đổi **chỉ được thông qua** khi lượt kiểm tra cuối bằng `eval_doclaynet.py` trên toàn bộ DocLayNet (cả 4 tập, mọi trang, như mục trên) không tụt, kèm chấm mù A/B và kiểm tra trên sách — số liệu thống kê đẹp không thay được bước này. Tóm tắt có diễn giải ở [doclaynet_reference.md](doclaynet_reference.md); bảng đầy đủ ở `doclaynet\report_tune.md` (tập `tune`), `doclaynet\report_val_test.md`, các bản theo kiểu dàn trang `doclaynet\report_tune_*.md` và bản đọc trong cả bài gốc `doclaynet\report_tune_fulldoc.md`.
+
+| Cần biết | `doclaynet_reference.md` | `report_tune.md` |
+| :--- | :--- | :--- |
+| Đặc điểm khối chữ theo loại: số từ, số dòng, độ rộng, cỡ chữ, tỷ lệ chữ thường/chữ số, khoảng trống giữa từ, điểm văn bản chính; các định nghĩa "đoạn văn" hiện có nhận đúng và nhầm bao nhiêu | §5 | §1 |
+| Khung Picture so với khung gốc và phần nhìn thấy; lề trắng của ảnh raster và chữ đè lên lề | §2 | §2, §3 |
+| Khoảng cách từ nhãn đến hình (trực tiếp và nối chuỗi), theo từng phía; chuẩn nhãn lọc chữ lạ đến đâu | §3, §4 | §2 |
+| Chữ lạ đạt chuẩn nhãn ở gần hình và chốt nào chặn được | §14 | §12 |
+| Khoảng cách chú thích trên/dưới hình; phân loại chú thích | §6, §12 | §5, §10 |
+| Khe giữa các phần của một hình so với khe giữa hai hình | §7 | §6 |
+| Dải ruy băng (nét bị clip cắt) | §8 | §4 |
+| Đầu trang / chân trang | §9, §16 | §7, `fulldoc_heads.md` |
+| Nhãn nằm giữa hình và chú thích; ảnh raster không chú thích | §10, §11 | §8, §9 |
+| Vì sao dòng nhãn trượt `_label_lines` | §13 | §11 |
+| Khác biệt theo kiểu dàn trang (hai cột, giãn dòng) | §15 | `report_tune_*.md` |
+
+- Số liệu đo trên `tune`, đối chiếu trên `val`+`test`, không dùng `holdout`. Bài báo khoa học không đại diện cho mọi loại tài liệu: ngưỡng chọn từ DocLayNet vẫn phải kiểm tra trên sách trong `no-upload-dev\`.
+- Trước khi sửa một luật, đọc mục tương ứng trong [detector_rules.md](detector_rules.md) để biết vì sao mã gốc làm như vậy; chỉnh dần từng luật, không viết lại. Sau khi sửa, cập nhật `detector_rules.md`; nếu số liệu đổi, chạy lại thống kê và cập nhật `doclaynet_reference.md`.
+- Cách chạy lại các phép đo: §1 của `doclaynet_reference.md` (`doclaynet_facts.py` → `doclaynet_stats.py`; `doclaynet_fulldoc.py` cho các trang đọc trong cả bài gốc ở `no-upload-dev\arxiv-b*`). Chỉ công bố số liệu tổng hợp; dữ kiện thô (có chữ của trang) và ảnh cắt không đưa lên kho.
 
 ### Chấm mù trái/phải (A/B)
 
