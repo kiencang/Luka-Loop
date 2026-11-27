@@ -2,6 +2,15 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Changed
+- **Hai skill dịch thống nhất cách dịch nhãn chữ trên ảnh giữ dạng PNG (Nhóm B):** trước đây chỉ sơ đồ dựng lại bằng HTML/CSS (Nhóm A) được dặn dịch nhãn, nên với ảnh PNG agent lúc bỏ qua nhãn, lúc dịch, lúc đặt chữ dịch đè lên ảnh (xô lệch). Nay cả hai skill:
+  - cấm đặt chữ dịch chồng lên ảnh, ảnh giữ nguyên;
+  - ghi các cặp nhãn **gốc → dịch** in nghiêng trong `<span class="fig-labels">` ở cuối `<figcaption>`, ngay sau chú thích; hình không có chú thích thì `<figcaption>` chỉ chứa dòng nhãn, ngay dưới ảnh;
+  - không dịch số, đơn vị, ký hiệu, chữ đánh dấu hình con, tên riêng, chữ đã là tiếng Việt; không còn nhãn cần dịch thì không thêm dòng;
+  - `pdf-to-html-vi`: `si_academic_html.md` Mục 4.3 ý 5, CSS `.fig-labels`, mục tự kiểm 2;
+  - `pdf-to-html-vi-layout`: tag mới `[FIG-LABELS]` trong `work\translated.md` (`si_translation.md`), quy tắc dựng và CSS trong `si_layout.md`, danh sách tag trong `SKILL.md`.
+
 ## [1.1.46] - 2026-11-27
 ### Fixed
 - **Số trang đặt cao ở chân trang không được nhận là chân trang lặp lại:** `running_heads.py` tìm đầu trang trong 16% đầu trang nhưng chỉ tìm chân trang trong 10% cuối trang (con số mồi ban đầu, không dựa trên số liệu). Theo nhãn DocLayNet tập tune, 10% cuối trang chỉ chứa 81,6% khung Page-footer, còn 16% chứa 99,9% (`dev/doclaynet_reference.md` §9, §16). Nâng `BOTTOM_BAND` từ 0,10 lên 0,16, bằng `TOP_BAND`:
