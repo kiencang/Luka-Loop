@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 330" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect width="960" height="330" fill="#ffffff"/>
+  <text x="20" y="26" font-size="14.5" font-weight="600" fill="#1a202c">"Đoạn văn" nghĩa là bao nhiêu từ? Mỗi nơi một ngưỡng</text>
+  <text x="20" y="44" font-size="11.5" fill="#4a5568">Trục: số từ của một khối chữ (0–90). Khối có số từ từ vạch trở lên thì nơi đó coi là đoạn văn / không được lấn vào.</text>
+
+  <!-- axis: x = 40 + words * 9.6 -->
+  <line x1="40" y1="170" x2="920" y2="170" stroke="#2d3748" stroke-width="1.5"/>
+  <g font-size="11" fill="#4a5568" text-anchor="middle">
+    <line x1="40" y1="166" x2="40" y2="174" stroke="#2d3748"/><text x="40" y="190">0</text>
+    <line x1="136" y1="166" x2="136" y2="174" stroke="#2d3748"/><text x="136" y="190">10</text>
+    <line x1="232" y1="166" x2="232" y2="174" stroke="#2d3748"/><text x="232" y="190">20</text>
+    <line x1="424" y1="166" x2="424" y2="174" stroke="#2d3748"/><text x="424" y="190">40</text>
+    <line x1="616" y1="166" x2="616" y2="174" stroke="#2d3748"/><text x="616" y="190">60</text>
+    <line x1="808" y1="166" x2="808" y2="174" stroke="#2d3748"/><text x="808" y="190">80</text>
+  </g>
+
+  <!-- markers above the axis -->
+  <g stroke-width="2">
+    <line x1="78" y1="170" x2="78" y2="80" stroke="#805ad5"/>
+    <line x1="98" y1="170" x2="98" y2="110" stroke="#dd6b20"/>
+    <line x1="136" y1="170" x2="136" y2="140" stroke="#3182ce"/>
+    <line x1="155" y1="170" x2="155" y2="215" stroke="#c53030"/>
+    <line x1="165" y1="170" x2="165" y2="250" stroke="#e53e3e"/>
+    <line x1="424" y1="170" x2="424" y2="215" stroke="#2f855a"/>
+    <line x1="856" y1="170" x2="856" y2="110" stroke="#718096"/>
+  </g>
+  <g font-size="11.5">
+    <text x="84" y="80" fill="#553c9a"><tspan font-weight="600">4</tspan>: vật cản ghép chú thích (trừ nhãn ngắn, ≤ 8 từ/≤ 3 hàng)</text>
+    <text x="104" y="110" fill="#c05621"><tspan font-weight="600">6</tspan>: cơ chế 1 lấy nhãn trục; cứu mảnh nhỏ (không phải nhãn ngắn)</text>
+    <text x="142" y="140" fill="#2c5282"><tspan font-weight="600">10</tspan>: ảnh nền dưới văn xuôi; vùng tìm quanh chú thích mồ côi</text>
+    <text x="172" y="222" fill="#9b2c2c"><tspan font-weight="600">12</tspan>: cơ chế 2, 3, 4; prose_box; rãnh cột, mép cột; chốt gộp (≥ 2 khối)</text>
+    <text x="172" y="258" fill="#c53030"><tspan font-weight="600">13 + điểm ≥ 70</tspan>: văn bản chính (mọi bước lấy nhãn và gộp)</text>
+    <text x="430" y="200" fill="#276749"><tspan font-weight="600">40</tspan>: prose_box (một khối)</text>
+    <text x="700" y="100" fill="#4a5568"><tspan font-weight="600">85</tspan>: ảnh nền dưới văn xuôi</text>
+  </g>
+  <text x="20" y="300" font-size="12" fill="#1a202c">Mỗi ngưỡng kèm ngoại lệ riêng (nhãn trục ngắn, hàng số trục, khối ≤ 8 từ…). Cùng một khối 8 từ có thể là "đoạn văn"</text>
+  <text x="20" y="318" font-size="12" fill="#1a202c">ở bước ghép chú thích nhưng là "nhãn" ở bước lấy nhãn. Số liệu DocLayNet (mục 1 của báo cáo thống kê) đo xem ranh giới thật nằm đâu.</text>
+</svg>

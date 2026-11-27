@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 330" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4a5568"/>
+    </marker>
+  </defs>
+  <rect width="920" height="330" fill="#ffffff"/>
+  <text x="20" y="26" font-size="15" font-weight="600" fill="#1a202c">Thứ tự xử lý một trang</text>
+
+  <!-- document level -->
+  <rect x="20" y="40" width="330" height="30" rx="6" fill="#edf2f7" stroke="#a0aec0" stroke-dasharray="4 3"/>
+  <text x="32" y="60" fill="#2d3748">Mức tài liệu: tìm đầu trang / chân trang lặp lại</text>
+  <line x1="95" y1="70" x2="95" y2="96" stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- row 1 -->
+  <g fill="#ebf4ff" stroke="#2b6cb0" stroke-width="1.5">
+    <rect x="20" y="98" width="150" height="58" rx="8"/>
+    <rect x="200" y="98" width="150" height="58" rx="8"/>
+    <rect x="380" y="98" width="150" height="58" rx="8"/>
+    <rect x="560" y="98" width="150" height="58" rx="8"/>
+    <rect x="740" y="98" width="160" height="58" rx="8" fill="#f0fff4" stroke="#2f855a"/>
+  </g>
+  <g fill="#1a202c" text-anchor="middle">
+    <text x="95" y="122" font-weight="600">1 Phân tích trang</text><text x="95" y="142" font-size="11.5" fill="#4a5568">chữ, nét vẽ, khối chữ</text>
+    <text x="275" y="122" font-weight="600">2 Ảnh raster</text><text x="275" y="142" font-size="11.5" fill="#4a5568">xén trắng, gắn nhãn đè lề</text>
+    <text x="455" y="122" font-weight="600">3 Hình vector</text><text x="455" y="142" font-size="11.5" fill="#4a5568">lọc nét, gom cụm, 16 luật</text>
+    <text x="635" y="122" font-weight="600">4 Gộp chạm</text><text x="635" y="142" font-size="11.5" fill="#4a5568">khung cách ≤ 2 pt</text>
+    <text x="820" y="122" font-weight="600">5 Ghép chú thích</text><text x="820" y="142" font-size="11.5" fill="#4a5568">hình ↔ "Figure n"</text>
+  </g>
+  <g stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)">
+    <line x1="170" y1="127" x2="198" y2="127"/><line x1="350" y1="127" x2="378" y2="127"/>
+    <line x1="530" y1="127" x2="558" y2="127"/><line x1="710" y1="127" x2="738" y2="127"/>
+    <line x1="820" y1="156" x2="820" y2="216"/>
+  </g>
+
+  <!-- row 2 (right to left) -->
+  <g fill="#ebf4ff" stroke="#2b6cb0" stroke-width="1.5">
+    <rect x="740" y="218" width="160" height="58" rx="8"/>
+    <rect x="560" y="218" width="150" height="58" rx="8"/>
+    <rect x="380" y="218" width="150" height="58" rx="8" fill="#fffaf0" stroke="#dd6b20"/>
+    <rect x="200" y="218" width="150" height="58" rx="8"/>
+    <rect x="20" y="218" width="150" height="58" rx="8" fill="#f7fafc" stroke="#4a5568"/>
+  </g>
+  <g fill="#1a202c" text-anchor="middle">
+    <text x="820" y="242" font-weight="600">6 Gộp nhiều phần</text><text x="820" y="262" font-size="11.5" fill="#4a5568">cùng chú thích ≤ 68 pt</text>
+    <text x="635" y="242" font-weight="600">7 Cứu hình sót</text><text x="635" y="262" font-size="11.5" fill="#4a5568">quanh chú thích mồ côi</text>
+    <text x="455" y="242" font-weight="600">8 Lấy nhãn</text><text x="455" y="262" font-size="11.5" fill="#4a5568">nở khung, 5 cơ chế</text>
+    <text x="275" y="242" font-weight="600">9 Hoàn thiện</text><text x="275" y="262" font-size="11.5" fill="#4a5568">dọn đầu trang, ghép cuối</text>
+    <text x="95" y="242" font-weight="600">10 Xuất ảnh</text><text x="95" y="262" font-size="11.5" fill="#4a5568">chụp khung + 4 pt</text>
+  </g>
+  <g stroke="#4a5568" stroke-width="1.5" marker-end="url(#a)">
+    <line x1="740" y1="247" x2="712" y2="247"/><line x1="560" y1="247" x2="532" y2="247"/>
+    <line x1="380" y1="247" x2="352" y2="247"/><line x1="200" y1="247" x2="172" y2="247"/>
+  </g>
+  <!-- 7b loop -->
+  <path d="M 600 218 L 600 158" stroke="#c05621" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#a)"/>
+  <text x="608" y="192" font-size="11.5" fill="#c05621">7b: nếu cứu thêm hình,</text>
+  <text x="608" y="207" font-size="11.5" fill="#c05621">chạy lại 4 → 5 → 6</text>
+
+  <text x="20" y="310" font-size="12" fill="#4a5568">Ghép chú thích (5) chạy trước lấy nhãn (8). Bước 2 và 3 cũng gọi luật ghép chú thích sớm để quyết định giữ hay loại một khung.</text>
+</svg>

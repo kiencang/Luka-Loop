@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 410" font-family="Segoe UI, Arial, sans-serif" font-size="12.5">
+  <rect width="960" height="410" fill="#ffffff"/>
+  <text x="20" y="26" font-size="14.5" font-weight="600" fill="#1a202c">Gộp hình nhiều phần (<tspan font-family="Consolas, monospace">merge_candidates</tspan>)</text>
+
+  <!-- Panel 1: same caption, gap <= 68 -->
+  <text x="20" y="56" font-weight="600" fill="#2f855a">✓ Cùng chú thích, cách ≤ 68 pt</text>
+  <rect x="30" y="76" width="110" height="90" fill="#ebf4ff" stroke="#2b6cb0" stroke-width="1.8"/>
+  <text x="70" y="126" fill="#2b6cb0">(a)</text>
+  <rect x="190" y="76" width="110" height="90" fill="#ebf4ff" stroke="#2b6cb0" stroke-width="1.8"/>
+  <text x="230" y="126" fill="#2b6cb0">(b)</text>
+  <line x1="140" y1="180" x2="190" y2="180" stroke="#4a5568"/><text x="146" y="196" font-size="11" fill="#4a5568">40 pt</text>
+  <rect x="24" y="70" width="282" height="102" fill="none" stroke="#1a365d" stroke-width="2.2" stroke-dasharray="7 4"/>
+  <rect x="30" y="214" width="270" height="24" fill="#f0fff4" stroke="#2f855a" stroke-width="1.8"/>
+  <text x="38" y="231" fill="#1a202c"><tspan font-weight="600">Figure 2:</tspan> (a) ... (b) ...</text>
+  <text x="20" y="262" font-size="11.5" fill="#4a5568">≤ 112 pt nếu thẳng mép cột, ≤ 74 pt nếu cùng hàng.</text>
+
+  <!-- Panel 2: no caption, gap <= 4 -->
+  <text x="340" y="56" font-weight="600" fill="#2b6cb0">Không chú thích: chỉ gộp khi cách ≤ 4 pt</text>
+  <rect x="350" y="76" width="100" height="90" fill="#ebf4ff" stroke="#2b6cb0" stroke-width="1.8"/>
+  <rect x="456" y="76" width="70" height="90" fill="#ebf4ff" stroke="#2b6cb0" stroke-width="1.8"/>
+  <text x="446" y="186" font-size="11" fill="#2f855a">3 pt ✓</text>
+  <rect x="560" y="76" width="70" height="90" fill="#ebf4ff" stroke="#2b6cb0" stroke-width="1.8"/>
+  <text x="530" y="186" font-size="11" fill="#c53030">30 pt ✗</text>
+  <rect x="344" y="70" width="188" height="102" fill="none" stroke="#1a365d" stroke-width="2.2" stroke-dasharray="7 4"/>
+
+  <!-- Panel 3: invariant main text -->
+  <text x="670" y="56" font-weight="600" fill="#c53030">✗ Chốt chống nuốt</text>
+  <rect x="680" y="76" width="100" height="70" fill="#ebf4ff" stroke="#2b6cb0" stroke-width="1.8"/>
+  <rect x="680" y="210" width="260" height="70" fill="#ebf4ff" stroke="#2b6cb0" stroke-width="1.8"/>
+  <rect x="680" y="156" width="260" height="44" fill="#fed7d7" stroke="#c53030" stroke-width="1.5"/>
+  <g font-size="10.5" fill="#742a2a">
+    <text x="688" y="172">The results in Section 4 show that the</text>
+    <text x="688" y="188">proposed method reduces the error by ...</text>
+  </g>
+  <rect x="674" y="70" width="272" height="216" fill="none" stroke="#c53030" stroke-width="2" stroke-dasharray="7 4"/>
+  <text x="670" y="306" font-size="11.5" fill="#1a202c">Khung gộp sẽ phủ mới một khối văn bản chính</text>
+  <text x="670" y="322" font-size="11.5" fill="#1a202c">(≥ 13 từ, ≥ 70 điểm) → không gộp.</text>
+
+  <text x="20" y="352" fill="#1a202c" font-weight="600">Các chốt khác</text>
+  <text x="20" y="372" fill="#1a202c">không mang hai chú thích khác nhau · không có vật cản/đường kẻ ở giữa · không phải hai ô một hàng bảng</text>
+  <text x="20" y="392" fill="#1a202c">không thành nền trang · không phủ ≥ 50% hình có chú thích khác · không nuốt mới ≥ 2 khối ≥ 12 từ</text>
+</svg>

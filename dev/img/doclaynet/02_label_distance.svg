@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" font-family="Segoe UI, Arial, sans-serif" font-size="12">
+  <rect width="960" height="380" fill="#ffffff"/>
+  <text x="20" y="17" font-size="14.5" font-weight="600" fill="#1a202c">Nhãn nằm sát hình; khoảng cách một mình không đủ, chuẩn nhãn lọc gần hết chữ lạ</text>
+
+  <!-- left chart: cumulative % within t -->
+  <text x="80" y="35" font-size="11" fill="#4a5568">% dòng nằm trong khoảng cách t của phần nhìn thấy (tune)</text>
+  <g stroke="#e2e8f0">
+    <line x1="80" y1="40" x2="520" y2="40"/><line x1="80" y1="95" x2="520" y2="95"/><line x1="80" y1="150" x2="520" y2="150"/>
+    <line x1="80" y1="205" x2="520" y2="205"/>
+  </g>
+  <line x1="80" y1="260" x2="520" y2="260" stroke="#2d3748"/><line x1="80" y1="40" x2="80" y2="260" stroke="#2d3748"/>
+  <g font-size="11" fill="#4a5568" text-anchor="end">
+    <text x="74" y="44">100%</text><text x="74" y="99">75%</text><text x="74" y="154">50%</text><text x="74" y="209">25%</text><text x="74" y="264">0</text>
+  </g>
+  <g font-size="11" fill="#4a5568" text-anchor="middle">
+    <text x="80" y="276">0</text><text x="168" y="276">8</text><text x="256" y="276">16</text><text x="344" y="276">24</text>
+    <text x="410" y="276">30</text><text x="520" y="276">40 pt</text>
+  </g>
+  <line x1="410" y1="40" x2="410" y2="260" stroke="#a0aec0" stroke-dasharray="3 3"/>
+  <polyline fill="none" stroke="#2b6cb0" stroke-width="2.5" points="80,219.7 124,95.2 168,54.7 212,46.2 256,43.1 300,40.4 344,40.4 410,40.2 520,40.2"/>
+  <polyline fill="none" stroke="#63b3ed" stroke-width="2" stroke-dasharray="6 3" points="80,224.6 124,118.1 168,80.3 212,67.1 256,58.5 300,51.7 344,47.3 388,44.8 410,44.0 520,41.3"/>
+  <polyline fill="none" stroke="#2f855a" stroke-width="2" points="80,257.6 124,256.7 168,254.9 212,249.2 256,231.0 300,222.4 344,206.1 388,187.2 410,182.3 520,144.9"/>
+  <polyline fill="none" stroke="#c53030" stroke-width="2" points="80,256.0 124,255.4 168,253.2 212,246.8 256,242.4 300,225.7 344,213.4 388,191.8 410,185.4 520,152.9"/>
+  <g font-size="11.5">
+    <rect x="100" y="296" width="16" height="3" fill="#2b6cb0"/><text x="122" y="301">nhãn, đo nối chuỗi qua nhãn khác (p99 17 pt)</text>
+    <rect x="100" y="314" width="16" height="3" fill="#63b3ed"/><text x="122" y="319">nhãn, đo trực tiếp (p99 35 pt)</text>
+    <rect x="100" y="332" width="16" height="3" fill="#2f855a"/><text x="122" y="337">dòng Caption gần hình</text>
+    <rect x="100" y="350" width="16" height="3" fill="#c53030"/><text x="122" y="355">dòng Text gần hình</text>
+  </g>
+  <text x="416" y="200" font-size="11" fill="#4a5568">30 pt: 98% nhãn,</text>
+  <text x="416" y="214" font-size="11" fill="#4a5568">nhưng cũng ~35% dòng</text>
+  <text x="416" y="228" font-size="11" fill="#4a5568">Caption và Text</text>
+
+  <!-- right chart: intruding lines per 100 figures -->
+  <text x="600" y="35" font-size="11" fill="#4a5568">Dòng chữ lạ với tới được, trên 100 hình (nối chuỗi, tune)</text>
+  <line x1="600" y1="260" x2="940" y2="260" stroke="#2d3748"/>
+  <g>
+    <rect x="620" y="250.4" width="16" height="9.6" fill="#2f855a"/><rect x="638" y="259" width="16" height="1" fill="#9ae6b4" stroke="#2f855a"/>
+    <rect x="660" y="244" width="16" height="16" fill="#c53030"/><rect x="678" y="259" width="16" height="1" fill="#feb2b2" stroke="#c53030"/>
+    <rect x="730" y="196.7" width="16" height="63.3" fill="#2f855a"/><rect x="748" y="258.7" width="16" height="1.3" fill="#9ae6b4" stroke="#2f855a"/>
+    <rect x="770" y="214.7" width="16" height="45.3" fill="#c53030"/><rect x="788" y="258.9" width="16" height="1.1" fill="#feb2b2" stroke="#c53030"/>
+    <rect x="840" y="95.8" width="16" height="164.2" fill="#2f855a"/><rect x="858" y="256.7" width="16" height="3.3" fill="#9ae6b4" stroke="#2f855a"/>
+    <rect x="880" y="63" width="16" height="197" fill="#c53030"/><rect x="898" y="256.6" width="16" height="3.4" fill="#feb2b2" stroke="#c53030"/>
+  </g>
+  <g font-size="10.5" text-anchor="middle" fill="#1a202c">
+    <text x="628" y="246">11</text><text x="646" y="254">0,4</text><text x="668" y="240">18</text><text x="686" y="254">0,5</text>
+    <text x="738" y="192">70</text><text x="756" y="253">1,4</text><text x="778" y="210">50</text><text x="796" y="253">1,2</text>
+    <text x="848" y="91">182</text><text x="866" y="251">3,7</text><text x="888" y="59">219</text><text x="906" y="251">3,8</text>
+  </g>
+  <g font-size="11" fill="#4a5568" text-anchor="middle">
+    <text x="657" y="276">≤ 8 pt</text><text x="767" y="276">≤ 16 pt</text><text x="877" y="276">≤ 30 pt</text>
+    <text x="657" y="290" fill="#2b6cb0">nhãn 92,5%</text><text x="767" y="290" fill="#2b6cb0">97,9%</text><text x="877" y="290" fill="#2b6cb0">99,1%</text>
+  </g>
+  <g font-size="11.5">
+    <rect x="600" y="306" width="12" height="12" fill="#2f855a"/><rect x="616" y="306" width="12" height="12" fill="#9ae6b4" stroke="#2f855a"/>
+    <text x="634" y="316">Caption: mọi dòng / chỉ dòng đạt chuẩn nhãn</text>
+    <rect x="600" y="324" width="12" height="12" fill="#c53030"/><rect x="616" y="324" width="12" height="12" fill="#feb2b2" stroke="#c53030"/>
+    <text x="634" y="334">Text, List-item: mọi dòng / chỉ dòng đạt chuẩn nhãn</text>
+    <text x="600" y="356" fill="#4a5568">Chuẩn nhãn = <tspan font-family="Consolas, monospace">_label_lines</tspan> hoặc khối là nhãn trục ngắn.</text>
+    <text x="600" y="372" fill="#4a5568">Hàng xanh dương dưới trục: % nhãn đạt chuẩn lấy được.</text>
+  </g>
+</svg>

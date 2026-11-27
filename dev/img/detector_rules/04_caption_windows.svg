@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 450" font-family="Segoe UI, Arial, sans-serif" font-size="12.5">
+  <rect width="920" height="450" fill="#ffffff"/>
+  <text x="20" y="26" font-size="14.5" font-weight="600" fill="#1a202c">Ghép chú thích: vùng tìm quanh một hình (<tspan font-family="Consolas, monospace">_match_caption_scored</tspan>)</text>
+  <text x="20" y="44" font-size="11.5" fill="#4a5568">Tỷ lệ dọc: 1 pt = 1,5 px. Điểm nhỏ là tốt; trên +18, bên cạnh +24 so với dưới cùng khoảng cách.</text>
+
+  <!-- above window: -14 .. 68 pt from top (150): y 48..171 -->
+  <rect x="120" y="48" width="300" height="123" fill="#c6f6d5" fill-opacity="0.45" stroke="#2f855a" stroke-dasharray="4 3"/>
+  <text x="128" y="64" fill="#276749">trên: đến 68 pt</text>
+  <!-- side window: 35 pt -->
+  <rect x="420" y="150" width="52" height="100" fill="#c6f6d5" fill-opacity="0.45" stroke="#2f855a" stroke-dasharray="4 3"/>
+  <text x="426" y="205" font-size="11" fill="#276749">35 pt</text>
+  <text x="478" y="170" font-size="11.5" fill="#276749">bên cạnh: mép trên hoặc</text>
+  <text x="478" y="185" font-size="11.5" fill="#276749">dưới lệch ≤ 35 pt</text>
+  <!-- below window: -14 .. 96 pt from bottom (250): y 229..394 ; bridge beyond 64 pt = y 346 -->
+  <rect x="120" y="229" width="300" height="117" fill="#c6f6d5" fill-opacity="0.45" stroke="#2f855a" stroke-dasharray="4 3"/>
+  <rect x="120" y="346" width="300" height="48" fill="#fefcbf" fill-opacity="0.7" stroke="#b7791f" stroke-dasharray="4 3"/>
+  <text x="128" y="362" fill="#975a16">64–96 pt: chỉ ghép khi có nhãn trục</text>
+  <text x="128" y="378" fill="#975a16">bắc cầu (nhãn cuối cách chú thích ≤ 45 pt)</text>
+
+  <!-- figure -->
+  <rect x="120" y="150" width="300" height="100" fill="#ebf4ff" stroke="#2b6cb0" stroke-width="2"/>
+  <polyline points="135,235 185,200 235,212 285,170 335,180 405,160" fill="none" stroke="#2b6cb0" stroke-width="2"/>
+  <text x="240" y="196" fill="#2b6cb0" font-weight="600">hình</text>
+  <!-- caption -->
+  <rect x="120" y="274" width="300" height="30" fill="#f0fff4" stroke="#2f855a" stroke-width="2"/>
+  <text x="128" y="294" fill="#1a202c"><tspan font-weight="600">Figure 3:</tspan> Sai số theo thời gian ...</text>
+  <!-- gap measure -->
+  <line x1="100" y1="250" x2="100" y2="274" stroke="#4a5568"/><line x1="94" y1="250" x2="106" y2="250" stroke="#4a5568"/><line x1="94" y1="274" x2="106" y2="274" stroke="#4a5568"/>
+  <text x="44" y="266" font-size="11.5" fill="#4a5568">16 pt</text>
+  <text x="30" y="236" font-size="11" fill="#4a5568">−14 pt</text>
+  <text x="38" y="398" font-size="11" fill="#4a5568">96 pt</text>
+  <text x="38" y="350" font-size="11" fill="#4a5568">64 pt</text>
+
+  <!-- notes -->
+  <g fill="#1a202c">
+    <text x="520" y="236" font-weight="600">Vật cản (chặn ghép)</text>
+    <text x="520" y="256">Một khối chữ nằm giữa hình và chú thích,</text>
+    <text x="520" y="274">trùng ngang ≥ 20 pt, <tspan font-weight="600">trừ</tspan>:</text>
+    <text x="532" y="292">• khối &lt; 4 từ, hoặc nhãn trục ngắn</text>
+    <text x="532" y="310">• khối text ≤ 8 từ và ≤ 3 hàng</text>
+    <text x="532" y="328">• phụ đề ngay dưới chú thích trên</text>
+    <text x="520" y="362" font-weight="600">Sau đó (link_captions)</text>
+    <text x="520" y="380">phân xử khi nhiều hình giành một chú thích,</text>
+    <text x="520" y="398">rồi lan chú thích sang hình anh em (≤ 68 pt).</text>
+  </g>
+  <text x="20" y="436" font-size="12" fill="#4a5568">Dưới: cần trùng ngang ≥ min(28 pt, 30% bề rộng nhỏ hơn). Hình cao ≥ 120 pt cho phép chú thích lấn lên −26 pt.</text>
+</svg>

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" font-family="Segoe UI, Arial, sans-serif" font-size="12.5">
+  <defs>
+    <pattern id="h" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#cbd5e0" stroke-width="2"/>
+    </pattern>
+    <clipPath id="clipB"><rect x="365" y="110" width="230" height="150"/></clipPath>
+  </defs>
+  <rect width="960" height="400" fill="#ffffff"/>
+
+  <!-- Panel A: white margin -->
+  <text x="20" y="28" font-size="14.5" font-weight="600" fill="#1a202c">A. Lề trắng (ảnh raster)</text>
+  <rect x="40" y="70" width="240" height="220" fill="url(#h)" stroke="#718096" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <rect x="78" y="100" width="168" height="150" fill="#ebf4ff" stroke="#2b6cb0" stroke-width="2"/>
+  <polyline points="88,235 118,200 148,214 178,160 208,170 236,118" fill="none" stroke="#2b6cb0" stroke-width="2"/>
+  <line x1="88" y1="240" x2="240" y2="240" stroke="#4a5568"/><line x1="88" y1="110" x2="88" y2="240" stroke="#4a5568"/>
+  <text x="40" y="62" fill="#4a5568">khung đặt ảnh (khung gốc)</text>
+  <text x="82" y="94" fill="#2b6cb0" font-weight="600">phần có mực</text>
+  <text x="20" y="318" fill="#1a202c">Phần gạch chéo: điểm ảnh trắng, <tspan font-weight="600">không có mực</tspan>.</text>
+  <text x="20" y="336" fill="#1a202c"><tspan font-family="Consolas, monospace">_image_ink_rect</tspan> xén bỏ, giữ khung xanh.</text>
+  <text x="20" y="354" fill="#4a5568">Chỉ xén khi khung co ≥ 3% diện tích.</text>
+
+  <!-- Panel B: ribbon -->
+  <text x="330" y="28" font-size="14.5" font-weight="600" fill="#1a202c">B. Ruy băng (nét vector bị clip)</text>
+  <!-- drawn shapes, full extent, faint -->
+  <rect x="330" y="150" width="300" height="40" fill="#e2e8f0" stroke="#a0aec0" stroke-dasharray="4 3"/>
+  <path d="M 340 250 C 400 60, 520 300, 622 90" fill="none" stroke="#cbd5e0" stroke-width="3"/>
+  <!-- visible part -->
+  <g clip-path="url(#clipB)">
+    <rect x="330" y="150" width="300" height="40" fill="#bee3f8" stroke="#2b6cb0"/>
+    <path d="M 340 250 C 400 60, 520 300, 622 90" fill="none" stroke="#2b6cb0" stroke-width="3"/>
+  </g>
+  <rect x="365" y="110" width="230" height="150" fill="none" stroke="#c53030" stroke-width="1.8" stroke-dasharray="7 4"/>
+  <text x="365" y="102" fill="#c53030">vùng clip do người biên tập đặt</text>
+  <text x="332" y="210" font-size="11.5" fill="#718096">phần</text><text x="332" y="223" font-size="11.5" fill="#718096">bị cắt</text>
+  <text x="330" y="318" fill="#1a202c">Phần xám: <tspan font-weight="600">có mực</tspan> nhưng cố ý bị cắt, không hiện</text>
+  <text x="330" y="336" fill="#1a202c">ra. <tspan font-family="Consolas, monospace">_clipped_drawings</tspan> giữ nét ∩ clip.</text>
+  <text x="330" y="354" fill="#4a5568">Khung gốc (<tspan font-family="Consolas, monospace">unclipped_rect</tspan>) chỉ dùng cho bộ tìm bảng.</text>
+
+  <!-- Panel C: visible part of the whole figure -->
+  <text x="650" y="28" font-size="14.5" font-weight="600" fill="#1a202c">C. Phần nhìn thấy của cả hình</text>
+  <rect x="680" y="90" width="110" height="90" fill="#ebf4ff" stroke="#2b6cb0"/>
+  <text x="690" y="140" font-size="11" fill="#2b6cb0">ảnh đã xén</text>
+  <rect x="805" y="95" width="115" height="80" fill="#bee3f8" stroke="#2b6cb0"/>
+  <text x="812" y="140" font-size="11" fill="#2b6cb0">nét đã cắt clip</text>
+  <rect x="690" y="195" width="225" height="70" fill="#bee3f8" stroke="#2b6cb0"/>
+  <text x="700" y="234" font-size="11" fill="#2b6cb0">mảnh vector gộp vào (bước 6)</text>
+  <rect x="676" y="86" width="248" height="183" fill="none" stroke="#1a365d" stroke-width="2.5"/>
+  <g fill="#dd6b20" font-size="11">
+    <text x="648" y="140">0.5</text><text x="648" y="230">0.0</text>
+    <text x="760" y="285">Thời gian (s)</text>
+  </g>
+  <text x="650" y="318" fill="#1a202c">Khung đậm = hợp các phần nhìn thấy, sau gộp.</text>
+  <text x="650" y="336" fill="#1a202c">Mọi bước lấy nhãn đo khoảng cách từ khung này</text>
+  <text x="650" y="354" fill="#1a202c">(chữ cam), trừ cơ chế 0 đo trong khung gốc ảnh.</text>
+
+  <text x="20" y="388" font-size="12" fill="#4a5568">A và B là hai việc khác nhau: A bỏ phần không có mực, B tôn trọng một quyết định cắt có chủ ý. Cả hai cho ra "phần nhìn thấy" dùng ở C.</text>
+</svg>

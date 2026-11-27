@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 380" font-family="Segoe UI, Arial, sans-serif" font-size="12.5">
+  <defs>
+    <pattern id="h" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#cbd5e0" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <rect width="960" height="380" fill="#ffffff"/>
+  <text x="20" y="26" font-size="14.5" font-weight="600" fill="#1a202c">Người gán nhãn DocLayNet vẽ khung Picture ôm phần có mực, không theo khung gốc</text>
+  <text x="20" y="44" font-size="11.5" fill="#4a5568">Hình gồm đúng một ảnh raster đã xén được (tune: 350 hình). Sơ đồ mô phỏng; số liệu là trung vị (p10) theo từng phía.</text>
+
+  <rect x="60" y="70" width="380" height="250" fill="url(#h)" stroke="#718096" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="64" y="64" fill="#4a5568">khung gốc (khung đặt ảnh)</text>
+  <rect x="120" y="110" width="260" height="170" fill="#ebf4ff" stroke="#2b6cb0" stroke-width="2"/>
+  <polyline points="135,265 185,225 235,240 285,180 335,195 370,125" fill="none" stroke="#2b6cb0" stroke-width="2"/>
+  <rect x="117" y="107" width="266" height="176" fill="none" stroke="#2f855a" stroke-width="2.5" stroke-dasharray="9 4"/>
+  <text x="124" y="300" fill="#2f855a" font-weight="600">khung Picture DocLayNet</text>
+  <text x="200" y="150" fill="#2b6cb0" font-weight="600">phần có mực (đã xén)</text>
+
+  <g fill="#1a202c">
+    <text x="480" y="90" font-weight="600">So với phần đã xén: Picture lớn hơn khoảng 1 pt mỗi phía</text>
+    <text x="492" y="110">trung vị 0,8–1,1 pt; p90 2,8–4,8 pt (val+test: 0,6–0,8 / 2,6–4,7)</text>
+    <text x="480" y="146" font-weight="600">So với khung gốc: Picture nhỏ hơn, lùi vào trong</text>
+    <text x="492" y="166">trung vị 2–5 pt; p10 lùi 14–27 pt mỗi phía</text>
+    <text x="480" y="210" font-weight="600">Lề bị xén (664 ảnh xén được ≥ 3%)</text>
+    <text x="492" y="230">• 574 ảnh (86%): lề hoàn toàn trống</text>
+    <text x="492" y="250">• 75 ảnh (11%): có nhãn của chính hình đè lên lề</text>
+    <text x="504" y="268" fill="#4a5568">nhãn đó sát phần có mực: trung vị 0 pt, p90 4,3 pt</text>
+    <text x="492" y="288">• 15 ảnh (2%): có chữ không thuộc hình trên lề</text>
+  </g>
+  <text x="20" y="352" font-size="12" fill="#1a202c">Kết luận: phần đã xén là thước đo đúng cho "hình thật"; khoảng trắng của khung gốc phần lớn là vô ý. Nhãn nằm trên lề</text>
+  <text x="20" y="370" font-size="12" fill="#1a202c">thì nằm sát phần có mực, nên đo từ phần đã xén vẫn bắt được chúng.</text>
+</svg>
