@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.46] - 2026-11-27
 ### Fixed
 - **Số trang đặt cao ở chân trang không được nhận là chân trang lặp lại:** `running_heads.py` tìm đầu trang trong 16% đầu trang nhưng chỉ tìm chân trang trong 10% cuối trang (con số mồi ban đầu, không dựa trên số liệu). Theo nhãn DocLayNet tập tune, 10% cuối trang chỉ chứa 81,6% khung Page-footer, còn 16% chứa 99,9% (`dev/doclaynet_reference.md` §9, §16). Nâng `BOTTOM_BAND` từ 0,10 lên 0,16, bằng `TOP_BAND`:
   - 482 bài arXiv đầy đủ của tập tune (`no-upload-dev/arxiv-b1…b3`), 7.350 trang khớp DocLayNet: chân trang tìm thấy 4.142 → 4.714 / 4.779 (86,7% → 98,6%), đầu trang không đổi; trong 690 dòng mới nhận là đầu/chân trang trên mọi trang, khoảng 24 dòng nhận nhầm (số phương trình lặp lại ở cùng độ cao, cột số của một bảng xoay, dòng cuối chú thích lặp qua 3 trang). Chỉ 1 trang đổi khung hình (1001.1349 p14: cạnh dưới lùi 6,8 pt, bớt lấn vào chú thích), không trang nào kém đi.
