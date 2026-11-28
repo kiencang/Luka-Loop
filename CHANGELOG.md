@@ -2,7 +2,7 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
-## [Unreleased]
+## [1.1.49] - 2026-11-28
 ### Changed
 - **Hai skill dịch giữ nguyên mức khẳng định khi tránh lặp từ** (`si_academic_html.md` và `si_translation.md`, Mục 2.2): trước đây skill dặn "đa dạng hóa cách diễn đạt" và lấy ví dụ `understand` → *hiểu rõ / nắm vững / thấu suốt* (các từ mạnh yếu khác nhau), nên agent có thể đổi luân phiên "cho thấy / chứng minh / chỉ ra" làm lệch mức khẳng định của bài khoa học. Nay:
   - chỉ chọn từ đồng nghĩa **cùng mức nghĩa** với từ gốc; chỉ đa dạng hóa từ nối, động từ thông thường và cấu trúc câu không mang mức độ;
