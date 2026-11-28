@@ -2,6 +2,16 @@
 
 Tất cả những thay đổi đáng chú ý của dự án **Luka-Loop** sẽ được ghi lại trong file này.
 
+## [Unreleased]
+### Changed
+- **Hai skill dịch giữ nguyên mức khẳng định khi tránh lặp từ** (`si_academic_html.md` và `si_translation.md`, Mục 2.2): trước đây skill dặn "đa dạng hóa cách diễn đạt" và lấy ví dụ `understand` → *hiểu rõ / nắm vững / thấu suốt* (các từ mạnh yếu khác nhau), nên agent có thể đổi luân phiên "cho thấy / chứng minh / chỉ ra" làm lệch mức khẳng định của bài khoa học. Nay:
+  - chỉ chọn từ đồng nghĩa **cùng mức nghĩa** với từ gốc; chỉ đa dạng hóa từ nối, động từ thông thường và cấu trúc câu không mang mức độ;
+  - thuật ngữ và các từ mang mức khẳng định (động từ tường thuật, khả năng, mức chênh lệch, tần suất, phạm vi) dịch thống nhất trong cả tài liệu, kèm thang gợi ý từ yếu đến mạnh (`may` → *có thể* … `demonstrate/prove` → *chứng minh*);
+  - không tự thêm từ nhấn (*rất*, *hoàn toàn*, *rõ ràng*, *đáng kể*) khi bản gốc không có;
+  - `si_academic_html.md`: mục "Xử lý Mơ hồ 3 cấp độ" chuyển lên Mục 2, cùng chỗ với `si_translation.md`.
+- **Quy đổi đơn vị Anh → mét giữ số gốc đứng trước** (Mục 3 của hai tệp SI): `5 lbs (khoảng 2,3 kg)`, `77°F (25°C)` thay cho `2,27 kg (5 lbs)`; số quy đổi không được ghi chính xác hơn số gốc, làm tròn thì thêm "khoảng"; dữ liệu trong bảng giữ nguyên, chỉ thêm một dòng ghi chú quy đổi ngay dưới bảng cho các đơn vị có trong bảng.
+- Cập nhật kích thước ghi trong hai `SKILL.md` cho `si_academic_html.md`, `si_translation.md` và `si_layout.md`.
+
 ## [1.1.48] - 2026-11-27
 ### Changed
 - **Gom các phép thử "đoạn văn" của bộ tách hình về một chỗ:** 11 chỗ trong `pipeline.py`, `merge.py`, `raster.py`, `captions.py`, `vector.py` tự viết điều kiện "khối chữ thường từ N từ trở lên" (12, 10 hoặc 6 từ, có nơi bỏ qua nhãn trục ngắn) nay gọi các hàm có tên trong `text.py`: `_is_paragraph` (≥ `PARAGRAPH_MIN_WORDS` = 12 từ, tùy chọn `axis_labels_ok`), `_is_sentence` (≥ `SENTENCE_MIN_WORDS` = 10 từ), `_blocks_caption_search` (chú thích hoặc câu), `_blocks_axis_labels` (chú thích hoặc ≥ `PHRASE_MIN_WORDS` = 6 từ không phải nhãn trục ngắn). Mỗi ngưỡng có chú thích kèm tỷ lệ đo trên DocLayNet; `dev/detector_rules.md` §11.1 ghi nơi nào dùng hàm nào.

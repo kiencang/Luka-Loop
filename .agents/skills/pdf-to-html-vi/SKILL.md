@@ -13,7 +13,7 @@ Quy trình 4 bước tự động hoàn toàn (người dùng **không cần gõ
 > **Môi trường agent:** Quy trình dưới đây viết trung lập, không gắn với agent cụ thể — các cụm "đọc tệp", "đọc trọn 1 lần", "đọc theo từng đoạn", "mở xem song song", "ghi nối dần" nghĩa là dùng công cụ tương ứng của agent đang chạy. **Nếu ngữ cảnh có khối `<user_information>` chứa `App Data Directory` / `Artifact Directory Path` (hoặc `appDataDir` ở bản cũ — môi trường Antigravity), đọc thêm [antigravity.md](../../adapters/antigravity.md) ngay trong lượt Bước 1** — tệp này mô tả cách lấy PDF người dùng tải lên khung chat, quy ước tên tệp tạm và cách ánh xạ sang công cụ của Antigravity.
 
 ## Bước 1: Tự động tách ảnh & tạo bản đồ `manifest.json`
-> **Tối ưu song song:** Ngay trong lượt thực thi Bước 1, chạy **đồng thời** lệnh tách ảnh dưới đây và đọc **trọn 1 lần** [si_academic_html.md](./si_academic_html.md) (tệp ngắn, ~256 dòng / ~31 KB — đọc toàn bộ trong một lần, không chia đoạn).
+> **Tối ưu song song:** Ngay trong lượt thực thi Bước 1, chạy **đồng thời** lệnh tách ảnh dưới đây và đọc **trọn 1 lần** [si_academic_html.md](./si_academic_html.md) (tệp ngắn, ~275 dòng / ~34 KB — đọc toàn bộ trong một lần, không chia đoạn).
 
 Chọn 1 trong 2 lệnh sau tùy cách người dùng cung cấp tệp PDF:
 
